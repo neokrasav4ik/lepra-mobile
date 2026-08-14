@@ -374,7 +374,7 @@ body {
   /* НАСТРОЙКА: первое число — насколько опустить эту надпись.
      Больше — ниже, меньше (можно отрицательное) — выше.
      Соседние блоки не двигаются: отступ только у неё. */
-  margin: 4px 0 0 0 !important; }
+  margin: 8px 0 0 0 !important; }
 
 .l-header > .b-index_slider {
   order: 6 !important; flex: 1 1 50% !important;
