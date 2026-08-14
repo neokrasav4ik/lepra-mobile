@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Lepra Mobile
 // @namespace    lepra.mobile
-// @version      0.7.0
+// @version      0.9.14
 // @description  Мобильная адаптация leprosorium.ru для iOS Safari
 // @author       neokrasav4ik
 // @homepageURL  https://github.com/neokrasav4ik/lepra-mobile
@@ -39,7 +39,7 @@
 (function () {
   'use strict';
 
-  var VERSION = '0.7.0';
+  var VERSION = '0.9.14';
 
   /* ============================================================
      НАСТРОЙКИ
@@ -160,7 +160,9 @@
     unfloat: new Marks(),   /* проверено на обтекание */
     media:   new Marks(),   /* размеры медиа выставлены */
     obs:     new Marks(),   /* отдано наблюдателю видимости */
-    poked:   new Marks()    /* плеер разбужен */
+    poked:   new Marks(),   /* плеер разбужен */
+    footer:  new Marks(),   /* подпись поста сокращена */
+    toggle:  new Marks()    /* кнопка сворачивания перенесена */
   };
 
   /* Обход в глубину с отсечением поддеревьев. querySelectorAll возвращает
@@ -269,8 +271,14 @@ body {
   margin: 0 0 16px 0 !important; padding: 8px 0 12px !important;
   min-height: 0 !important;
   flex-wrap: wrap !important; align-items: flex-start !important;
+  /* у лепры здесь space-between — он растаскивал приветствие,
+     переключатель темы и логотипы по краям строки */
+  justify-content: flex-start !important;
   border-bottom: 1px solid rgb(214, 212, 212) !important; }
 
+/* выравнивание задаём явно: приветствие с логаутом всегда слева */
+.l-header_tagline, .l-i-header_tagline, .b-header_tagline,
+.l-header_tagline a { text-align: left !important; }
 .l-header_tagline {
   order: 1 !important;
   /* база 0: длинная фраза не выталкивает логотип на новую строку,
@@ -296,7 +304,8 @@ body {
   width: auto !important; text-align: left !important;
   margin: 0 0 0 10px !important; }
 .b-logo img {
-  display: inline-block !important; position: static !important;
+  display: inline-block !important;
+  position: relative !important; top: -1px !important;
   width: auto !important; height: auto !important;
   max-height: 40px !important; max-width: 40px !important; }
 
@@ -308,49 +317,24 @@ body {
   position: static !important; float: none !important; width: auto !important;
   margin: 3px 0 0 16px !important; }
 .l-header .b-logo_subsite img {
+  position: relative !important; top: -1px !important;
   max-height: 32px !important; max-width: 32px !important;
   opacity: .85 !important; }
 
+/* Строка ссылок: всегда в одну линию и по центру, на любом масштабе. */
 .l-header_nav { order: 3 !important; flex: 0 0 100% !important;
-                width: auto !important; padding: 2px 6px !important;
-                line-height: 2 !important; }
-/* .b-header_nav — внутренняя обёртка лепры, не путать с .l-header_nav */
-.b-header_nav { line-height: 2 !important; }
+                width: auto !important; padding: 0 !important;
+                margin: 0 !important; line-height: 1.5 !important; }
+.b-header_nav {
+  display: flex !important; flex-wrap: nowrap !important;
+  align-items: center !important; justify-content: center !important;
+  gap: 0 8px !important; white-space: nowrap !important;
+  font-size: 13px !important; line-height: 1.5 !important; }
+.b-header_nav_link { flex: 0 0 auto !important; }
 /* медали в навигации были absolute и ложились поверх соседнего текста */
 .b-header_nav_link img { display: none !important; }
-.b-header_nav_notifications { margin-right: 10px !important;
-                              padding-left: 6px !important; }
-.b-header_nav_fraud { margin-right: 8px !important; }
-
-/* Две колонки: слева счётчики с поиском, справа фильтр с переключателями. */
-.l-header_aside {
-  order: 4 !important; flex: 1 1 46% !important;
-  min-width: 0 !important; width: auto !important; padding: 0 !important; }
-.b-header_counters { line-height: 1.5 !important; height: auto !important; }
-.b-header_counters a { display: inline !important; }
-
-.l-header .b-posts_threshold {
-  order: 5 !important; flex: 1 1 46% !important;
-  min-width: 0 !important; margin: 6px 0 0 !important; padding: 0 !important;
-  text-align: right !important;
-  /* переключатели режимов сверху, выпадающий список снизу */
-  display: flex !important; flex-direction: column !important;
-  align-items: flex-end !important; gap: 6px !important; }
-.l-header .b-posts_threshold > * {
-  display: flex !important; justify-content: flex-end !important;
-  flex-wrap: wrap !important; }
-.l-header .b-posts_threshold .b-index_slider,
-.l-header .b-posts_threshold .b-index_navigation_holder { order: 1 !important; }
-.l-header .b-posts_threshold form,
-.l-header .b-posts_threshold select,
-.l-header .b-posts_threshold .b-posts_threshold_select {
-  order: 2 !important; text-align: right !important; }
-.l-header .b-index_navigation_holder {
-  margin: 0 !important; border: 0 !important;
-  justify-content: flex-end !important; }
-.l-header .b-index_slider,
-.l-header .b-index_slider .b-slider_scale_icons {
-  margin-left: auto !important; margin-right: 0 !important; }
+.b-header_nav_notifications { margin: 0 !important; padding: 0 !important; }
+.b-header_nav_fraud { margin: 0 !important; }
 
 /* Переключатель вида: три иконки были absolute от точки left:50%
    и ложились на выпадающий список. */
@@ -375,6 +359,49 @@ body {
   margin: 4px !important; flex: 0 0 auto !important; }
 .b-index_view_about { display: none !important; }
 
+/* Ниже — четыре самостоятельные строки. Все эти блоки скрипт переносит
+   прямо в .l-header: в исходной разметке они лежат в разных обёртках,
+   а флекс умеет строить строки только из соседей по одному родителю. */
+.l-header > .b-header_nav_new_post {
+  order: 4 !important; flex: 0 0 100% !important;
+  text-align: center !important; line-height: 1.4 !important;
+  margin: 2px 0 4px !important; }
+
+.l-header > .b-header_counters {
+  order: 5 !important; flex: 1 1 50% !important;
+  text-align: left !important; line-height: 1.5 !important;
+  height: auto !important;
+  /* НАСТРОЙКА: первое число — насколько опустить эту надпись.
+     Больше — ниже, меньше (можно отрицательное) — выше.
+     Соседние блоки не двигаются: отступ только у неё. */
+  margin: 4px 0 0 0 !important; }
+
+.l-header > .b-index_slider {
+  order: 6 !important; flex: 1 1 50% !important;
+  display: flex !important; justify-content: flex-end !important;
+  align-items: center !important; gap: 18px !important;
+  margin: 0 !important; }
+
+.l-header > .b-header_search {
+  order: 7 !important; flex: 1 1 50% !important;
+  margin: 4px 0 0 !important; }
+.l-header > .b-header_search form {
+  display: flex !important; align-items: center !important; gap: 4px !important; }
+
+.l-header > .b-posts_threshold {
+  order: 8 !important; flex: 1 1 50% !important;
+  display: flex !important; justify-content: flex-end !important;
+  align-items: center !important;
+  margin: 4px 0 0 !important; padding: 0 !important;
+  text-align: right !important; }
+
+/* Опустевшие обёртки. Важно: у них нет order, а значит он равен нулю —
+   такой блок встаёт в строке ПЕРЕД приветствием (order:1) и сдвигает его
+   вправо на свою ширину. Именно поэтому приветствие казалось центрированным. */
+.l-header_aside, .b-header_aside { order: 9 !important; }
+.l-header_aside:empty, .b-header_aside:empty,
+.b-index_navigation_holder:empty { display: none !important; }
+
 /* ============ ЛЕНТА И ПОСТЫ ============ */
 /* Белая полоса справа получалась из двух вложенных width:98%,
    плюс у поста было 270px внутреннего отступа под правую колонку. */
@@ -384,7 +411,64 @@ body {
   padding-right: 0 !important;
   margin-left: 0 !important; margin-right: 0 !important; }
 .post .dt { padding-right: 0 !important; }
-.dd { padding-right: 0 !important; }
+.dd {
+  position: relative !important;
+  padding: 0 0 0 88px !important;   /* место для голосовалки слева */
+  line-height: 1.4 !important; font-size: 13px !important; }
+
+/* Подпись — флекс-строка: промежутки задавались пробелами в разметке
+   и полями у ссылок, отсюда рыхлость и перенос крестика на третью строку. */
+.dd .ddi {
+  display: flex !important; flex-wrap: wrap !important;
+  align-items: center !important; gap: 2px 6px !important; }
+.dd .b-post_controls {
+  display: inline-flex !important; align-items: center !important;
+  gap: 8px !important; white-space: nowrap !important; margin: 0 !important; }
+/* Все значки подписи скрипт складывает в один контейнер .lm-icons.
+   Раньше они лежали в двух разных обёртках лепры с разными метриками,
+   и выровнять их правилами не удавалось: крестик всё время проваливался
+   ниже. Соседи по одному флекс-боксу разъехаться не могут. */
+.dd .lm-icons {
+  display: inline-flex !important; align-items: center !important;
+  gap: 10px !important; height: 16px !important;
+  vertical-align: middle !important; }
+.dd .lm-icons > span:not(.hidden):not(.b-post_interest_info),
+.dd .lm-icons a:not(.hidden):not(.b-post_interest_info) {
+  display: inline-flex !important;
+  align-items: center !important; justify-content: center !important;
+  align-self: center !important;
+  /* У лепры .b-icon_button задан position:relative, и отдельным значкам
+     приписаны сдвиги top. Внутри флекс-бокса это и разбрасывало их по
+     вертикали: «?» уходил на 4px вверх, крестик на 7px вниз. */
+  position: static !important; inset: auto !important;
+  top: auto !important; bottom: auto !important;
+  transform: none !important;
+  height: 16px !important; line-height: 16px !important;
+  font-size: 14px !important;
+  margin: 0 !important; padding: 0 !important;
+  text-decoration: none !important; }
+.dd .lm-icons a i, .dd .lm-icons a b {
+  position: static !important; top: auto !important;
+  height: 16px !important; line-height: 16px !important;
+  vertical-align: middle !important; }
+/* неактивные значки лепра прячет классом — не мешаем */
+.dd .lm-icons a.hidden { display: none !important; }
+/* Справочная ссылка «?»: в ленте лепра её показывает, на телефоне она
+   только занимает место. Скрытие вынесено и в исключение основного
+   правила выше — иначе оно перебивало это по весу селектора. */
+.b-post_interest_info,
+.dd .lm-icons .b-post_interest_info { display: none !important; }
+.dd .lm-icons svg {
+  display: block !important; width: 14px !important; height: 14px !important; }
+/* Пустые обёртки под фоновые спрайты лепры рисовали мелкие чёрточки по
+   краям значков. Но в такой же <span class="b-svg-icon"> завёрнут svg
+   галочки — поэтому скрываем только ПУСТЫЕ, по содержимому, а не по тегу. */
+.dd .lm-icons a em:empty, .dd .lm-icons a span:empty { display: none !important; }
+
+.dd .post_icon { margin: 0 !important; }
+/* .c_show_user — декоративная точка лепры, на телефоне рисуется
+   случайным глифом и сбивает высоту строки */
+.dd .c_show_user { display: none !important; }
 .b-paginator { padding: 20px 10px 40px !important; }
 .b-post_tags {
   float: none !important; width: auto !important;
@@ -417,7 +501,16 @@ img.js-image_in_comments_original {
 
 /* ============ КОММЕНТАРИИ ============ */
 .post_comments_page, #js-comments { padding: 0 !important; }
-#js-comments .comment { padding-bottom: 18px !important; }
+/* .b-post_comments у лепры имеет width:90% — десятая часть ширины уходила
+   впустую, и комментарии не доходили до правого края. Панель навигации
+   к этому отношения не имеет: она фиксированная и места не занимает. */
+.b-post_comments, #js-comments_holder {
+  width: 100% !important; max-width: 100% !important;
+  box-sizing: border-box !important; }
+.post_comments_page .post {
+  margin-right: 0 !important; width: auto !important;
+  padding-right: 0 !important; float: none !important; }
+#js-comments .comment { padding-bottom: 10px !important; }
 ${indentRules()}
 
 /* Подпись в одну флекс-строку. div.ddi — блок, из-за него голосование
@@ -425,25 +518,66 @@ ${indentRules()}
    бокс, и ссылки попадают в общий ряд с кнопками. */
 .comment .c_footer {
   display: flex !important; flex-wrap: wrap !important;
-  align-items: center !important; gap: 0 7px !important;
-  line-height: 1.7 !important; font-size: 13px !important; }
-.comment .c_footer .ddi { display: contents !important; }
-.comment .ddi { font-size: 13px !important; }
-.comment .c_footer a, .comment .ddi a,
-.comment .c_footer > *, .comment .ddi > * {
-  display: inline-block !important;
-  padding: 2px 1px !important; margin: 0 2px 0 0 !important; }
+  align-items: center !important; gap: 0 5px !important;
+  line-height: 1.3 !important; font-size: 13px !important; }
 
-/* Сворачивание веток скрыто: занимало две строки на каждый комментарий.
-   Чтобы вернуть — замените display:none на display:block. */
-.b-comment_thread_collapse { display: none !important; }
+.comment .ddi { font-size: 13px !important; }
+/* :not(.b-button) — чтобы не перекрывать логику показа стрелок
+   сворачивания: они управляются отдельными правилами ниже */
+/* .ddi исключён: он должен остаться display:contents, иначе становится
+   единственным блочным ребёнком флекса и всё содержимое подписи
+   выстраивается обычным потоком в столбик. */
+.comment .c_footer a:not(.b-button), .comment .ddi a:not(.b-button),
+.comment .c_footer > *:not(.b-comment_thread_collapse):not(.ddi),
+.comment .ddi > *:not(.b-comment_thread_collapse) {
+  display: inline-block !important;
+  padding: 1px 0 !important; margin: 0 !important; }
+
+/* Сворачивание веток: у лепры это две кнопки, показывается одна из двух
+   по классу состояния — стрелка вверх у развёрнутой ветки, вниз у свёрнутой.
+   Лишней была только подпись «Показать комментарий такого-то и N ответов»:
+   она есть лишь у кнопки разворота и занимала целую строку. */
+.b-comment_thread_collapse {
+  display: inline-block !important; position: static !important;
+  /* просвет до значка странички задаёт gap самой строки, свой отступ
+     складывался с ним и давал девять пикселей вместо пяти */
+  margin: 0 !important; padding: 0 !important;
+  height: auto !important; overflow: visible !important; }
+.b-comment_thread_collapse .b-button_caption { display: none !important; }
+/* display у кнопок НЕ трогаем: лепра сама показывает одну из двух
+   по классу состояния, а принудительный inline-block выводил обе */
+.b-comment_thread_collapse .b-button {
+  padding: 0 !important; margin: 0 !important; vertical-align: middle !important; }
+.b-comment_thread_collapse .b-button_icon { margin: 0 !important; }
+/* перенесённая в подпись кнопка встаёт первой в строке */
+.c_footer .b-comment_thread_collapse { order: -1 !important; }
+
+/* Частное правило объявлено ПОСЛЕ общего: во флекс-строке inline-block
+   превращается в block, и кнопка занимала целую строку. */
+.comment .c_footer .b-comment_thread_collapse {
+  display: inline-flex !important; align-items: center !important;
+  height: 18px !important; }
+.comment .c_footer .b-comment_thread_collapse .b-button,
+.comment .c_footer .b-comment_thread_collapse .b-button_icon,
+.comment .c_footer .b-comment_thread_collapse .b-svg-icon {
+  display: inline-flex !important; align-items: center !important;
+  height: 18px !important; position: static !important; }
+.comment .c_footer .b-comment_thread_collapse svg {
+  width: 16px !important; height: 16px !important; display: block !important; }
+.comment .c_footer .b-comment_thread_collapse em { display: none !important; }
+
+
 
 /* Кнопки управления постом: у лепры height:13px с обрезкой, а подпись
    поднята на 7px вверх. Класс общий, используется не только свёрнутыми
    ветками, поэтому правило нужно и при скрытом сворачивании. */
-.b-post_my_post_controls_button {
+/* :not(.b-comment_thread_collapse) — у кнопки сворачивания веток тот же
+   класс, а display:block заставлял её занимать целую строку в подписи. */
+.b-post_my_post_controls_button:not(.b-comment_thread_collapse) {
   display: block !important; height: auto !important;
   overflow: visible !important; vertical-align: baseline !important; }
+.b-comment_thread_collapse {
+  height: auto !important; overflow: visible !important; }
 .b-post_my_post_controls_button .b-button,
 .b-post_my_post_controls_button .b-button_caption {
   position: static !important; top: auto !important;
@@ -452,6 +586,50 @@ ${indentRules()}
   display: inline-block !important; padding: 4px 0 !important; }
 .b-post_my_post_controls_button .b-button_caption {
   white-space: normal !important; }
+
+/* Обёртка .ddi растворяется: её содержимое становится прямыми элементами
+   флекс-строки подписи. Объявлено после правил выше — иначе они его
+   перебивали, и подпись рассыпалась в столбик. */
+.comment .c_footer .ddi { display: contents !important; }
+
+/* Показ одной из двух стрелок задаём сами и объявляем ПОСЛЕ всех правил
+   для ссылок в подписи: так результат не зависит ни от специфичности,
+   ни от порядка — оба фактора работают в одну сторону. */
+#js-comments .comment .b-button__collapse { display: none !important; }
+#js-comments .comment .b-comment_thread__collapse .b-button__collapse {
+  display: inline-block !important; }
+#js-comments .comment .b-button__expand { display: inline-block !important; }
+#js-comments .comment .b-comment_thread__collapse .b-button__expand {
+  display: none !important; }
+
+/* Значки в подписи комментария: «поделиться», крестик и точка. У каждого
+   свои метрики и position:relative от лепры, из-за чего крестик уходил
+   с общей горизонтали. Приводим к одной высоте и гасим смещения. */
+#js-comments .c_footer .c_show_user,
+#js-comments .c_footer .b-button_share,
+#js-comments .c_footer .b-icon_button_close,
+#js-comments .c_footer .b-controls_button {
+  display: inline-flex !important;
+  align-items: center !important; justify-content: center !important;
+  align-self: center !important;
+  position: static !important; inset: auto !important;
+  top: auto !important; bottom: auto !important;
+  height: 18px !important; line-height: 18px !important;
+  font-size: 14px !important;
+  margin: 0 !important; padding: 0 !important; }
+#js-comments .c_footer .b-button_icon,
+#js-comments .c_footer .b-svg-icon {
+  display: inline-flex !important; align-items: center !important;
+  position: static !important; height: 18px !important; }
+#js-comments .c_footer .b-button_share svg {
+  display: block !important; width: 14px !important; height: 14px !important; }
+/* обёртки значка «поделиться» сдвигали его вверх на пару пикселей */
+#js-comments .c_footer .b-button_share .b-button_icon,
+#js-comments .c_footer .b-button_share .b-svg-icon {
+  position: static !important; top: auto !important;
+  vertical-align: middle !important;
+  height: 18px !important; line-height: 18px !important; }
+#js-comments .c_footer em:empty { display: none !important; }
 
 /* кнопка обновления комментариев уезжала за левый край */
 .b-comments_controls {
@@ -476,8 +654,18 @@ ${indentRules()}
   display: inline-flex !important; align-items: center !important;
   width: auto !important; height: auto !important;
   vertical-align: middle !important; white-space: nowrap !important; }
-.dd .vote, .post .vote { margin: 12px 0 0 0 !important; }
-.comment .c_footer .vote { margin: 0 !important; }
+.post .vote { margin: 0 !important; }
+
+/* Голосование поста — в зарезервированное слева место.
+   Правило стоит НИЖЕ общего .post .vote и имеет большую специфичность:
+   при равной побеждало бы то, что ниже, и блок оставался в потоке. */
+.post .dd .vote, .dd .vote, div.dd > div.vote {
+  position: absolute !important; inset: auto auto auto 0 !important;
+  top: 0 !important; left: 0 !important;
+  margin: 0 !important; width: auto !important; }
+/* голосование прижато к правому краю подписи: во всей ветке кнопки
+   выстраиваются в одну вертикаль вместо «то тут, то там» */
+.comment .c_footer .vote { margin: 0 0 0 auto !important; }
 
 #js-comments .comment .c_vote .vote_button,
 #js-comments .comment .c_vote .vote_result,
@@ -517,6 +705,16 @@ ${indentRules()}
 /* общее правило отступов для ссылок раздувало кнопки */
 .comment .c_footer a.vote_button, .comment .ddi a.vote_button {
   padding: 0 !important; }
+
+/* Кнопки голосования под постом компактнее общих. Объявлено последним
+   в разделе: так правило выигрывает и по весу селектора, и по порядку. */
+.dd .vote .vote_button, .post .dd .vote .vote_button {
+  min-width: 24px !important; height: 24px !important;
+  line-height: 22px !important; font-size: 13px !important;
+  margin: 0 1px !important; }
+.dd .vote .vote_result, .post .dd .vote .vote_result {
+  min-width: 22px !important; font-size: 13px !important;
+  margin: 0 1px !important; }
 
 /* ============ МЕДИА ============ */
 .js-media_player, .b-media_player, .b-media_player_preview {
@@ -1000,6 +1198,186 @@ html.lm-dark [style*="background-image"] {
     }
   }
 
+
+  /* ============================================================
+     ПОДПИСИ ПОСТОВ И ВЕТОК
+     ============================================================ */
+
+  /* Кнопку сворачивания переносим внутрь подписи: там она встаёт в общую
+     флекс-строку и не занимает отдельную строку под каждым комментарием. */
+  function compactThreadToggles() {
+    document.querySelectorAll('.b-comment_thread_collapse').forEach(function (el) {
+      if (seen.toggle.has(el)) return;
+      seen.toggle.add(el);
+      var box = el.parentElement;
+      if (!box) return;
+      var footer = box.querySelector('.c_footer');
+      if (footer && footer !== el.parentElement) footer.insertBefore(el, footer.firstChild);
+      else if (footer) footer.insertBefore(el, footer.firstChild);
+    });
+  }
+
+  function pad2(n) { return (n < 10 ? '0' : '') + n; }
+
+  /* Дату лепра пишет словами. «сегодня»/«вчера» оставляем как есть — коротко
+     и понятно, остальное переводим в dd.mm.yy в hh.mm. */
+  function shortenDate(el) {
+    var txt = (el.textContent || '').trim();
+    if (!txt || /сегодня|вчера/i.test(txt)) return;
+    var epoch = parseInt(el.getAttribute('data-epoch_date'), 10);
+    if (!epoch) return;
+    var d = new Date(epoch * 1000);
+    if (isNaN(d.getTime())) return;
+    el.title = txt;
+    el.textContent = pad2(d.getDate()) + '.' + pad2(d.getMonth() + 1) + '.' +
+                     String(d.getFullYear()).slice(2) +
+                     ' в ' + pad2(d.getHours()) + '.' + pad2(d.getMinutes());
+  }
+
+  /* Подпись поста занимала две широких строки. Сокращаем: домен без
+     хвоста .leprosorium.ru, дата числами, длинные ссылки — значками. */
+  var FOOTER_ICONS = [
+    ['b-post_my_post_controls_button_in_interest',    '\u2295'],  /* в мои вещи */
+    ['b-post_my_post_controls_button_out_interest',   '\u2296'],  /* из моих вещей */
+    ['b-post_my_post_controls_button_in_favourites',  '\u2606'],  /* в избранное */
+    ['b-post_my_post_controls_button_out_favourites', '\u2605']   /* из избранного */
+  ];
+
+  /* «129 комментариев / 2 новых» -> «129 / 2 новых».
+     Если новых нет — остаётся «129 комментариев».
+     Если все новые, лепра пишет «777 новых комментариев» -> «777 комментариев». */
+  function compactCommentCount(ddi) {
+    var total = null, fresh = null;
+
+    sliceOf(ddi.querySelectorAll('a')).forEach(function (a) {
+      var t = (a.textContent || '').trim();
+      if (/^\d+\s+нов/.test(t)) fresh = a;
+      else if (/^\d+\s+комментари/.test(t)) total = a;
+    });
+
+    var num = function (el) {
+      var m = (el.textContent || '').match(/\d+/);
+      return m ? m[0] : null;
+    };
+
+    /* Жирным выделяем непрочитанное. Лепра делает это то классом
+       b-all_new_comments_link, то обёрткой <strong>, а иногда не делает
+       вовсе — поэтому проставляем сами, по смыслу. */
+    var bold = function (el, on) {
+      el.style.setProperty('font-weight', on ? '700' : '400', 'important');
+    };
+
+    if (total && fresh) {
+      var n = num(total), f = num(fresh);
+      if (!n || !f) return;
+      total.title = (total.textContent || '').trim();
+      total.textContent = n;
+      fresh.textContent = f + ' новых';
+      bold(total, false);        /* всего — обычным */
+      bold(fresh, true);         /* новые — жирным */
+      return;
+    }
+
+    /* только «N новых комментариев» — значит новые все */
+    if (fresh && !total) {
+      var k = num(fresh);
+      if (!k) return;
+      fresh.title = (fresh.textContent || '').trim();
+      fresh.textContent = k + ' комментариев';
+      bold(fresh, true);         /* все непрочитаны — жирным целиком */
+      return;
+    }
+
+    /* только «N комментариев» — новых нет, выделять нечего */
+    if (total && !fresh) bold(total, false);
+  }
+
+  /* Значки лежат в двух обёртках .b-post_controls с разными метриками.
+     Собираем их в один свой контейнер: так они становятся соседями по
+     флекс-боксу и выравниваются по центру гарантированно. */
+  function groupFooterIcons(ddi) {
+    /* Только span: у галочки «прочитано» тот же класс b-post_controls,
+       но это самостоятельная ссылка. Разбирая её как обёртку, скрипт
+       вынимал из неё svg и возвращал пустой остаток — отсюда смещение. */
+    var boxes = sliceOf(ddi.querySelectorAll('span.b-post_controls'));
+
+    /* Часть значков (галочка «прочитано» и подобные) лежит не в обёртке,
+       а прямо в подписи отдельными элементами со своим svg. Их тоже
+       забираем, иначе они остаются со своими метриками и уезжают. */
+    var loose = sliceOf(ddi.children).filter(function (el) {
+      if (el.classList.contains('lm-icons')) return false;
+      if (el.classList.contains('b-post_pinned_icon')) return false;   /* метка «закреплён» */
+      if (el.classList.contains('b-post_comments_links')) return false;
+      if (el.classList.contains('js-date')) return false;
+      if (el.classList.contains('c_user')) return false;
+      if (!/^(A|SPAN)$/.test(el.tagName)) return false;
+      if (!el.querySelector('svg')) return false;
+      return !(el.textContent || '').trim();      /* только значки без текста */
+    });
+
+    if (!boxes.length && !loose.length) return;
+
+    var holder = document.createElement('span');
+    holder.className = 'lm-icons';
+
+    boxes.forEach(function (box) {
+      sliceOf(box.children).forEach(function (child) { holder.appendChild(child); });
+      if (box.parentNode) box.parentNode.removeChild(box);
+    });
+    loose.forEach(function (el) { holder.appendChild(el); });
+
+    ddi.appendChild(holder);
+  }
+
+  /* Даты в подписях комментариев — тот же краткий формат, что и у постов. */
+  function compactCommentDates() {
+    var host = document.getElementById('js-comments');
+    if (!host) return;
+    host.querySelectorAll('.c_footer .js-date').forEach(function (el) {
+      if (seen.footer.has(el)) return;
+      seen.footer.add(el);
+      shortenDate(el);
+    });
+  }
+
+  function compactPostFooters() {
+    document.querySelectorAll('.dd .ddi').forEach(function (ddi) {
+      if (seen.footer.has(ddi)) return;
+      seen.footer.add(ddi);
+
+      var domain = ddi.querySelector('a.b-post_domain');
+      if (domain) {
+        var full = (domain.textContent || '').trim();
+        var short = full.split('.')[0];
+        if (short && short !== full) {
+          domain.title = full;
+          domain.textContent = short;
+        }
+      }
+
+      ddi.querySelectorAll('.js-date').forEach(shortenDate);
+
+      FOOTER_ICONS.forEach(function (pair) {
+        var a = ddi.querySelector('.' + pair[0]);
+        if (!a) return;
+        var text = (a.textContent || '').trim();
+        if (text.length < 3) return;            /* уже значок */
+        a.title = text;
+        a.textContent = pair[1];
+      });
+
+      compactCommentCount(ddi);
+      groupFooterIcons(ddi);
+
+      /* косая черта между «в мои вещи» и «в избранное» теперь лишняя */
+      ddi.querySelectorAll('.b-post_controls').forEach(function (box) {
+        sliceOf(box.childNodes).forEach(function (n) {
+          if (n.nodeType === 3 && n.nodeValue.trim() === '/') n.nodeValue = ' ';
+        });
+      });
+    });
+  }
+
   /* ============================================================
      4. ПЕРЕСТРОЙКА ШАПКИ
      ============================================================ */
@@ -1032,14 +1410,31 @@ html.lm-dark [style*="background-image"] {
       header.appendChild(subLogo);
     }
 
-    /* Счётчики с поиском лежат внутри .l-header, а фильтр с переключателями
-       снаружи. Поставить их рядом можно только перенеся узел: CSS не умеет
-       объединять элементы из разных родителей в одну флекс-строку. */
+    /* Каждая строка шапки — самостоятельный блок. В разметке лепры они
+       лежат в разных обёртках, а флекс строит строку только из соседей
+       по одному родителю, поэтому переносим их прямо в .l-header. */
+    ['.b-header_nav_new_post', '.b-header_counters',
+     '.b-index_slider', '.b-header_search'].forEach(function (sel) {
+      var el = document.querySelector(sel);
+      if (el && !el.dataset.lmMoved && el.parentElement !== header) {
+        el.dataset.lmMoved = '1';
+        header.appendChild(el);
+      }
+    });
+
     var th = document.querySelector('.b-posts_threshold');
     if (th && !th.dataset.lmMoved && !header.contains(th)) {
       th.dataset.lmMoved = '1';
       header.appendChild(th);
     }
+
+    /* Опустевшую обёртку прячем — но только убедившись, что её содержимое
+       действительно переехало, иначе при неудачном переносе исчезли бы
+       поиск и счётчик. У неё нет order, то есть он равен нулю, и в строке
+       она вставала перед приветствием, сдвигая его вправо. */
+    var aside = document.querySelector('.l-header_aside');
+    if (aside && !aside.querySelector('.b-header_counters, .b-header_search'))
+      aside.style.setProperty('display', 'none', 'important');
   }
 
   /* ============================================================
@@ -1747,6 +2142,70 @@ html.lm-dark [style*="background-image"] {
     reportOverlaps(L);
     reportMedia(L);
 
+    /* Разметка подписи поста и шапки: чтобы не гадать, чем именно
+       прячутся значки и что двигает приветствие. */
+    L.push('', '--- подпись поста ---');
+    var ddi = document.querySelector('.dd .ddi');
+    if (!ddi) L.push('(нет)');
+    else {
+      L.push(ddi.outerHTML.replace(/<svg[\s\S]*?<\/svg>/g, '[svg]')
+                          .replace(/\s+/g, ' ').slice(0, 700));
+      L.push('');
+      sliceOf(ddi.querySelectorAll('a, span.b-post_controls, span.lm-icons')).slice(0, 18)
+        .forEach(function (el) {
+          var cs = getComputedStyle(el), r = el.getBoundingClientRect();
+          L.push('  ' + describe(el).slice(0, 46) +
+                 ' disp=' + cs.display +
+                 ' va=' + cs.verticalAlign +
+                 ' fs=' + cs.fontSize +
+                 ' top=' + Math.round(r.top) + ' h=' + Math.round(r.height));
+        });
+    }
+
+    L.push('', '--- подпись комментария ---');
+    var cf = document.querySelector('#js-comments .comment .c_footer');
+    if (!cf) L.push('(нет)');
+    else {
+      L.push(cf.outerHTML.replace(/<svg[\s\S]*?<\/svg>/g, '[svg]')
+                         .replace(/\s+/g, ' ').slice(0, 700));
+      L.push('');
+      var cfr = cf.getBoundingClientRect(), cfs = getComputedStyle(cf);
+      L.push('контейнер: disp=' + cfs.display + ' wrap=' + cfs.flexWrap +
+             ' gap=' + cfs.gap + ' lh=' + cfs.lineHeight +
+             ' L=' + Math.round(cfr.left) + ' w=' + Math.round(cfr.width) +
+             ' h=' + Math.round(cfr.height));
+
+      sliceOf(cf.querySelectorAll('*')).slice(0, 20).forEach(function (el) {
+        var cs = getComputedStyle(el), r = el.getBoundingClientRect();
+        if (cs.display === 'none') return;
+        L.push('  ' + describe(el).slice(0, 44) +
+               ' disp=' + cs.display +
+               ' pos=' + cs.position +
+               ' fs=' + cs.fontSize +
+               ' L=' + Math.round(r.left) + ' top=' + Math.round(r.top) +
+               ' w=' + Math.round(r.width) + ' h=' + Math.round(r.height));
+      });
+    }
+
+    L.push('', '--- шапка: приветствие ---');
+    var tg = document.querySelector('.l-header_tagline');
+    if (!tg) L.push('(нет)');
+    else {
+      var hd = document.querySelector('.l-header');
+      var hcs = getComputedStyle(hd), tcs = getComputedStyle(tg);
+      var hr = hd.getBoundingClientRect(), tr = tg.getBoundingClientRect();
+      L.push('шапка: display=' + hcs.display + ' justify=' + hcs.justifyContent +
+             ' L=' + Math.round(hr.left) + ' w=' + Math.round(hr.width));
+      L.push('приветствие: flex=' + tcs.flex + ' align=' + tcs.textAlign +
+             ' L=' + Math.round(tr.left) + ' w=' + Math.round(tr.width));
+      var inner = tg.querySelector('.b-header_tagline');
+      if (inner) {
+        var ir = inner.getBoundingClientRect(), ics = getComputedStyle(inner);
+        L.push('текст: align=' + ics.textAlign + ' margin=' + ics.margin +
+               ' L=' + Math.round(ir.left) + ' w=' + Math.round(ir.width));
+      }
+    }
+
     L.push('', '--- журнал скрипта ---');
     if (!LOG.length) L.push('(пусто — ошибок не было)');
     else LOG.forEach(function (m) { L.push(m); });
@@ -1866,6 +2325,9 @@ html.lm-dark [style*="background-image"] {
     guard('ensureThemeToggle', ensureThemeToggle)();
     guard('ensureNav', ensureNav)();
     guard('watchRefreshButton', watchRefreshButton)();
+    guard('compactThreadToggles', compactThreadToggles)();
+    guard('compactPostFooters', compactPostFooters)();
+    guard('compactCommentDates', compactCommentDates)();
     guard('relayoutHeader', relayoutHeader)();
     guard('fixUserNote', fixUserNote)();
     guard('unfloatWide', unfloatWide)();
@@ -1879,8 +2341,11 @@ html.lm-dark [style*="background-image"] {
   function lightPass() {
     guard('registerMedia', registerMedia)();
     guard('fixMediaSizes', fixMediaSizes)();
-    /* комментарии могли догрузиться — числа в панели фильтров устарели */
+    /* комментарии могли догрузиться — числа и подписи устарели */
     guard('refreshCommentCounters', refreshCommentCounters)();
+    guard('compactThreadToggles', compactThreadToggles)();
+    guard('compactPostFooters', compactPostFooters)();
+    guard('compactCommentDates', compactCommentDates)();
   }
 
   function start() {
