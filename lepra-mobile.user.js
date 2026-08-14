@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Lepra Mobile
 // @namespace    lepra.mobile
-// @version      0.9.17
+// @version      0.9.18
 // @description  Мобильная адаптация leprosorium.ru для iOS Safari
 // @author       neokrasav4ik
 // @homepageURL  https://github.com/neokrasav4ik/lepra-mobile
@@ -39,7 +39,7 @@
 (function () {
   'use strict';
 
-  var VERSION = '0.9.17';
+  var VERSION = '0.9.18';
 
   /* ============================================================
      НАСТРОЙКИ
