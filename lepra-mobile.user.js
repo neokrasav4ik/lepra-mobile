@@ -1,9 +1,14 @@
 // ==UserScript==
 // @name         Lepra Mobile
 // @namespace    lepra.mobile
-// @version      0.3
+// @version      0.7.0
 // @description  Мобильная адаптация leprosorium.ru для iOS Safari
 // @author       neokrasav4ik
+// @homepageURL  https://github.com/neokrasav4ik/lepra-mobile
+// @supportURL   https://github.com/neokrasav4ik/lepra-mobile/issues
+// @updateURL    https://raw.githubusercontent.com/neokrasav4ik/lepra-mobile/main/lepra-mobile.user.js
+// @downloadURL  https://raw.githubusercontent.com/neokrasav4ik/lepra-mobile/main/lepra-mobile.user.js
+// @license      MIT
 // @match        *://leprosorium.ru/*
 // @match        *://*.leprosorium.ru/*
 // @run-at       document-start
@@ -34,7 +39,7 @@
 (function () {
   'use strict';
 
-  var VERSION = '0.6-beta';
+  var VERSION = '0.7.0';
 
   /* ============================================================
      НАСТРОЙКИ
@@ -661,6 +666,29 @@ input[type="radio"], input[type="checkbox"] {
 /* вкладка смены фона позиционировалась с right:-32px, то есть заведомо
    за краем родителя — на телефоне до неё не дотянуться */
 .b-user_backgrounds, .b-user_backgrounds_toggle { display: none !important; }
+
+/* ============ АРХИВ ============ */
+/* Лента архива имела 330px отступа справа под правую колонку: на телефоне
+   постам оставалось меньше двухсот пикселей, отсюда крошечные превью
+   и наезжающие друг на друга подписи. */
+.b-posts_archive { padding-right: 0 !important; }
+.b-archive_heading {
+  padding: 10px 0 16px !important; font-size: 1.3em !important; }
+.b-archive_navigation {
+  width: auto !important; box-sizing: border-box !important;
+  padding: 6px !important; }
+.b-archive_bottom_navigation {
+  margin: 20px 0 !important; padding: 20px 0 !important; }
+.b-archive_previous_day_bottom { padding: 6px 10px !important; }
+/* календарь архива */
+.b-archive_calendar, .b-archive_calendar table {
+  width: 100% !important; max-width: 100% !important;
+  box-sizing: border-box !important; }
+
+/* подписи постов: строки переносятся часто, тесная высота строки
+   заставляла соседние строки наезжать друг на друга */
+.dd { line-height: 1.6 !important; }
+.dd .b-note { line-height: 1.4 !important; }
 
 /* ============ ВКЛАДКИ (мои вещи, профиль, настройки) ============ */
 /* Свёрстаны CSS-таблицей: ячейки таблицы не переносятся в принципе,
