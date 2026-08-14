@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Lepra Mobile
 // @namespace    lepra.mobile
-// @version      0.9.15
+// @version      0.9.17
 // @description  Мобильная адаптация leprosorium.ru для iOS Safari
 // @author       neokrasav4ik
 // @homepageURL  https://github.com/neokrasav4ik/lepra-mobile
@@ -39,7 +39,7 @@
 (function () {
   'use strict';
 
-  var VERSION = '0.9.14';
+  var VERSION = '0.9.16';
 
   /* ============================================================
      НАСТРОЙКИ
@@ -70,6 +70,13 @@
     lookAhead: 1200,
     maxParallelVideos: 2,
     posterFallbackDelay: 250,
+
+    /* Тап по картинке. 'off' — ничего не делать: файлы у лепры
+       полноразмерные, и деталь проще посмотреть щипком.
+       'zoom' — узкие картинки разворачивать на всю ширину по тапу.
+       В обоих случаях лепровский обработчик глушится: он подменяет узел
+       и выбрасывает страницу наверх. */
+    imageTap: 'off',
 
     /* Потолок на разовый обход DOM. Лепра тратит около 150 элементов
        на комментарий, поэтому тред на тысячу комментариев — это 150 тысяч
@@ -1037,24 +1044,13 @@ input[type="radio"], input[type="checkbox"] {
 #lm-nav.lm-nav__top { opacity: 0 !important; transition: opacity .2s !important; }
 #lm-nav.lm-nav__top.lm-visible { opacity: 1 !important; }
 
-/* Просмотрщик картинок: клик перехватывается до обработчика лепры,
-   поэтому страница не перестраивается и прокрутка не сбивается. */
-#lm-viewer {
-  position: fixed !important; inset: 0 !important;
-  z-index: 2147483646 !important;
-  background: rgba(0,0,0,.92) !important;
-  overflow: auto !important; -webkit-overflow-scrolling: touch !important;
-  display: flex !important; align-items: center !important;
-  justify-content: center !important; padding: 0 !important; }
-#lm-viewer img {
-  width: 100% !important; max-width: 100% !important; height: auto !important;
-  margin: auto !important; display: block !important; }
-#lm-viewer .lm-viewer_close {
-  position: fixed !important; top: 10px; right: 10px;
-  width: 44px; height: 44px; text-align: center;
-  font: 24px/44px monospace; color: #fff;
-  background: rgba(0,0,0,.5); border-radius: 22px; z-index: 1; }
-html.lm-viewer_open, body.lm-viewer_open { overflow: hidden !important; }
+/* Увеличение картинки прямо в посте. Раньше здесь был оверлей поверх
+   страницы, но он блокировал прокрутку через overflow:hidden на body —
+   на iOS это теряет позицию прокрутки и после закрытия выбрасывает
+   наверх, а кнопка закрытия попадала в зону логотипа. */
+img.lm-zoomed {
+  width: 100% !important; max-width: 100% !important;
+  height: auto !important; cursor: zoom-out !important; }
 
 /* ============ ТЁМНАЯ ТЕМА ============ */
 /* Инверсия с поворотом тона. Своей тёмной палитры у лепры нет, а ручная
@@ -1950,48 +1946,38 @@ html.lm-dark [style*="background-image"] {
   }
 
   /* ============================================================
-     8. ПРОСМОТРЩИК КАРТИНОК
-     Лепра при увеличении подменяет узел и сама прокручивает страницу,
-     из-за чего экран улетал наверх. Перехватываем клик до её обработчика:
-     её логика не запускается, страница не перестраивается.
+     8. ТАП ПО КАРТИНКЕ
+     По умолчанию не делает ничего: картинки у лепры полноразмерные,
+     деталь смотрится щипком. Лепровский обработчик при этом всё равно
+     глушится — он подменяет узел и сам прокручивает страницу, из-за чего
+     экран улетал наверх. Режим 'zoom' в настройках возвращает разворот
+     узких картинок на всю ширину по тапу.
      ============================================================ */
 
-  function closeViewer() {
-    var v = document.getElementById('lm-viewer');
-    if (v) v.remove();
-    document.documentElement.classList.remove('lm-viewer_open');
-    if (document.body) document.body.classList.remove('lm-viewer_open');
-  }
+  function toggleImage(img) {
+    /* запоминаем, где картинка была относительно окна, и возвращаем
+       её туда же после изменения размера — иначе страница «прыгает» */
+    var before = img.getBoundingClientRect().top;
 
-  function openViewer(src) {
-    closeViewer();
+    if (img.classList.contains('lm-zoomed')) {
+      img.classList.remove('lm-zoomed');
+      if (img.dataset.lmPrev !== undefined) {
+        if (img.dataset.lmPrev) img.setAttribute('style', img.dataset.lmPrev);
+        else img.removeAttribute('style');
+      }
+    } else {
+      img.dataset.lmPrev = img.getAttribute('style') || '';
+      img.classList.add('lm-zoomed');
+    }
 
-    var box = document.createElement('div');
-    box.id = 'lm-viewer';
-
-    var img = document.createElement('img');
-    img.src = src;
-
-    var close = document.createElement('div');
-    close.className = 'lm-viewer_close';
-    close.textContent = '\u00D7';
-
-    box.appendChild(img);
-    box.appendChild(close);
-    box.addEventListener('click', function (e) {
-      e.preventDefault();
-      closeViewer();
-    });
-
-    document.body.appendChild(box);
-    document.documentElement.classList.add('lm-viewer_open');
-    document.body.classList.add('lm-viewer_open');
+    var after = img.getBoundingClientRect().top;
+    if (Math.abs(after - before) > 1)
+      scrollTopSet(scrollTopNow() + (after - before));
   }
 
   document.addEventListener('click', function (e) {
     var t = e.target;
     if (!t || t.tagName !== 'IMG' || !t.closest) return;
-    if (t.closest('#lm-viewer')) return;
     if (!t.closest('.c_body, .p_body, .dti, .comment, .post')) return;
 
     /* настоящую ссылку не трогаем: картинка может вести на другую страницу */
@@ -2001,16 +1987,13 @@ html.lm-dark [style*="background-image"] {
       if (h && h !== '#' && h.slice(-1) !== '#') return;
     }
 
-    var src = t.getAttribute('data-original') || t.currentSrc || t.src;
-    if (!src) return;
-
+    /* Глушим лепровский зум в любом случае — он и был причиной прыжков. */
     e.preventDefault();
     e.stopPropagation();
     if (e.stopImmediatePropagation) e.stopImmediatePropagation();
-    openViewer(src);
-  }, true);
 
-  window.addEventListener('popstate', closeViewer);
+    if (CFG.imageTap === 'zoom') toggleImage(t);
+  }, true);
 
   /* ============================================================
      9. ДИАГНОСТИКА
