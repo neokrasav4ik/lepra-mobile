@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Lepra Mobile
 // @namespace    lepra.mobile
-// @version      0.9.64
+// @version      0.9.72
 // @description  Мобильная адаптация leprosorium.ru для iOS Safari
 // @author       neokrasav4ik
 // @homepageURL  https://github.com/neokrasav4ik/lepra-mobile
@@ -39,7 +39,7 @@
 (function () {
   'use strict';
 
-  var VERSION = '0.9.64';
+  var VERSION = '0.9.72';
 
   /* ============================================================
      НАСТРОЙКИ
@@ -197,7 +197,8 @@
     obs:     new Marks(),   /* отдано наблюдателю видимости */
     poked:   new Marks(),   /* плеер разбужен */
     footer:  new Marks(),   /* подпись поста сокращена */
-    toggle:  new Marks()    /* кнопка сворачивания перенесена */
+    toggle:  new Marks(),   /* кнопка сворачивания перенесена */
+    userRow: new Marks()    /* пункт списка граждан размечен */
   };
 
   /* Обход в глубину с отсечением поддеревьев. querySelectorAll возвращает
@@ -399,11 +400,26 @@ body {
    а флекс умеет строить строки только из соседей по одному родителю. */
 .l-header > .b-header_nav_new_post {
   order: 4 !important; flex: 0 0 100% !important;
+  box-sizing: border-box !important; min-width: 0 !important;
+  /* «Лепрозорий ждёт новый пост!» длиннее подсайтного «Все ждут…» и при
+     увеличении масштаба разрывалось на две строки, поднимая шапку. */
+  white-space: nowrap !important;
+  overflow: hidden !important; text-overflow: ellipsis !important;
   text-align: center !important; line-height: 1.4 !important;
   margin: 2px 0 4px !important; }
 
 .l-header > .b-header_counters {
-  order: 5 !important; flex: 0 1 auto !important;
+  order: 5 !important;
+  /* Основа в 40%, а не auto. С auto строка «счётчики + переключатель
+     вида» держалась на том, что 193 пикселя надписи и 146 переключателя
+     случайно умещались в 369: при увеличении масштаба окно в CSS-пикселях
+     сужается, сумма перестаёт влезать, и переключатель уезжает отдельной
+     строкой, а за ним рассыпается всё остальное. Доля от ширины сужается
+     вместе с окном, поэтому пара остаётся парой: 40% плюс постоянные 146
+     переключателя укладываются в строку вплоть до 243 CSS-пикселей.
+     Растяжение оставлено: свободное место забирает надпись, а не пустота,
+     и переключатель по-прежнему стоит у правого края. */
+  flex: 1 1 40% !important; box-sizing: border-box !important;
   text-align: left !important; line-height: 1.5 !important;
   height: auto !important;
   /* Строка «N сайтов и M человек» набрана шрифтом в пикселях, а ширина
@@ -424,7 +440,12 @@ body {
 .l-header > .b-header_counters a { white-space: nowrap !important; }
 
 .l-header > .b-index_slider {
-  order: 6 !important; flex: 1 1 auto !important; min-width: 0 !important;
+  /* Ширина здесь постоянная и не зависит от экрана: три значка по 26 с
+     полями по 4 и два зазора по 18 — ровно 138, плюс поле справа. Дать
+     ему сжиматься нельзя, значки от этого налезли бы друг на друга,
+     поэтому 0 0 auto, а тянется соседняя надпись. */
+  order: 6 !important; flex: 0 0 auto !important;
+  box-sizing: border-box !important; min-width: 0 !important;
   display: flex !important; justify-content: flex-end !important;
   align-items: center !important; gap: 18px !important;
   margin: 0 !important;
@@ -452,7 +473,7 @@ body {
    скрипт переносит блоки в шапку в известном порядке, поэтому он
    всегда стоит в разметке раньше поиска. */
 .l-header > .b-index_slider ~ .b-header_search {
-  flex: 1 1 50% !important; }
+  flex: 1 1 49% !important; box-sizing: border-box !important; }
 
 /* Порядок в строке: лупа, затем поле, всё прижато к правому краю.
    Правила заданы одним блоком по id формы, а не по .l-header: во-первых,
@@ -500,10 +521,74 @@ body {
 
 .l-header > .b-posts_threshold {
   order: 8 !important; flex: 1 1 50% !important;
+  box-sizing: border-box !important;
   display: flex !important; justify-content: flex-end !important;
   align-items: center !important;
   margin: 4px 0 0 !important; padding: 0 !important;
   text-align: right !important; }
+
+/* ---- Шапка подсайта: четыре блока в две строки ----
+   На главной нижние строки делят со счётчиками переключатель вида
+   (главная / подлепры / микс). На подсайте его нет, и три оставшихся
+   блока разъезжались: приглашение написать пост занимало целую строку
+   в одиночку, а счётчики, поиск и порог кое-как делили следующую.
+   Собираем в две ровные строки: счётчики с приглашением, поиск с порогом.
+
+   Признак подсайта берём из разметки, а не классом от скрипта: шапка
+   там лежит внутри .l-header_subsite, и этого хватает. Селекторы в три
+   класса перевешивают базовые в два и стоят ниже по файлу — спор
+   решается одинаково и по весу, и по порядку.
+
+   Основы в сумме дают 99% строки. Это и есть цементирование: остатка в
+   один процент не хватит следующему блоку никогда, поэтому перенос
+   происходит в одном и том же месте при любом масштабе, а не «пока
+   помещается». Проценты флекс-основы считаются от содержимого, поля
+   прибавляются сверху — поэтому у блоков с полями обязателен
+   box-sizing: border-box. Без него пара 55+45 плюс поле в 8 пикселей
+   давала 377 при строке в 369, и приглашение уезжало вниз. */
+.l-header_subsite .l-header > .b-header_counters {
+  order: 4 !important; flex: 1 1 54% !important;
+  box-sizing: border-box !important; }
+.l-header_subsite .l-header > .b-header_nav_new_post {
+  order: 5 !important; flex: 1 1 45% !important;
+  box-sizing: border-box !important; min-width: 0 !important;
+  text-align: right !important; font-size: 12px !important;
+  line-height: 1.5 !important; white-space: nowrap !important;
+  overflow: hidden !important; text-overflow: ellipsis !important;
+  /* тот же отступ сверху, что у счётчиков рядом, — иначе строки текста
+     в паре стоят на разной высоте */
+  margin: 8px 0 0 !important; padding: 0 0 0 8px !important; }
+.l-header_subsite .l-header > .b-header_search {
+  order: 6 !important; flex: 1 1 46% !important;
+  box-sizing: border-box !important;
+  /* у лепры блок сдвинут на пиксель влево — под приветствием и ссылками
+     это видно как ступенька у левого края */
+  position: static !important; left: auto !important; }
+.l-header_subsite .l-header > .b-posts_threshold {
+  order: 7 !important; flex: 1 1 53% !important;
+  box-sizing: border-box !important; }
+
+/* Поле выбора порога само по себе шире отведённой ему половины строки:
+   ширину ему задаёт самый длинный вариант («NIGHTMARE (все)»), а не
+   выбранный. Блок выровнен по правому краю, поэтому лишнее вылезало
+   ВЛЕВО и накрывало лупу поиска — по отчёту лупа стояла на 190-210,
+   а поле начиналось с 202. Ограничиваем поле шириной блока: длинные
+   варианты в свёрнутом виде срежутся, в раскрытом списке они целые.
+   Правило общее, не только для подсайта: на главной поле стоит в такой
+   же паре и упирается в тот же предел, просто там пока помещалось. */
+.l-header > .b-posts_threshold select {
+  max-width: 100% !important; box-sizing: border-box !important; }
+
+/* Поиск переехал в левую половину строки, а форма у лепры выровнена
+   вправо — поле уезжало к середине экрана, слева оставалась дыра.
+   Ставим поле первым, лупу за ним и прижимаем связку к левому краю:
+   ровно так же, как на главной, где поиск делит строку с режимами. */
+.l-header_subsite .l-header > .b-header_search #js-header_search_form {
+  justify-content: flex-start !important; }
+.l-header_subsite .l-header > .b-header_search
+  #js-header_search_form .i-form_text_input { order: 1 !important; }
+.l-header_subsite .l-header > .b-header_search
+  #js-header_search_form .b-icon_button_search { order: 2 !important; }
 
 /* Опустевшие обёртки. Важно: у них нет order, а значит он равен нулю —
    такой блок встаёт в строке ПЕРЕД приветствием (order:1) и сдвигает его
@@ -861,6 +946,36 @@ ${indentRules()}
 .dd .vote .vote_result, .post .dd .vote .vote_result {
   min-width: 22px !important; font-size: 13px !important;
   margin: 0 1px !important; }
+
+/* Уже отданный голос лепра метит классом на самой кнопке: vote_voted у
+   постов и комментариев, active у кармы. Метка серверная — в шаблоне под
+   неё оставлено место, видно по хвостовому пробелу в разметке невыбранных
+   кнопок: class="vote_button vote_button_plus ". То есть после перезагрузки
+   состояние приходит с сервера, терять его нам нечего.
+   Терялось оно у нас: собственная подсветка лепры — фоновая картинка
+   vote_button_hover.gif и цвет rgb(102,102,102) — затёрта общим правилом
+   кнопок выше, где background, border и color заданы через !important.
+   Возвращаем состояние своим оформлением: заливка вместо контура. Заливка,
+   а не цвет, потому что тёмная тема сделана инверсией всей страницы —
+   цветная подсветка под ней уехала бы в чужой тон, а пара «контур/заливка»
+   читается одинаково в обеих темах.
+   Веса селекторов подобраны под конкурентов поимённо: общее правило кнопок
+   в комментариях идёт с идентификатором (#js-comments .comment .c_vote
+   .vote_button), поэтому одного класса .vote_voted для победы мало. Блок
+   стоит последним в разделе — выигрывает и по весу, и по порядку.
+   Обратите внимание: правило цепляется только к vote_voted, но не к :hover.
+   У лепры они в одном правиле, а на iOS hover после тапа залипает — иначе
+   соседняя кнопка выглядела бы нажатой. */
+#js-comments .comment .c_vote .vote_button.vote_voted,
+.c_vote .vote_button.vote_voted,
+.post .dd .vote .vote_button.vote_voted,
+.dd .vote .vote_button.vote_voted,
+a.vote_button.vote_voted,
+.b-karma_button.active {
+  background: rgb(102,102,102) !important;
+  border: 1px solid rgb(102,102,102) !important;
+  color: rgb(255,255,255) !important;
+  font-weight: 700 !important; }
 
 /* ============ МЕДИА ============ */
 .js-media_player, .b-media_player, .b-media_player_preview {
@@ -1548,11 +1663,14 @@ body.l-profile .l-header { margin-bottom: 1px !important; }
 /* ============ ПОДСАЙТЫ ============ */
 .l-header_subsite { padding-left: 0 !important; }
 .l-content_aside_subsite { display: none !important; }
+/* Девиз подсайта. Тридцать пикселей десктопа на телефоне давали три
+   строки — при том, что это подпись, а не заголовок страницы. */
 .b-subsite_header {
-  padding: 8px 0 0 0 !important; margin: 0 0 8px 0 !important;
-  font-size: 22px !important; line-height: 1.25 !important;
+  padding: 4px 0 0 0 !important; margin: 0 0 4px 0 !important;
+  font-size: 19px !important; line-height: 1.2 !important;
   /* заголовок часто лежит поверх фотографии */
   text-shadow: 0 1px 2px rgba(255,255,255,.9) !important; }
+.b-subsite_header a { padding: 0 !important; margin-left: 0 !important; }
 /* дубликат логотипа: тот, что в шапке, лепра рисует своими средствами */
 .b-subsite_logo { display: none !important; }
 .l-content__subsite .b-archive_heading { padding-right: 0 !important; }
@@ -1561,30 +1679,160 @@ body.l-profile .l-header { margin-bottom: 1px !important; }
 /* правая колонка в 330px оставляла ленте около сорока пикселей */
 .b-subdomain_aside_right {
   float: none !important; width: auto !important;
-  margin: 0 0 14px !important; padding-bottom: 12px !important;
+  margin: 0 0 10px !important; padding-bottom: 0 !important;
   border-bottom: 1px solid rgb(226, 224, 222) !important; }
+/* Распорки под снятые обтекания: своей высоты у них нет, но каждая
+   рвёт схлопывание полей соседей и добавляет строку пустоты.
+   Селектор нарочно не прямой: собранное пенсне переносит содержимое
+   колонки на уровень ниже, в .lm-pince_body, и «>» перестал бы попадать. */
+.b-subdomain_aside_right .clear { display: none !important; }
 .b-subdomain_aside_subscribe {
-  height: auto !important; overflow: visible !important; }
+  height: auto !important; overflow: visible !important;
+  margin-bottom: 0 !important; }
 .b-subdomain_aside_subscribe .b-subscribe_button {
-  float: none !important; width: auto !important; margin: 0 0 6px !important; }
+  float: none !important; width: auto !important; margin: 0 0 2px !important; }
 .b-subdomain_aside_subscribe_additional {
-  float: none !important; width: auto !important; margin-top: 4px !important; }
+  float: none !important; width: auto !important; margin-top: 2px !important; }
 .b-subdomain_aside_subscribe_expand {
   position: static !important; left: auto !important; top: auto !important;
   transform: none !important; display: inline-block !important;
   margin-left: 6px !important; }
 .b-subdomain_settings_button { right: 4px !important; top: 4px !important; }
+.b-subdomain_aside_right .b-domain_popup_controls {
+  margin-bottom: 2px !important; }
+
+/* Описание подлепры — свободный текст, набранный правлением вручную.
+   У лепры это правая колонка: float, 286px ширины и 30px поля справа.
+   Обтекание здесь снимаем правилом, а не эвристикой unfloatWide: в
+   свёрнутом пенсне блок скрыт, ширина у него нулевая, и проверка
+   «шире 40% экрана» не сработает — а пометку «просмотрено» проход
+   уже поставит, и после разворота никто сюда не вернётся. */
+.b-domain_description {
+  float: none !important; width: auto !important;
+  padding: 0 !important; margin: 0 !important;
+  border-bottom: 0 !important;
+  font-size: 13px !important; line-height: 1.45 !important; }
+/* Абзацы там разделены парами <br>. На десктопной колонке это выглядит
+   списком, на телефоне — двойным межстрочным на весь блок. Вторую
+   строку убираем: одинарного разрыва хватает. */
+.b-domain_description br + br { display: none !important; }
+
+/* ---- Простое пенсне ----
+   Свод правил и ссылок подлепры, сложенный в одну строку. Название —
+   по волшебному пенсне в профиле: там таким же нажатием разворачивается
+   лента заметок. */
+.lm-pince {
+  display: flex !important; align-items: center !important; gap: 7px !important;
+  width: 100% !important; box-sizing: border-box !important;
+  margin: 0 !important; padding: 5px 0 !important;
+  background: none !important; border: 0 !important;
+  -webkit-appearance: none !important; appearance: none !important;
+  /* Шорткат font: inherit здесь стоял и съедал заданный ниже кегль:
+     он сбрасывает font-size последним значением из наследования. */
+  font-family: inherit !important; font-weight: normal !important;
+  font-size: 13px !important; line-height: 1.3 !important;
+  color: inherit !important;
+  text-align: left !important; cursor: pointer !important;
+  -webkit-user-select: none !important; user-select: none !important;
+  -webkit-tap-highlight-color: transparent !important; }
+.lm-pince_glass { flex: 0 0 auto !important; display: block !important; }
+.lm-pince_label { flex: 0 1 auto !important; }
+/* Шеврон у правого края: между ним и подписью пусто, и строка читается
+   как полоса, а не как обрывок текста. */
+.lm-pince_arrow {
+  flex: 0 0 auto !important; margin-left: auto !important;
+  font-size: 10px !important;
+  color: rgb(130, 130, 130) !important; }
+.lm-pince__open .lm-pince_arrow { transform: rotate(180deg) !important; }
+.lm-pince_body { padding: 2px 0 8px !important; }
+
+/* Левая колонка подсайта — управляющий, правление, блоги империи.
+   Общим правилом выше она скрыта: на десктопе это столбец в 245px с
+   фоновой картинкой bg_left.png, а поля в 45-65 пикселей у пунктов
+   отбиты под нарисованные на ней завитки. Текст в ней ровно тот же
+   «о подлепре», поэтому в теле пенсне она разворачивается — без
+   картинки, без полей и без трёх декоративных подложек поверх.
+   Правило заведомо весомее скрывающего (два класса против одного) и
+   стоит ниже по файлу: иначе jsdom и браузер решили бы спор по-разному. */
+.lm-pince_body .l-content_aside_subsite {
+  display: block !important; float: none !important;
+  width: auto !important; min-height: 0 !important;
+  background: none !important;
+  margin: 6px 0 0 !important; padding: 6px 0 0 !important;
+  border-top: 1px solid rgb(238, 236, 234) !important; }
+.lm-pince_body .b-aside_item {
+  padding: 0 !important; margin: 0 0 5px !important;
+  min-height: 0 !important; }
+.lm-pince_body .b-aside_president a,
+.lm-pince_body .b-aside_president b { font-size: 14px !important; }
+.lm-pince_body .b-aside_president p {
+  margin: 0 !important; font-size: 11px !important; }
+.lm-pince_body .b-aside_government a,
+.lm-pince_body .b-aside_imperial_blogs strong,
+.lm-pince_body .b-aside_imperial_blogs a { font-size: 13px !important; }
+.lm-pince_body .b-aside_imperial_blogs strong {
+  padding-left: 0 !important; margin-bottom: 2px !important; }
+.lm-pince_body .b-aside_imperial_blogs ul { margin: 0 !important; }
+.lm-pince_body .b-aside_imperial_blogs li {
+  padding-left: 0 !important; margin-bottom: 0 !important; }
+/* подложки — вырезанные куски той самой фоновой картинки колонки */
+.lm-pince_body .b-aside_president_bg,
+.lm-pince_body .b-aside_imperial_blogs_bg { display: none !important; }
+.b-subdomain_aside_right:not(.lm-pince__open) .lm-pince_body {
+  display: none !important; }
+
+/* ============ КНОПКА ПОДПИСКИ ============ */
+/* Кнопка устроена так: значок лежит абсолютно в начале строки, а подпись
+   к нему («подписаться» / «отписаться») раскрывается с нулевой ширины
+   по наведению мыши. На телефоне наведения нет, поэтому от кнопки
+   оставался один серый значок в двадцать пикселей: у неподписанного
+   плюс, у подписанного шеврон вниз, который читается как «раскрыть
+   список», а не как состояние. Понять, подписан ли ты, было нельзя,
+   а тап сразу выполнял действие.
+   Разворачиваем подпись насовсем — ровно то, что на десктопе показывает
+   наведение, включая замену шеврона на минус у подписанного. Значок при
+   этом должен встать в поток: раскрытая подпись растёт вправо и абсолютным
+   блоком легла бы поверх числа подписчиков. */
+.b-subscribe_button {
+  display: inline-flex !important; align-items: center !important; }
+.b-subscribe_button_icon {
+  position: static !important; top: auto !important; left: auto !important;
+  display: inline-flex !important; align-items: center !important;
+  height: 24px !important; padding: 0 5px !important;
+  flex: 0 0 auto !important; }
+.b-subscribe_button_hover_text::after,
+.js-subscribed .b-subscribe_button_hover_text::after {
+  max-width: 100px !important; padding-left: 5px !important;
+  padding-right: 0 !important; }
+.js-subscribed .b-subscribe_button_icon span[data-name="subscribed"] {
+  display: none !important; }
+.js-subscribed .b-subscribe_button_icon span[data-name="unsubscribe"] {
+  display: inline-block !important; }
+/* число подписчиков отступало на 32 пикселя от левого края — обходило
+   значок, которого там больше нет */
+.b-subscribe_button_text {
+  position: static !important; left: auto !important;
+  line-height: 1.3 !important; padding-left: 7px !important; }
 
 /* ============ СПИСОК ПОДСАЙТОВ (underground) ============ */
-/* Тело пункта занимало 40% ширины, описание плавало на 45%, счётчики
+/* Тело пункта занимало 50% ширины, описание плавало на 45%, счётчики
    стояли абсолютно на 40, 52 и 64 процентах — всё складывалось в кашу. */
 .b-list_item { padding-bottom: 8px !important; }
 .b-list_item_body { width: auto !important;
                     padding: 12px 0 12px 78px !important; }
 .b-list_item_logo { top: 12px !important; left: 2px !important; }
+/* Описание и дополнительные настройки лепра сворачивает через max-height: 0,
+   но отбивки вокруг них при этом остаются видимыми — 26 пикселей воздуха
+   на пункт, а пунктов на странице четыре десятка. Поля даём только
+   раскрытому пункту. */
 .b-list_item_blog_description {
-  float: none !important; width: auto !important;
-  margin: 6px 0 10px !important; }
+  float: none !important; width: auto !important; margin: 0 !important; }
+.b-list_item_blog_controls_additional { margin: 0 !important; }
+.b-list_item__opened .b-list_item_blog_description {
+  margin: 6px 0 2px !important;
+  font-size: 13px !important; line-height: 1.4 !important; }
+.b-list_item__opened .b-list_item_blog_controls_additional {
+  margin-top: 8px !important; }
 .b-list_item_blog_stats {
   position: static !important; width: auto !important;
   display: flex !important; flex-wrap: wrap !important;
@@ -1603,7 +1851,251 @@ body.l-profile .l-header { margin-bottom: 1px !important; }
 .b-list_item_blog_controls p { margin: 0 0 8px !important; }
 .b-list_item__user { margin-right: 0 !important; }
 .b-subscriptions_random { display: none !important; }
-.b-underground_nav { padding: 0 !important; }
+
+/* Плотная раскладка самого списка подлепр. Правила ниже намеренно
+   привязаны к .b-blogs_list: те же классы .b-list_item носят список
+   граждан и подлепры в профиле, у них своя разметка и своя ширина. */
+.b-blogs_list .b-list_item {
+  display: flex !important; flex-direction: column !important;
+  padding: 0 0 6px !important; margin-bottom: 6px !important;
+  border-bottom: 1px solid rgb(226, 224, 222) !important; }
+/* Описание лежит в разметке ПЕРЕД телом: на десктопе оно уплывало вправо
+   и логотипу не мешало, а без обтекания встало бы первой строкой пункта —
+   поверх логотипа, который позиционирован абсолютно. Меняем порядок. */
+.b-blogs_list .b-list_item_body {
+  order: 1 !important; padding: 7px 0 0 54px !important; }
+.b-blogs_list .b-list_item_blog_description { order: 2 !important; }
+/* распорка под обтекание; во флекс-колонке она встала бы первым элементом */
+.b-blogs_list .b-list_item > .clear { display: none !important; }
+.b-blogs_list .b-list_item_logo {
+  width: 44px !important; height: 44px !important;
+  top: 7px !important; left: 0 !important; }
+/* Адрес, название и создатель занимали три строки из четырёх. Адрес и
+   название читаются как одна строка, разделителя у лепры нет — ставим сами. */
+.b-blogs_list .b-list_item_body_text { line-height: 1.3 !important; }
+.b-blogs_list .b-list_item h5 { display: inline !important;
+                                margin: 0 !important; }
+.b-blogs_list .b-list_item_blog_prefix { font-size: 13px !important; }
+.b-blogs_list .b-list_item_blog_prefix::after {
+  content: ' · ' !important; color: rgb(160, 160, 160) !important; }
+.b-blogs_list .b-list_item_blog_creator {
+  display: block !important; margin: 1px 0 0 !important;
+  font-size: 12px !important; }
+.b-blogs_list .b-list_item_blog_controls { margin-top: 3px !important; }
+/* Ссылкой подписки у лепры служит вся строка целиком, вместе с числом
+   подписчиков: оно выглядит подписью, а работает кнопкой, и промах по
+   пункту списка молча менял подписку. Оставляем нажимаемым только сам
+   значок с подписью; тап по числу уходит пункту и раскрывает описание.
+   Событие с значка всплывает до ссылки, обработчик лепры не задет. */
+.b-blogs_list .b-subscribe_button { pointer-events: none !important; }
+.b-blogs_list .b-subscribe_button_icon { pointer-events: auto !important; }
+
+/* Строка режимов, сортировки и поиска. Поле поиска в 300 пикселей плавало
+   вправо с отбивкой в 40, списки несли поля по 10 — три уровня, ни один
+   не совпадал с краем пунктов списка. */
+.b-underground_nav { margin: 6px 0 8px !important; padding: 0 !important; }
+.b-underground_nav ul { margin: 0 !important; padding: 0 !important; }
+.b-underground_nav_mode li { padding: 3px 7px !important;
+                             margin: 0 4px 0 0 !important;
+                             font-size: 14px !important; }
+.b-underground_nav_sort { display: block !important;
+                          margin: 7px 0 0 !important; }
+.b-underground_nav_sort li { margin-right: 14px !important; }
+.b-menu_underground_search { float: none !important;
+                             display: block !important;
+                             margin: 8px 0 0 !important; }
+.b-menu_underground_search form {
+  width: auto !important; margin: 0 !important;
+  display: flex !important; align-items: center !important; }
+.b-menu_underground_search .i-form_text_input {
+  width: auto !important; flex: 1 1 auto !important; }
+.l-subscription_list .b-load_more_posts_button {
+  margin-bottom: 16px !important; }
+
+/* Врезка с подлепрой дня отсчитывалась от левой колонки в 245 пикселей:
+   на телефоне это отжимало её к правому краю в вертикальную полоску.
+   Отбивка снизу в 60 — расчёт на пустое поле рядом с колонкой. */
+.l-content_aside_subscriptions_top { margin: 0 0 12px !important; }
+.l-content_aside_subscriptions_top .b-subscriptions_aside_block p {
+  font-size: 13px !important; line-height: 1.35 !important;
+  margin-top: 6px !important; }
+
+/* ============ СПИСОК ГРАЖДАН (/users/) ============ */
+/* Пункт списка раскидан по десктопной сетке: тело на 40% ширины, карма
+   абсолютно на правых десяти процентах, а между ними — блок описания,
+   плавающий вправо на 50% ширины с отбивкой ещё в 10% и нижним пределом
+   высоты в 100 пикселей. Описание почти всегда пустое (лепра отдаёт его
+   классом __empty и подгружает по нажатию), поэтому на телефоне каждый
+   гражданин занимал сто с лишним пикселей, из которых больше половины —
+   пустое место. Хуже того, unfloatWide видел плавающую колонку шире 40%
+   экрана и честно снимал ей обтекание — пустой блок разворачивался уже
+   во всю ширину. Здесь float снят правилом, поэтому проход его пропустит:
+   он выходит на первом же элементе с float: none.
+
+   Собираем пункт в три строки: логин с кармой, имя с городом, счётчики. */
+.b-users_list_users .b-list_item {
+  position: relative !important;
+  display: flex !important; flex-wrap: wrap !important;
+  padding: 6px 16px 7px 50px !important; margin: 0 !important;
+  border-bottom: 1px solid rgb(226, 224, 222) !important;
+  border-radius: 0 !important; box-shadow: none !important; }
+.b-users_list_users .b-list_item_logo {
+  width: 40px !important; height: 40px !important;
+  top: 8px !important; left: 0 !important;
+  border-radius: 3px !important; z-index: 2 !important; }
+/* z-index у тела намеренно auto, а не число: с числом тело заводит свой
+   слой, и поднятые ссылки внутри него уже не могут перекрыть подложку
+   описания. С auto слоя нет — ссылки всплывают на уровень карточки,
+   а всё остальное тело оказывается под подложкой, и тап по нему
+   разворачивает карточку. */
+.b-users_list_users .b-list_item_body {
+  order: 1 !important; flex: 1 1 100% !important;
+  position: relative !important; z-index: auto !important;
+  width: auto !important; min-width: 0 !important;
+  padding: 0 52px 0 0 !important; }
+.b-users_list_users .b-list_item_body_text { line-height: 1.3 !important; }
+.b-users_list_users .b-list_item > .clear { display: none !important; }
+
+.b-users_list_users .b-list_item h5 { margin: 0 !important; }
+.b-users_list_users .b-list_item h5 a.c_user { font-size: 16px !important; }
+/* Имя и город лепра ставит блоками — две строки на четыре слова. Сводим
+   в одну; разделитель вешает скрипт, и только когда имя не пустое. */
+.b-users_list_users .b-list_item_user_name {
+  display: inline !important; font-size: 12px !important;
+  margin: 0 !important; }
+.b-users_list_users .b-list_item_user_residence {
+  display: inline !important; font-size: 12px !important;
+  margin: 0 !important; }
+.b-users_list_users .lm-after_name::before {
+  content: ' · ' !important; color: rgb(160, 160, 160) !important; }
+.b-users_list_users .b-list_item_user_docs { margin-top: 1px !important; }
+.b-users_list_users .b-list_item_user_docs a { margin-right: 9px !important; }
+/* Карма — единственное число в пункте, ей место у логина, а не отдельной
+   строкой внизу, куда её отправляло общее правило для списка подлепр.
+   Отсчитывается от тела пункта, под неё же в теле отведено поле справа. */
+.b-users_list_users .b-list_item_user_karma {
+  position: absolute !important; right: 0 !important; top: 1px !important;
+  width: auto !important; text-align: right !important;
+  font-size: 13px !important; color: rgb(90, 90, 90) !important; }
+
+/* Раскрытое и свёрнутое-с-текстом описание идут обычным потоком под телом. */
+.b-users_list_users .b-list_item_user_description {
+  order: 2 !important; flex: 1 1 100% !important;
+  float: none !important; width: auto !important; margin: 0 !important;
+  min-height: 0 !important; padding: 2px 0 0 !important;
+  font-size: 12px !important; line-height: 1.35 !important; }
+.b-users_list_users .b-list_item_user_description_info {
+  padding: 4px 0 2px !important; }
+.b-users_list_users .b-list_item_user_description_info > * {
+  margin-bottom: 8px !important; }
+/* Свёрнутое описание — это не блок, а кнопка: нажатие на него подгружает
+   подробности о гражданине. Растягиваем его подложкой на весь пункт,
+   а ссылки поднимаем над ним, чтобы они остались нажимаемыми. Так тап
+   мимо ссылки раскрывает карточку, и лишней высоты это не стоит.
+   Класс lm-open ставит скрипт, когда лепра положила внутрь содержимое:
+   на случай, если она раскроет блок, не сняв с него __empty.
+   Правило стоит НИЖЕ общего и весит больше — иначе браузер и проверка
+   в jsdom разошлись бы: первый считает по весу, вторая по порядку. */
+.b-users_list_users .b-list_item_user_description__empty:not(.lm-open),
+.b-users_list_users .b-list_item_user_description.lm-collapsed {
+  position: absolute !important; top: 0 !important; right: 0 !important;
+  bottom: 0 !important; left: 0 !important;
+  float: none !important; width: auto !important; margin: 0 !important;
+  min-height: 0 !important; padding: 0 !important; z-index: 1 !important; }
+/* Обратно лепра карточку не сворачивает — обработчик у неё только на
+   разворот. Сворачиваем своим классом: содержимое прячем, блок снова
+   становится подложкой-кнопкой на всю карточку. */
+.b-users_list_users .b-list_item_user_description.lm-collapsed > * {
+  display: none !important; }
+.b-users_list_users .b-list_item h5 a,
+.b-users_list_users .b-list_item_user_name,
+.b-users_list_users .b-list_item_user_docs a {
+  position: relative !important; z-index: 2 !important; }
+/* Указатель раскрытия у лепры — белый треугольник посреди пустого блока:
+   на белом фоне его не видно, он проявляется наведением, которого на
+   телефоне нет. Перекрашиваем и уводим к правому краю. */
+.b-users_list_users .b-list_item .b-list_item_user_description__empty::after,
+.b-users_list_users .b-list_item .b-list_item_user_description__folded::after {
+  top: 50% !important; left: auto !important; right: 3px !important;
+  margin: -3px 0 0 !important;
+  border-width: 6px 5px 0 !important;
+  border-color: rgb(178, 178, 178) transparent transparent !important; }
+.b-users_list_users .b-list_item_user_description.lm-open:not(.lm-collapsed)::after {
+  transform: rotate(180deg) !important; }
+
+/* Шапка раздела: заголовок в 30 пунктов, два блока настроек, плавающих
+   влево с отбивкой в 40, поле поиска фиксированной ширины в 300 и общий
+   отступ слева в 12 пикселей — он не совпадал с краем пунктов списка,
+   у которых своих полей нет. */
+.b-users_list_caption {
+  font-size: 20px !important; padding: 0 !important;
+  margin: 6px 0 10px !important; }
+.b-users_list_section {
+  float: none !important; margin: 0 !important; }
+.b-users_list_search { padding-left: 0 !important; margin-bottom: 8px !important; }
+.b-users_list_search form {
+  display: flex !important; align-items: center !important; }
+/* 16 пунктов — нижний предел, при котором Safari на iOS не наезжает
+   увеличением при касании поля. */
+.b-users_list_search .i-form_text_input {
+  width: auto !important; flex: 1 1 auto !important; min-width: 0 !important;
+  font-size: 16px !important; }
+/* Три строки настроек — «искать среди заметок» с двумя полями, «Был» с
+   тремя чекбоксами и сортировка — сводятся каждая в одну линию. Ширину
+   заранее не посчитать: она зависит от масштаба страницы, который скрипту
+   не виден, и от выбранных пунктов в полях. Поэтому раскладку задаём
+   флексом, а подгонку кегля делает fitUsersRows по факту замера.
+   flex-wrap оставлен намеренно: это последняя ступень, до неё доходит
+   только когда кегль упёрся в пол. Подрезанный текст выглядит поломкой
+   всегда, перенос — один раз. */
+.b-users_list_filters,
+.b-users_list_filters + .b-users_list_flags,
+.b-users_list_sorting {
+  display: flex !important; flex-wrap: wrap !important;
+  align-items: center !important;
+  padding-left: 0 !important; font-size: 13px !important; }
+.b-users_list_filters {
+  gap: 6px 9px !important; padding-bottom: 8px !important; }
+.b-users_list_filters + .b-users_list_flags {
+  gap: 6px 8px !important; margin-bottom: 8px !important; }
+.b-users_list_sorting {
+  gap: 4px 6px !important; margin-bottom: 4px !important; }
+/* Чекбокс «искать среди заметок» лежит у лепры в отдельном блоке над
+   полями. Скрипт переносит блок внутрь строки, а сам блок убираем из
+   раскладки: он нужен только чтобы держать узлы вместе и не терять
+   обработчик лепры, а место в строке должны занимать его дети. */
+.b-users_list_filters > .b-users_list_flags { display: contents !important; }
+/* «мои заметки» лепра открывает галочкой «искать среди заметок» — пункт
+   появляется уже после подгонки строки, поэтому ему сразу отводим свою
+   линию, а не отбираем ширину у соседей. */
+.b-users_list_filters .b-users_list_flags > span:not(.lm-chk) {
+  flex: 1 1 100% !important; }
+/* Квадратик с подписью — один пункт строки: порознь подпись отрывалась
+   от чекбокса на переносе. */
+.lm-chk {
+  display: inline-flex !important; align-items: center !important;
+  gap: 5px !important; white-space: nowrap !important;
+  flex: 0 0 auto !important; }
+.lm-chk input, .lm-chk label {
+  margin: 0 !important; font-size: inherit !important; }
+.lm-flag_prefix, .lm-sort_prefix {
+  flex: 0 0 auto !important; white-space: nowrap !important; }
+/* Форменным элементам браузер задаёт нижний предел ширины по содержимому —
+   снимаем, иначе строка не сожмётся вовсе. Ширину полю подбирает
+   fitSelect по выбранному пункту. */
+.b-users_list_filters select {
+  flex: 0 1 auto !important; min-width: 0 !important; max-width: 100% !important;
+  margin: 0 !important; font-size: inherit !important; }
+.b-users_list_sorting ul {
+  display: flex !important; flex-wrap: wrap !important;
+  align-items: center !important; gap: 4px !important;
+  margin: 0 !important; padding: 0 !important; }
+.b-users_list_sorting li {
+  padding: 2px 5px !important; margin: 0 !important;
+  font-size: inherit !important; white-space: nowrap !important; }
+.b-users_list_users { margin-bottom: 8px !important; }
+.b-load_more_posts_button__users {
+  margin: 12px 0 16px !important; padding: 8px 0 10px 14px !important; }
 
 /* ============ УВЕДОМЛЕНИЯ («Пынь») ============ */
 /* Лента отсчитывалась от левой колонки (left:245px), резервировала 340px
@@ -1786,7 +2278,10 @@ html.lm-dark [style*="background-image"] {
      !important, поэтому правим инлайном — его из CSS не перебить. */
   var ASIDE_SEL = '.b-subdomain_aside_right, .b-subdomain_aside_subscribe, ' +
                   '.b-subdomain_aside_subscribe_additional, ' +
-                  '.b-subscribe_button, .l-content_aside, .b-tags';
+                  '.b-subscribe_button, .l-content_aside, .b-tags, ' +
+                  /* внутри свёрнутого пенсне ширина нулевая, и мерить
+                     описание бесполезно — снимаем обтекание безусловно */
+                  '.b-domain_description';
 
   function unfloatWide() {
     var W = document.documentElement.clientWidth;
@@ -2169,6 +2664,336 @@ html.lm-dark [style*="background-image"] {
     row.appendChild(list);
   }
 
+  /* ============================================================
+     СПИСОК ГРАЖДАН (/users/)
+     ============================================================ */
+
+  /* Имя и город сведены в одну строку правилами, но разделитель между
+     ними в CSS не выразить: поле имени у лепры может быть пустым, и
+     ::before на городе дал бы строку, начинающуюся с точки. Ставим метку
+     только там, где слева от неё действительно что-то есть.
+
+     Заодно снимаем подложку-кнопку со свёрнутого описания, если лепра
+     положила внутрь содержимое, не тронув класс __empty: раскрытый текст
+     оказался бы в блоке нулевой высоты поверх карточки. Проверка идёт по
+     элементам-потомкам — пустое описание у лепры содержит один перевод
+     строки, и :empty на нём не срабатывает. */
+  /* Квадратик и его подпись сводим в один узел: порознь они идут по
+     строке двумя пунктами, и подпись отрывается от чекбокса на переносе.
+     Между ними у лепры лежит перевод строки — его убираем, иначе он
+     останется висеть лишним пробелом внутри пары. */
+  function wrapCheckbox(inp) {
+    if (!inp || !inp.id || !inp.parentNode) return null;
+    if (inp.parentNode.classList.contains('lm-chk')) return inp.parentNode;
+    var lab = inp.parentNode.querySelector('label[for="' + inp.id + '"]');
+    if (!lab || lab.parentNode !== inp.parentNode) return null;
+
+    var pair = document.createElement('span');
+    pair.className = 'lm-chk';
+    inp.parentNode.insertBefore(pair, inp);
+    pair.appendChild(inp);
+    var n = pair.nextSibling;
+    while (n && n !== lab) {
+      var next = n.nextSibling;
+      if (n.nodeType === 3 && !n.nodeValue.trim()) n.parentNode.removeChild(n);
+      n = next;
+    }
+    pair.appendChild(lab);
+    return pair;
+  }
+
+  /* Общий кусок подписи выносим в начало строки: «был президентом, был
+     министром, был пресс-секретарём» — три лишних слова на строку,
+     в которую и без них едва помещаются три чекбокса. Полный текст
+     остаётся в подсказке. */
+  function stripPrefix(el, re) {
+    var t = (el.textContent || '').replace(/\u00a0/g, ' ').trim();
+    var m = t.match(re);
+    if (!m) return false;
+    if (!el.title) el.title = t;
+    el.textContent = m[1];
+    return true;
+  }
+
+  function fixUsersList() {
+    var box = document.querySelector('.b-users_list_users');
+    if (!box) return;
+
+    sliceOf(box.querySelectorAll('.b-list_item_user_residence')).forEach(function (r) {
+      if (seen.userRow.has(r)) return;
+      seen.userRow.add(r);
+      var body = r.parentNode;
+      var name = body && body.querySelector('.b-list_item_user_name');
+      var has = function (el) {
+        return !!el && (el.textContent || '').replace(/\u00a0/g, ' ').trim() !== '';
+      };
+      if (has(name) && has(r)) r.classList.add('lm-after_name');
+    });
+
+    sliceOf(box.querySelectorAll('.b-list_item_user_description__empty'))
+      .forEach(function (d) {
+        if (d.children.length) d.classList.add('lm-open');
+        else d.classList.remove('lm-open');
+      });
+  }
+
+  /* Строка первая: «искать среди заметок» с полями пола и гражданства.
+     Чекбокс лежит у лепры в своём блоке над полями — переносим блок
+     целиком, вместе со скрытым пунктом «мои заметки» и обработчиком,
+     который его открывает. Сам блок из раскладки убран правилом
+     display: contents, поэтому в строку встают его дети. */
+  function buildUsersRows() {
+    var filters = document.querySelector('.b-users_list_filters');
+    if (!filters) return;
+
+    var notes = document.getElementById('js-users_search_user_notes');
+    if (notes) {
+      var flags = notes.closest('.b-users_list_flags');
+      if (flags && flags.parentNode !== filters)
+        filters.insertBefore(flags, filters.firstChild);
+      wrapCheckbox(notes);
+      wrapCheckbox(document.getElementById('js-users_search_my_notes'));
+    }
+
+    /* Строка вторая: «Был» и три чекбокса. Берём соседа строки полей —
+       по классу его от перенесённого блока заметок не отличить. */
+    var was = filters.nextElementSibling;
+    if (was && was.classList.contains('b-users_list_flags') && !was.dataset.lmWas) {
+      was.dataset.lmWas = '1';
+      var pre = '';
+      sliceOf(was.querySelectorAll('input[type="checkbox"]')).forEach(function (inp) {
+        var pair = wrapCheckbox(inp);
+        var lab = pair && pair.querySelector('label');
+        if (!lab) return;
+        var t = (lab.textContent || '').replace(/\u00a0/g, ' ').trim();
+        if (stripPrefix(lab, /^(?:был)\s+(.+)$/i)) pre = 'Был';
+      });
+      if (pre) {
+        var p = document.createElement('span');
+        p.className = 'lm-flag_prefix';
+        p.textContent = pre;
+        was.insertBefore(p, was.firstChild);
+      }
+    }
+
+    /* Строка третья: сортировка. Слово «Сортировать:» лежит голым
+       текстовым узлом — заворачиваем, иначе оно не станет пунктом
+       флекс-строки и мерить в подгонке будет нечего. */
+    var sort = document.querySelector('.b-users_list_sorting');
+    if (sort && !sort.dataset.lmSort) {
+      sort.dataset.lmSort = '1';
+      sliceOf(sort.childNodes).forEach(function (n) {
+        if (n.nodeType === 3 && n.nodeValue.trim()) sort.removeChild(n);
+      });
+      var sp = document.createElement('span');
+      sp.className = 'lm-sort_prefix';
+      sp.title = 'Сортировать по';
+      sp.textContent = 'Сортировать по';
+      sort.insertBefore(sp, sort.firstChild);
+    }
+    if (sort) {
+      sliceOf(sort.querySelectorAll('li a, li strong')).forEach(function (a) {
+        if (a.dataset.lmSort) return;
+        a.dataset.lmSort = '1';
+        stripPrefix(a, /^по\s+(.+)$/i);
+      });
+    }
+  }
+
+  /* ---- Подгонка строк настроек в одну линию ----
+     Считать заранее нечего: доступная ширина зависит от масштаба
+     страницы, который скрипту не виден, а ширина полей — от выбранных
+     пунктов. Меряем по факту и ужимаем ступенями, каждый раз начиная
+     от исходного кегля: иначе на повороте экрана строка осталась бы
+     мелкой, хотя места стало больше. */
+  var ROW_UNITS = '.lm-chk, .lm-flag_prefix, .lm-sort_prefix, select, li';
+  var ROW_STEPS = [1, 0.92, 0.85, 0.78];
+
+  /* Пункты строки разной высоты, и по верхнему краю их не сравнить:
+     при выравнивании по центру поле выбора выше подписи, а тапом
+     это не отличить от переноса. Сравниваем середины. */
+  function sameLine(list) {
+    var mid = [], i, r;
+    for (i = 0; i < list.length; i++) {
+      r = list[i].getBoundingClientRect();
+      if (!r.width || !r.height) continue;   /* скрытые пункты не в счёт */
+      mid.push(r.top + r.height / 2);
+    }
+    if (mid.length < 2) return true;
+    return Math.max.apply(null, mid) - Math.min.apply(null, mid) <= 4;
+  }
+
+  /* Последние ступени для строки сортировки. Одним кеглем её не спасти:
+     «Сортировать по» занимает столько же, сколько два варианта вместе,
+     а «комментариям» — самое длинное слово в ряду. Убираем по одному и
+     только когда кегль уже дошёл до предпоследней ступени. Полный текст
+     держим в data-атрибуте, а не в подсказке: в подсказке лежит исходная
+     подпись лепры вместе с предлогом, и вернуть из неё нечего. */
+  function sortStages() {
+    var sort = document.querySelector('.b-users_list_sorting');
+    if (!sort) return [];
+    return [
+      [sort.querySelector('.lm-sort_prefix'), 'по'],
+      [sort.querySelector('li[data-sorting="comments_count"] a, ' +
+                          'li[data-sorting="comments_count"] strong'), 'комментам']
+    ];
+  }
+
+  function sortShorten(full) {
+    var st = sortStages(), hit = false, i, el;
+    for (i = 0; i < st.length; i++) {
+      el = st[i][0];
+      if (!el) continue;
+      if (full) {
+        if (el.dataset.lmFull && el.textContent !== el.dataset.lmFull) {
+          el.textContent = el.dataset.lmFull;
+          hit = true;
+        }
+        continue;
+      }
+      if (el.textContent === st[i][1]) continue;
+      if (!el.dataset.lmFull) el.dataset.lmFull = el.textContent;
+      el.textContent = st[i][1];
+      return true;              /* по одной ступени за раз */
+    }
+    return hit;
+  }
+
+  function fitUsersRow(row, shorten) {
+    if (!row) return;
+    /* До загрузки шрифта ширины подписей другие, и мерить рано. */
+    if (document.fonts && document.fonts.status !== 'loaded') return;
+
+    var base = parseFloat(row.dataset.lmBase);
+    if (!(base > 0)) {
+      base = parseFloat(getComputedStyle(row).fontSize);
+      if (!(base > 0)) return;
+      row.dataset.lmBase = base;
+    }
+    if (shorten) shorten(true);
+
+    for (var i = 0; i < ROW_STEPS.length; i++) {
+      row.style.setProperty('font-size',
+                            (base * ROW_STEPS[i]).toFixed(1) + 'px', 'important');
+      fitSelects();
+      if (sameLine(sliceOf(row.querySelectorAll(ROW_UNITS)))) return;
+      /* Сокращение подписи — только с третьей ступени кегля: убавить
+         кегль на восьмую долю заметно меньше, чем урезать слово.
+         По одной подписи на ступень, самая безобидная первой. */
+      if (i >= 2 && shorten && shorten(false) &&
+          sameLine(sliceOf(row.querySelectorAll(ROW_UNITS)))) return;
+    }
+    /* Дальше ужимать нечем: перенос честнее нечитаемого кегля. */
+  }
+
+  function fitUsersRows() {
+    var filters = document.querySelector('.b-users_list_filters');
+    if (!filters) return;
+    fitUsersRow(filters, null);
+    var was = filters.nextElementSibling;
+    if (was && was.classList.contains('b-users_list_flags')) fitUsersRow(was, null);
+    fitUsersRow(document.querySelector('.b-users_list_sorting'), sortShorten);
+  }
+
+  /* ---- Сворачивание карточки ----
+     У лепры обработчик только на разворот: раскрытая карточка обратно
+     не закрывается ничем. Свой переключатель ведём своим классом.
+     Слушаем в фазе перехвата и гасим событие там же: обработчик лепры
+     висит на самом блоке описания, то есть в фазе всплытия сработал бы
+     раньше нашего и развернул карточку тем же нажатием. */
+  var cardTapBound = false;
+
+  function watchUserCards() {
+    if (cardTapBound || !document.querySelector('.b-users_list_users')) return;
+    cardTapBound = true;
+    document.addEventListener('click', function (e) {
+      var t = e.target;
+      if (!t || !t.closest) return;
+      var d = t.closest('.b-list_item_user_description');
+      if (!d || !d.closest('.b-users_list_users')) return;
+      if (t.closest('a')) return;
+      /* Пока лепра не положила внутрь содержимое, сворачивать нечего —
+         первое нажатие должно дойти до её обработчика. */
+      if (!d.children.length) return;
+      d.classList.toggle('lm-collapsed');
+      e.stopPropagation();
+      e.preventDefault();
+    }, true);
+  }
+
+
+  /* ============================================================
+     ПОДСАЙТЫ: ПРОСТОЕ ПЕНСНЕ
+     ============================================================ */
+
+  /* Правая колонка подлепры (.b-subdomain_aside_right) — кнопка подписки,
+     настройки уведомлений, облако тегов и вольный текст правления со
+     ссылками. На десктопе это столбец сбоку от ленты; развёрнутый в одну
+     колонку, он у иных подлепр занимает два экрана до первого поста.
+     Складываем его целиком под одну строку — «простое пенсне», по образцу
+     волшебного пенсне в профиле.
+
+     Порог постов сюда не попадает: relayoutHeader уносит его в шапку
+     раньше, поэтому пенсне собирается ПОСЛЕ перестройки шапки. */
+
+  var PINCE_KEY = 'lm-pince';
+
+  /* Стёкла рисуем разметкой, а не картинкой: pincenez_logo.png лежит на
+     основном домене, а подлепра — это отдельный поддомен, и за него
+     пришлось бы ходить запросом. Заодно значок красится вместе с текстом
+     и переворачивается тёмной темой сам, без исключения из инверсии. */
+  var PINCE_SVG =
+    '<svg class="lm-pince_glass" viewBox="0 0 46 20" width="30" height="13" ' +
+    'aria-hidden="true" focusable="false">' +
+    '<g fill="none" stroke="currentColor" stroke-width="2" ' +
+    'stroke-linecap="round"><circle cx="12" cy="11" r="7"/>' +
+    '<circle cx="32" cy="11" r="7"/><path d="M19 11h6"/>' +
+    '<path d="M5 8C3 4 1 3 1 3"/><path d="M39 8c4-1 6 4 3 7"/></g></svg>';
+
+  function pinceOpen() {
+    try { return localStorage.getItem(PINCE_KEY) === '1'; } catch (e) { return false; }
+  }
+
+  function buildSubsitePince() {
+    var aside = document.querySelector('.b-subdomain_aside_right');
+    if (!aside || aside.dataset.lmPince) return;
+    /* Пустая колонка встречается: у молодой подлепры нет ни описания,
+       ни тегов, и тогда строка-переключатель нечего разворачивать. */
+    if (!aside.textContent.replace(/\s/g, '')) return;
+    aside.dataset.lmPince = '1';
+
+    var body = document.createElement('div');
+    body.className = 'lm-pince_body';
+    while (aside.firstChild) body.appendChild(aside.firstChild);
+
+    /* Левая колонка подсайта скрыта общим правилом — переносим её в
+       конец тела: описание подлепры важнее её управляющего, а внизу
+       текст колонки читается продолжением, а не врезкой. */
+    var left = document.querySelector('.l-content_aside_subsite');
+    if (left) body.appendChild(left);
+
+    var btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'lm-pince';
+    btn.innerHTML = PINCE_SVG +
+      '<span class="lm-pince_label">Простое пенсне</span>' +
+      '<span class="lm-pince_arrow">\u25BE</span>';
+
+    aside.appendChild(btn);
+    aside.appendChild(body);
+
+    var open = pinceOpen();
+    aside.classList.toggle('lm-pince__open', open);
+    btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+
+    btn.addEventListener('click', function (e) {
+      e.preventDefault();
+      var on = !aside.classList.contains('lm-pince__open');
+      aside.classList.toggle('lm-pince__open', on);
+      btn.setAttribute('aria-expanded', on ? 'true' : 'false');
+      try { localStorage.setItem(PINCE_KEY, on ? '1' : '0'); } catch (err) {}
+    });
+  }
 
 
   /* ============================================================
@@ -2493,7 +3318,8 @@ html.lm-dark [style*="background-image"] {
      замеры, а выбранное значение — смениться. Считать дёшево: полей два,
      обходов списка столько же. */
   function fitSelects() {
-    sliceOf(document.querySelectorAll('.lm-filters_row select'))
+    sliceOf(document.querySelectorAll(
+        '.lm-filters_row select, .b-users_list_filters select'))
       .forEach(function (sel) {
         fitSelect(sel);
         if (sel.dataset.lmFitBound) return;
@@ -4066,6 +4892,8 @@ html.lm-dark [style*="background-image"] {
     /* класс страницы — до перестройки шапки: она смотрит на него */
     guard('markTabsPage', markTabsPage)();
     guard('relayoutHeader', relayoutHeader)();
+    /* строго после шапки: она забирает из правой колонки порог постов */
+    guard('buildSubsitePince', buildSubsitePince)();
     guard('fixUserNote', fixUserNote)();
     guard('moveKarmaToName', moveKarmaToName)();
     guard('watchVotesPopup', watchVotesPopup)();
@@ -4073,11 +4901,16 @@ html.lm-dark [style*="background-image"] {
     guard('fitOverlays', fitOverlays)();
     guard('groupNotesRow', groupNotesRow)();
     guard('compactCitizen', compactCitizen)();
+    guard('fixUsersList', fixUsersList)();
+    guard('buildUsersRows', buildUsersRows)();
+    guard('watchUserCards', watchUserCards)();
     guard('fixMyThings', fixMyThings)();
     guard('shortenSubNav', shortenSubNav)();
     guard('fitSelects', fitSelects)();
     /* строку фильтров меряем ПОСЛЕ подгонки полей: до неё ширины ещё не те */
     guard('fitFiltersRow', fitFiltersRow)();
+    /* строки настроек списка граждан меряем после подгонки полей */
+    guard('fitUsersRows', fitUsersRows)();
     guard('shortenTabs', shortenTabs)();
     guard('unfloatWide', unfloatWide)();
     guard('registerMedia', registerMedia)();
@@ -4102,6 +4935,9 @@ html.lm-dark [style*="background-image"] {
     guard('compactThreadToggles', compactThreadToggles)();
     guard('compactPostFooters', compactPostFooters)();
     guard('compactCommentDates', compactCommentDates)();
+    /* список граждан догружается кнопкой «Загрузить ещё» */
+    guard('fixUsersList', fixUsersList)();
+    guard('buildUsersRows', buildUsersRows)();
   }
 
   function start() {
