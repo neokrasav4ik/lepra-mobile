@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Lepra Mobile
 // @namespace    lepra.mobile
-// @version      0.9.47
+// @version      0.9.63
 // @description  Мобильная адаптация leprosorium.ru для iOS Safari
 // @author       neokrasav4ik
 // @homepageURL  https://github.com/neokrasav4ik/lepra-mobile
@@ -39,7 +39,7 @@
 (function () {
   'use strict';
 
-  var VERSION = '0.9.47';
+  var VERSION = '0.9.63';
 
   /* ============================================================
      НАСТРОЙКИ
@@ -83,6 +83,28 @@
        длина ни к чему. На инбоксе и в «моих вещах» поле не трогается:
        строка там своя, укорачивать нечего. 0 — не укорачивать. */
     searchTrim: 10,
+
+    /* НАСТРОЙКА: нижний предел ширины поля поиска в сжатой шапке страниц
+       с вкладками («мои вещи», инбокс, избранное). Там поле делит строку
+       со ссылками и отдаёт им место первым, но уже поля в сантиметр
+       вводить нечего. Больше число — поле длиннее, ссылкам теснее. */
+    tabsSearchMin: 74,
+
+    /* НАСТРОЙКА: ширина окна подтверждения покупки («окно Чарли») в
+       процентах от ширины экрана. Окно стоит по центру, а картинка с
+       доской и тунцом растянута ровно по нему — поэтому число управляет
+       и размером картинки тоже, а полей по краям не возникает.
+       100 — во всю ширину экрана. */
+    charleyArt: 90,
+
+    /* НАСТРОЙКА: красить панели Safari — адресную строку сверху и полосу
+       кнопок снизу — в цвет страницы. Сам Safari угадывает этот цвет по
+       содержимому у верхней и нижней кромок экрана и пересчитывает его
+       редко: любое затемнение поверх страницы (подложка окна покупки
+       перекрывает обе кромки) оставляет панели чёрными и после закрытия
+       окна, до следующей прокрутки. Явный цвет снимает угадывание.
+       false — не вмешиваться в оформление браузера. */
+    themeColor: true,
 
     /* Потолок на разовый обход DOM. Лепра тратит около 150 элементов
        на комментарий, поэтому тред на тысячу комментариев — это 150 тысяч
@@ -490,6 +512,39 @@ body {
 .l-header_aside:empty, .b-header_aside:empty,
 .b-index_navigation_holder:empty { display: none !important; }
 
+/* ---- Сжатая шапка на страницах с панелью вкладок ----
+   «Мои вещи», инбокс, избранное, настройки, социализм, приложения несут
+   под шапкой собственную панель вкладок, где уже есть и «мои вещи», и
+   «избранное», и инбокс. Сверху они дублируются, а высота на телефоне
+   дороже полноты. Здесь шапка сжимается до двух строк: приветствие с
+   логаутом, затем «Мои вещи N», инбокс, колокольчик и поиск.
+
+   Признак страницы ставит скрипт классом lm-tabs на <html>. Из CSS его
+   не вывести: панель вкладок лежит в разметке ПОСЛЕ шапки, а обратного
+   соседа выбрать нечем. */
+html.lm-tabs .b-header_counters,
+html.lm-tabs .b-header_nav_new_post,
+html.lm-tabs .b-header_nav_fraud,
+html.lm-tabs .b-header_nav a[href*="/my/favourites"] {
+  display: none !important; }
+
+/* Поиск скрипт переносит в конец строки ссылок — тем же флекс-элементом,
+   что и сами ссылки. Именно внутрь .b-header_nav, а не в .l-header:
+   строка ссылок занимает всю ширину, и сосед по .l-header встал бы
+   отдельной строкой, то есть ровно тем, от чего мы уходим.
+   Штатные position/left у блока поиска сдвигали его на пиксель влево —
+   внутри флекса это лишнее. */
+html.lm-tabs .b-header_nav .b-header_search {
+  flex: 1 1 auto !important; min-width: 0 !important;
+  position: static !important; left: auto !important;
+  margin: 0 0 0 4px !important; padding: 0 !important; }
+/* Ширина поля задана лепрой в процентах от обёртки (86%), а обёртка у нас
+   display:contents, то есть коробки не имеет. Переводим на флекс: поле
+   занимает остаток строки и сжимается до предела из настроек. */
+html.lm-tabs #js-header_search_form .i-form_text_input {
+  width: auto !important; flex: 1 1 auto !important;
+  min-width: ${CFG.tabsSearchMin}px !important; }
+
 /* ============ ЛЕНТА И ПОСТЫ ============ */
 /* Белая полоса справа получалась из двух вложенных width:98%,
    плюс у поста было 270px внутреннего отступа под правую колонку. */
@@ -502,7 +557,10 @@ body {
 .dd {
   position: relative !important;
   padding: 0 0 0 88px !important;   /* место для голосовалки слева */
-  line-height: 1.4 !important; font-size: 13px !important; }
+  /* Высота строки задана ниже, в правиле подписей поста: строки там
+     переносятся часто, и 1.4 не хватало — соседние наезжали друг на
+     друга. Держим её в одном месте, а не в двух. */
+  font-size: 13px !important; }
 
 /* Подпись — флекс-строка: промежутки задавались пробелами в разметке
    и полями у ссылок, отсюда рыхлость и перенос крестика на третью строку. */
@@ -956,6 +1014,17 @@ input[type="radio"], input[type="checkbox"] {
   margin: 0 !important; flex: 0 0 auto !important; }
 .b-my_posts_feed_controls .lm-unread_row label {
   flex: 1 1 auto !important; }
+/* На «избранном» чекбокс с подписью держит собственный узел лепры
+   .b-check_item, и своей обёртки мы там не строим. Интервал между ними
+   был начальным пробелом внутри подписи — после сокращения текста он
+   пропал. Задаём его здесь, в одном месте, а собственные поля квадратика
+   снимаем, чтобы величина интервала не складывалась из двух источников. */
+.b-my_posts_feed_controls p.lm-filters_row .b-check_item {
+  display: inline-flex !important; align-items: center !important;
+  gap: 5px !important; white-space: nowrap !important; }
+.b-my_posts_feed_controls p.lm-filters_row .b-check_item input,
+.b-my_posts_feed_controls p.lm-filters_row .b-check_item label {
+  margin: 0 !important; }
 
 /* ============ ИНБОКС ============ */
 /* «Написать инбокс» у лепры стоит в потоке слева, под панелью фильтров, и
@@ -1114,6 +1183,27 @@ body.l-profile .l-header { margin-bottom: 1px !important; }
   white-space: nowrap !important; word-break: normal !important;
   font-size: 22px !important; }
 
+/* Окно со списком проголосовавших (тап по счётчику кармы, а на постах и
+   комментариях — по числу голосов). У лепры оно шириной 410px и прибито
+   к середине голосовалки со сдвигом вправо:
+   .b-votes_popup { position:absolute; right:50%; margin-right:-192px }
+   Расчёт десктопный — там голосовалка стоит в середине широкой карточки.
+   На телефоне она прижата к правому краю строки с именем, и окно вылезало
+   за экран дважды: собственной шириной (410 при CSS-ширине экрана 393)
+   и сдвигом на 192px. Ширину ограничиваем экраном прямо здесь, чтобы окно
+   не мигало широким до первого замера; горизонтальный сдвиг доводит
+   проход fitVotesPopup — из CSS его не вычислить, он зависит от того,
+   где именно на строке оказалась голосовалка. */
+.b-votes_popup {
+  width: 410px !important; max-width: calc(100vw - 12px) !important;
+  box-sizing: border-box !important; }
+/* Поля внутри окна — 30px слева и 40px справа — оставлены под стрелки
+   листания (сами стрелки шириной 21px). На узком окне это седьмая часть
+   ширины под пустоту, а список имён и так в две колонки. */
+.b-votes_popup .b_users_table_holder {
+  padding-left: 24px !important; padding-right: 26px !important; }
+.b-votes_popup .b_users_table-list { max-width: none !important; }
+
 /* Пенсне — родная кнопка разворота панели заметок. У лепры это картинка
    75×75, прибитая абсолютно слева от жёлтого поля (left:0, top:-5px).
    Слева от поля на телефоне места нет, поэтому ставим её в поток первой
@@ -1268,6 +1358,177 @@ body.l-profile .l-header { margin-bottom: 1px !important; }
   padding: 6px 5px !important; font-size: 11px !important;
   white-space: nowrap !important; flex: 0 1 auto !important; }
 .b-menu__profile .b-menu_list_link i { font-size: 10px !important; }
+
+/* ============ МАГАЗИН (/fraud/) ============ */
+/* Ширина документа 882 при экране 393 бралась не из содержимого, а из двух
+   нижних пределов: min-width 770 у витрины и min-width 870 у отдела с
+   мерчем. Всё остальное в отчёте — следствие: колонки, отступы, кегли и
+   ширины полей считаются от этой ширины, поэтому чинить их по одному
+   бессмысленно, пока стоят пределы. */
+.b-fraud_showcase {
+  min-width: 0 !important; margin: 0 0 16px !important;
+  padding: 0 !important; }
+.b-fraud_market { min-width: 0 !important; padding-left: 0 !important; }
+.b-fraud_quick_block {
+  padding: 0 0 0 4px !important; margin: 0 0 24px !important; }
+
+/* Три колонки товаров — в одну. Порог unfloatWide сюда не дотягивается:
+   треть от 369 — это 123 пикселя, меньше 40% экрана. */
+.b-fraud_showcase_col { float: none !important; width: auto !important; }
+/* Карточки и их обёртка залиты одним и тем же серым, и в столбик они
+   слипаются в сплошное полотно. На десктопе их разделяли колонки. */
+.b-fraud_showcase_col .b-fraud_showcase_product {
+  border-bottom: 1px solid rgb(224, 224, 224) !important; }
+
+/* Отбивка заголовка сверху в 44 пикселя и сдвиг витрины вправо на 41
+   были рассчитаны на логотип магазина, который лежит выше и левее. */
+.b-fraud_showcase_caption {
+  font-size: 15px !important; line-height: 1.35 !important;
+  margin: 0 0 10px !important; padding: 10px 0 0 !important; }
+.b-fraud_logo { margin: 10px 0 12px !important; max-width: 100% !important; }
+
+/* Карточка гражданства: тунец нарисован фоном размером 227×332 и отодвигал
+   текст на 275 пикселей — на экране 393 под сам текст оставалось меньше
+   сотни. Картинку уменьшаем втрое, отступ вместе с ней. */
+.b-fraud_showcase_pro {
+  padding-left: 100px !important; padding-right: 12px !important;
+  background-size: 84px auto !important;
+  background-position: 8px 12px !important; }
+
+.b-fraud_showcase_product { font-size: 13px !important; }
+.b-fraud_showcase_product h1 {
+  font-size: 18px !important; line-height: 1.25 !important;
+  padding-top: 10px !important; }
+.b-fraud_showcase_product h2 { font-size: 16px !important; }
+.b-i-fraud_showcase_product,
+.b-i-fraud_showcase_product_description { padding: 10px 12px !important; }
+
+/* Формы покупки: кегль полей 18 и ширины в пикселях заданы под карточку
+   в треть от 770. Ширину отдаём содержимому, но с рамками в расчёте —
+   иначе поле шириной во всю карточку вылезает на толщину рамки. */
+.b-fraud_showcase .i-form_text_input,
+.b-fraud_showcase .i-form_textarea {
+  font-size: 15px !important; max-width: 100% !important;
+  box-sizing: border-box !important; }
+.b-fraud_showcase_product_form .b-hidden_content {
+  padding: 14px 12px 12px !important; }
+.b-fraud_showcase_product_form_price { font-size: 18px !important; }
+.b-fraud_showcase_pro_new_sublepro_form .b-hidden_content {
+  width: auto !important; padding: 14px 0 16px !important; }
+.b-fraud_showcase_pro_new_sublepro_form .i-form_text_input {
+  width: 150px !important; }
+.b-fraud_showcase_pro_new_sublepro_form label {
+  margin-right: 6px !important; }
+.b-fraud_showcase_pro_new_sublepro_link i { font-size: 15px !important; }
+.b-pro_acc_prolongation_friend_form { padding-left: 0 !important; }
+/* поля наружу по 20 пикселей с каждой стороны — под широкую карточку */
+.b-fraud_showcase_ranks_rebuy { margin: 0 !important; }
+
+/* ---- Окно подтверждения покупки («окно Чарли») ----
+   Открывается на любой покупке: продление гражданства, звания, никнейм.
+   Держатель прибит к верху экрана и высотой в один пиксель, а само окно
+   выходит из него наружу и задано шириной 666 — то есть в полтора экрана.
+   Крестик закрытия у него absolute от правого края окна, поэтому уезжал
+   за экран вместе с ним, а закрыть окно больше нечем: подложка тапы
+   не принимает, и остаётся только «назад».
+
+   Держатель при этом ровно 393 в ширину, поэтому общая подгонка слоёв
+   его не трогала — она смотрит на рамку, а виновато содержимое. */
+#charley_holder .charley {
+  /* Ширину окна задаём настройкой, а картинку кладём ровно по окну.
+     Раньше окно было во весь экран, а картинка занимала долю его ширины,
+     и справа оставалась полоса заливки шириной в эту разницу — она и
+     выглядела торчащей подложкой. Теперь лишнего места нет вовсе. */
+  width: ${CFG.charleyArt}% !important; max-width: 100% !important;
+  /* auto по бокам — окно снова по центру. У лепры здесь margin: -200px
+     auto 0, и обнулять боковые поля было незачем: вправо окно уезжало
+     не из-за них, а из-за ширины в 666 пикселей. */
+  margin-left: auto !important; margin-right: auto !important;
+  min-height: 0 !important;
+  /* Доска с тунцом и КРЕСТИК ЗАКРЫТИЯ — всё одна картинка 660×318.
+     Отдельного значка у крестика нет: .close — просто прозрачный
+     квадрат 51×51 поверх нарисованного. Поэтому масштабировать можно
+     только по ширине: cover обрезал картинку сбоку, и крестик, который
+     нарисован у правого края, пропадал — тап работал, а видно не было.
+     Если окно выше картинки, низ добирается цветом самой доски: он
+     замерен по ней и одинаков в середине и у края, шва не будет. */
+  background-size: 100% auto !important;
+  background-color: rgb(44, 44, 44) !important; }
+
+/* Отступ слева был 200 пикселей — ровно под тунца в натуральную величину.
+   На картинке тунец нарисован до 148-го пикселя из 660, то есть занимает
+   22% ширины; картинка растянута по ширине окна, значит те же 22% окна
+   при любом экране. Отсюда 24%: те же 22 плюс небольшой зазор до текста.
+   Справа оставляем место крестику — его квадрат 51 пиксель. */
+#charley_holder .charley_inner {
+  padding: 14px 56px 12px 24% !important; }
+#charley_holder .text {
+  font-size: 14px !important; line-height: 1.35 !important;
+  margin-bottom: 10px !important; }
+#charley_holder .yes, #charley_holder .no { font-size: 15px !important; }
+#charley_holder .password_holder {
+  font-size: 12px !important; margin: 6px 0 !important; }
+/* Кегль поля был 8 пикселей. Ниже 16 Safari на iOS наезжает камерой на
+   поле при касании, поэтому именно 16, а не «покрупнее». */
+#charley_holder .password_holder input {
+  font-size: 16px !important; width: 110px !important;
+  padding: 2px 4px !important; }
+#charley_holder .close { right: 2px !important; top: 2px !important; }
+
+/* ============ ЧАРЛИ (вкладка с тунцом) ============ */
+/* Страница собрана из трёх плавающих колонок под ширину около 900 пикселей:
+   тунец 184px слева, текст с отступом ровно в эти 184, ниже «важная
+   информация» в половину строки и колонка подлепрозориев в 39%. На
+   телефоне из этого выходит текст в двести пикселей шириной, пустая
+   колонка справа и дата, вылезающая за экран. */
+
+/* 96% оставляли полосу справа и ничего не давали взамен */
+.b-inner_container { width: auto !important; }
+.b-pro_account_container { padding-bottom: 8px !important; }
+
+/* Тунец остаётся слева обтекаемым блоком, но вдвое уже: 184 пикселя из
+   393 — это половина экрана под картинку с подписью. Отступ слева у
+   текста снимаем совсем. Тогда текст идёт справа от тунца, а закончив
+   его высоту — продолжается под ним во всю ширину, вместо того чтобы
+   стоять узкой колонкой до самого низа. Нижние поля по 80 пикселей
+   выравнивали колонки между собой и здесь дают только пустоту. */
+.b-pro_acc_charlie {
+  width: 116px !important; margin: 0 12px 6px 0 !important; }
+.b-pro_acc_charlie img { max-width: 100% !important; height: auto !important; }
+.b-pro_acc_charlie p { width: auto !important; line-height: 1.35 !important; }
+.b-pro_acc_text {
+  margin: 0 !important; padding: 0 !important;
+  font-size: 13px !important; line-height: 1.5 !important; }
+
+/* «Крупно и красным» — шутка, набранная 48 пикселями. Дата в них выходит
+   за экран (412 пикселей при окне 393) и разгоняет ширину всего документа
+   до 441. Кегль сбавляем, но перепад между строкой и датой оставляем:
+   без него от шутки ничего не остаётся. */
+.b-pro_acc_info {
+  float: none !important; width: auto !important;
+  padding: 10px 0 8px !important; }
+.b-pro_acc_info p { margin: 0 0 6px !important; line-height: 1.4 !important; }
+.b-pro_acc_info .b-pro_acc_expire {
+  font-size: 15px !important; line-height: 1.3 !important;
+  padding-top: 4px !important; }
+.b-pro_acc_info .b-pro_acc_expire .b-valid_till { font-size: 15px !important; }
+.b-pro_acc_info .b-pro_acc_expire em { font-size: 22px !important; }
+
+/* Колонка подлепрозориев: 39% ширины, у гражданина без своих подлепр
+   пустая — тогда это просто плавающий пустой блок, сдвигающий соседей.
+   Порог unfloatWide до неё не дотягивается: 138 пикселей меньше 40%
+   экрана, поэтому снимаем обтекание правилом.
+   Отступ сверху задаём полем, а не отбивкой: у гражданина без своих
+   подлепр блок пуст, и пустой блок с одним лишь полем схлопывается сам
+   в ноль высоты, тогда как отбивка осталась бы видимой полосой.
+   Проверка :empty здесь не годится: внутри блока лежит перевод строки. */
+.b-pro_acc_subs {
+  float: none !important; width: auto !important;
+  padding-top: 0 !important; margin-top: 8px !important; }
+
+/* Строка ссылок под вкладками — обычный текст с разделителями */
+.b-my_posts_feed_controls_navigation {
+  font-size: 12px !important; line-height: 1.6 !important; }
 
 /* ============ ПОДСАЙТЫ ============ */
 .l-header_subsite { padding-left: 0 !important; }
@@ -1481,6 +1742,11 @@ html.lm-dark [style*="background-image"] {
     var W = document.documentElement.clientWidth;
     scanOverflow(false).forEach(function (b) {
       var el = b.el, cs = b.cs;
+      /* Окно голосов правит fitVotesPopup — по замеру и сдвигом. Общий
+         починщик поставил бы ему max-width:100% от .b-user_karma, а это
+         полсотни пикселей: окно сплющилось бы в столбик. В отчёт оно
+         при этом попадает как обычно — регрессию видно будет. */
+      if (el.closest && el.closest('.b-votes_popup')) return;
       el.style.setProperty('max-width', '100%', 'important');
       el.style.setProperty('box-sizing', 'border-box', 'important');
       if (parseFloat(cs.paddingRight) > 40)
@@ -1509,6 +1775,11 @@ html.lm-dark [style*="background-image"] {
 
   function unfloatWide() {
     var W = document.documentElement.clientWidth;
+    /* Пока раскладки нет, ширина всех элементов нулевая, а ноль проходит
+       проверку «меньше 40% экрана» ровно наоборот — сравнение с нулевым
+       порогом истинно, и обтекание снималось со всего подряд, включая
+       узкие блоки, которым оно нужно. Мерить до раскладки нечего. */
+    if (!W) return;
     var host = root();
 
     var force = function (el) {
@@ -1664,6 +1935,158 @@ html.lm-dark [style*="background-image"] {
     else h2.appendChild(karma);
   }
 
+  /* Окно со списком проголосовавших.
+
+     Лепра создаёт его по тапу и ставит абсолютно: right:50% от голосовалки
+     плюс сдвиг вправо на 192px. На десктопе голосовалка в середине широкой
+     карточки, и окно ложится под неё. На телефоне голосовалка прижата
+     к правому краю строки с именем — окно уезжает за экран, документ
+     становится шире окна, и страница перемасштабируется.
+
+     Ширину ограничивает CSS, здесь остаётся горизонтальный сдвиг. Двигаем
+     именно сдвигом (transform), а не координатами и полями, по двум
+     причинам. Первая: лепра сама меряет окно, чтобы решить, показать его
+     сверху или снизу (класс js-bottom), а transform не меняет ни
+     offsetLeft, ни offsetWidth — её замеры остаются верными. Вторая:
+     менять left/right пришлось бы наперегонки с её же расстановкой.
+
+     Перед замером прошлый сдвиг снимаем: иначе на втором проходе мерилось
+     бы уже сдвинутое окно и оно уползало бы дальше с каждым разом. */
+
+  var POPUP_GAP = 6;          /* зазор от края экрана */
+  var POPUP_ARROW_EDGE = 8;   /* насколько близко хвостик пускаем к углу */
+
+  /* К чему окно относится. Для кармы берём сам счётчик: попадание хвостика
+     в него виднее всего. Для голосовалок постов и комментариев — предок,
+     от которого лепра его и позиционировала. */
+  function popupAnchor(p) {
+    if (p.classList.contains('b-votes_popup_karma'))
+      return document.querySelector('.b-user_karma .b-karma_value') ||
+             document.querySelector('.b-user_karma');
+    return p.offsetParent || p.parentElement;
+  }
+
+  /* ============================================================
+     СЛОИ ПОВЕРХ СТРАНИЦЫ
+     ============================================================ */
+
+  /* Модальные окна лепры — подтверждение пароля при покупке, диалоги
+     подтверждения — размечает и позиционирует её собственный скрипт уже
+     после нажатия: ширина и координаты приходят инлайном в пикселях,
+     посчитанные от ширины документа. На телефоне документ шире экрана,
+     и окно уезжает вправо вместе с кнопкой закрытия — а закрыть его
+     больше нечем, потому что страница под ним обесточена.
+
+     Разбирать конкретный класс нечем: скрипта лепры в сохранённой
+     странице нет, а разметки до нажатия не существует. Поэтому правим
+     не по имени, а по признаку — всплывший поверх страницы блок, что
+     шире экрана или начинается за его краем. Это заодно закрывает все
+     прочие окна лепры, до которых мы ещё не добрались. */
+
+  function isOverlay(el) {
+    var cs = getComputedStyle(el);
+    if (cs.position !== 'fixed' && cs.position !== 'absolute') return false;
+    var z = parseInt(cs.zIndex, 10);
+    return z >= 100;                       /* ниже сотни — не окна, а мелочь */
+  }
+
+  /* Слои ищем по всему документу, а не среди прямых потомков body.
+     Первая попытка смотрела только их, и модальное окно не нашлось:
+     лепра вставляет его в глубину разметки, а не рядом с ней. Обход
+     идёт тем же walk с отсечением комментариев и постов — иначе на
+     длинном треде это сотня тысяч замеров стиля. */
+  function eachLayer(visit, budget) {
+    if (!document.body) return;
+    walk(document.body, isBulk, function (el) {
+      if (/^lm-/.test(el.id || '')) return;
+      if (!isOverlay(el)) return;
+      var r = el.getBoundingClientRect();
+      if (!r.width || !r.height) return;
+      visit(el, r);
+    }, budget || CFG.scanBudget);
+  }
+
+  function squeezeOverlay(el, W) {
+    var r = el.getBoundingClientRect();
+    if (!r.width || !r.height) return false;
+    if (r.width <= W && r.left >= -1 && r.right <= W + 1) return false;
+
+    el.style.setProperty('max-width', '100vw', 'important');
+    el.style.setProperty('box-sizing', 'border-box', 'important');
+    el.style.setProperty('left', '0', 'important');
+    el.style.setProperty('margin-left', '0', 'important');
+    el.style.setProperty('margin-right', '0', 'important');
+    /* Ширину в пикселях лепра пишет инлайном — снимаем её же способом. */
+    if (el.style.width) el.style.setProperty('width', 'auto', 'important');
+    return true;
+  }
+
+  function fitOverlays() {
+    var W = document.documentElement.clientWidth;
+    if (!W) return;
+    eachLayer(function (el) { squeezeOverlay(el, W); });
+  }
+
+  function fitVotesPopup() {
+    var W = document.documentElement.clientWidth;
+
+    sliceOf(document.querySelectorAll('.b-votes_popup')).forEach(function (p) {
+      p.style.removeProperty('transform');
+      /* .invisible — служебное состояние лепры: окно отнесено на -10000px,
+         чтобы измерить его невидимым. Мерить его бессмысленно. */
+      if (p.classList.contains('invisible')) return;
+
+      var r = p.getBoundingClientRect();
+      if (!r.width || !r.height) return;
+
+      var dx = 0;
+      if (r.right > W - POPUP_GAP) dx = (W - POPUP_GAP) - r.right;
+      if (r.left + dx < POPUP_GAP) dx = POPUP_GAP - r.left;
+      if (dx)
+        p.style.setProperty('transform',
+                            'translateX(' + Math.round(dx) + 'px)', 'important');
+
+      /* Хвостик пузыря лепра ставит числом от правого края окна (121px для
+         кармы, 24px для поста). После сдвига он показывал бы в пустоту,
+         поэтому наводим его на голосовалку по замеру, а не по числу.
+         Обоим хвостикам, верхнему и нижнему: какой из них показать,
+         лепра решает классом js-bottom, и это её дело. */
+      var a = popupAnchor(p);
+      if (!a) return;
+      var ar = a.getBoundingClientRect();
+      if (!ar.width) return;
+
+      var left = r.left + dx;
+      sliceOf(p.querySelectorAll('.b-votes_popup_arrow')).forEach(function (t) {
+        var tw = t.getBoundingClientRect().width || 28;
+        var x = ar.left + ar.width / 2 - left - tw / 2;
+        x = Math.max(POPUP_ARROW_EDGE,
+                     Math.min(r.width - tw - POPUP_ARROW_EDGE, x));
+        t.style.setProperty('left', Math.round(x) + 'px', 'important');
+        t.style.setProperty('right', 'auto', 'important');
+      });
+    });
+  }
+
+  /* Когда мерить. Окно появляется по тапу, а список голосовавших приходит
+     ответом сервера уже после — от одного замера толку мало. Отдельный
+     наблюдатель за всем документом ради этого не нужен: тап и так проходит
+     через document, и по нему заводим короткую серию проверок. Слушатель
+     на перехвате, чтобы обработчик лепры не успел его отменить. */
+  var popupWatched = false;
+
+  function watchVotesPopup() {
+    if (popupWatched || !document.body) return;
+    popupWatched = true;
+    var run = guard('fitVotesPopup', fitVotesPopup);
+    document.addEventListener('click', function (e) {
+      var t = e.target;
+      if (!t || !t.closest) return;
+      if (!t.closest('.b-karma_value, .vote, .b-votes_popup')) return;
+      [0, 60, 200, 500, 1200].forEach(function (ms) { setTimeout(run, ms); });
+    }, true);
+  }
+
   /* «Гражданин Лепрозория до 3 Сентября 2027» — строка на две строки
      экрана, из которых половина уходит на слова, известные и без того.
      Оставляем «Гражданство до 03.09.27», полную дату кладём в подсказку.
@@ -1742,6 +2165,92 @@ html.lm-dark [style*="background-image"] {
      переносилась под сам чекбокс. Фразу сокращаем, чекбокс с подписью
      заворачиваем в отдельную флекс-строку: перенос подписи тогда идёт
      по её собственному краю, а не по краю колонки. */
+  /* Подписи пунктов, вариантов сортировки и ссылок подпанели рассчитаны
+     на десктопную строку шириной в семьсот пикселей. На телефоне под ту
+     же строку остаётся треть экрана, и каждая лишняя буква — это перенос
+     на вторую строку. Длинные варианты заменяем короткими, полный текст
+     уходит в подсказку. Меняется только видимая надпись: value полей
+     выбора лепра шлёт на сервер, его не трогаем нигде.
+
+     Замена по точному совпадению, а не по вхождению: в панели фильтров
+     лежит вводная фраза «моих вещей», и она должна остаться как есть.
+     По той же причине безопасно проходить и по текстовым узлам:
+     разделители « | » ни с чем не совпадут. */
+  var SHORT = [
+    /* инбокс */
+    [/^по\s+последним\s+комментариям$/i, 'по комментариям'],
+    /* мои вещи */
+    [/^только\s+новые\s+посты\s+и\s+комментарии$/i, 'только новые'],
+    /* избранное */
+    [/^по\s+дате\s+поста$/i,          'по посту'],
+    [/^по\s+дате\s+добавления$/i,     'по добавлению'],
+    [/^публиковать\s+в\s+профайле$/i, 'в профайле'],
+    /* чарли: строка ссылок под вкладками */
+    [/^подлепрозорий$/i,   'подлепра'],
+    [/^почтовый\s+ящик$/i, 'почтовый ящик'],
+    [/^игнор-лист$/i,      'игнор-лист'],
+    [/^скрытые\s+посты$/i, 'скрытое']
+  ];
+
+  function shortLabel(s) {
+    var t = (s || '').replace(/\u00a0/g, ' ').trim();
+    for (var i = 0; i < SHORT.length; i++)
+      if (SHORT[i][0].test(t)) return SHORT[i][1];
+    return null;
+  }
+
+  function shortenIn(box, sel) {
+    if (!box) return;
+    sliceOf(box.querySelectorAll(sel)).forEach(function (el) {
+      /* Только конечные узлы. Если активный пункт окажется ссылкой внутри
+         strong, под выборку попадут оба, внешний обработается первым — и
+         замена текста снесла бы ссылку вместе с разметкой. */
+      if (el.children && el.children.length) return;
+      var t = (el.textContent || '').replace(/\u00a0/g, ' ').trim();
+      var s = shortLabel(t);
+      if (s === null) return;
+      /* Подсказку вешаем только когда есть что подсказывать: часть замен
+         меняет лишь регистр, и всплывающая копия той же надписи мешает. */
+      if (!el.title && s.length < t.length) el.title = t;
+      el.textContent = s;
+    });
+  }
+
+  /* Строка ссылок под вкладками у Чарли: «Подлепрозорий | Почтовый ящик |
+     Игнор-лист | Скрытые посты». Текущий раздел лепра выводит не ссылкой,
+     а тегом strong с серой подложкой — поэтому обход только по ссылкам
+     сокращал три пункта из четырёх, а на открытом разделе возвращалось
+     полное название. Берём и то и другое, плюс голые текстовые узлы:
+     разметка активного пункта у лепры непостоянна, а точное совпадение
+     не даст задеть лишнее.
+
+     Живёт отдельно от панели фильтров: на разделах Чарли обёртки
+     .b-my_posts_feed_controls может не быть вовсе, и привязка к ней
+     оставила бы страницу без сокращений. */
+  function shortenSubNav() {
+    sliceOf(document.querySelectorAll('.b-my_posts_feed_controls_navigation'))
+      .forEach(function (nav) {
+        shortenIn(nav, 'a, strong, b, em, span');
+        /* Активный пункт лепра иногда выводит вообще без обёртки — голым
+           текстом. Тогда название и следующий за ним разделитель лежат в
+           одном текстовом узле, и целиком он ни с чем не совпадёт.
+           Поэтому режем узел по вертикальной черте и примеряем замену к
+           каждому куску, сохраняя окружающие пробелы: без них пункты
+           слиплись бы с разделителями. */
+        sliceOf(nav.childNodes).forEach(function (n) {
+          if (n.nodeType !== 3) return;
+          var hit = false;
+          var out = n.nodeValue.split('|').map(function (p) {
+            var s = shortLabel(p);
+            if (s === null) return p;
+            hit = true;
+            return p.match(/^\s*/)[0] + s + p.match(/\s*$/)[0];
+          });
+          if (hit) n.nodeValue = out.join('|');
+        });
+      });
+  }
+
   function fixMyThings() {
     var box = document.querySelector('.b-my_posts_feed_controls');
     if (!box || box.dataset.lmMyThings) return;
@@ -1759,16 +2268,9 @@ html.lm-dark [style*="background-image"] {
         t.nodeValue = 'За ';
     }
 
-    /* Та же панель стоит на инбоксе, и там в «сортировать» лежит подпись
-       «по последним комментариям». Поле выбора растягивается по самой
-       длинной строке списка, и вся строка панели уезжает за край экрана.
-       Меняем только видимую подпись: value лепра шлёт на сервер, его не
-       трогаем. */
-    sliceOf(box.querySelectorAll('select option')).forEach(function (o) {
-      var t = (o.textContent || '').replace(/\u00a0/g, ' ').trim();
-      if (/^по\s+последним\s+комментариям$/i.test(t))
-        o.textContent = 'по комментариям';
-    });
+    /* Пункты панели фильтров: сама таблица замен и обход — общие,
+       см. SHORT и shortenIn выше. */
+    shortenIn(box, 'option, label');
 
     /* Подписи «Показывать» и «Сортировать» занимали больше места, чем сами
        поля, хотя выбранное значение («все», «по дате») и так читается без
@@ -1810,16 +2312,6 @@ html.lm-dark [style*="background-image"] {
         el.style.removeProperty('margin-left');
         if (!el.getAttribute('style')) el.removeAttribute('style');
       });
-
-    /* «только новые посты и комментарии» — подпись длиной в полстроки при
-       том, что фильтр в этой панели ровно один и других «новых» тут нет. */
-    sliceOf(box.querySelectorAll('label')).forEach(function (el) {
-      if (/^только\s+новые\s+посты\s+и\s+комментарии$/i
-            .test((el.textContent || '').replace(/\u00a0/g, ' ').trim())) {
-        el.title = (el.textContent || '').trim();
-        el.textContent = 'только новые';
-      }
-    });
 
     /* Чекбокс с подписью сводим в один узел: дальше он идёт по строке
        как единое целое и подпись не отрывается от квадратика.
@@ -2224,6 +2716,23 @@ html.lm-dark [style*="background-image"] {
      4. ПЕРЕСТРОЙКА ШАПКИ
      ============================================================ */
 
+  /* Страницы, под шапкой которых лепра рисует панель вкладок: «мои вещи»,
+     инбокс, избранное, настройки, социализм, приложения, инвайты.
+     Опознаём по Чарли — он стоит в этой панели предпоследней вкладкой и
+     больше нигде не встречается. Запасной признак — адрес: панель приходит
+     вместе с разметкой, но первый проход идёт до полной загрузки, и на
+     медленной сети её может ещё не быть, а класс нужен сразу, иначе шапка
+     мигнёт полной. */
+  function isTabsPage() {
+    if (document.querySelector('.b-menu .b-menu_list_link__charlie')) return true;
+    return /(^|\.)leprosorium\.ru$/i.test(location.hostname) &&
+           /^\/my(\/|$)/.test(location.pathname);
+  }
+
+  function markTabsPage() {
+    if (isTabsPage()) document.documentElement.classList.add('lm-tabs');
+  }
+
   function relayoutHeader() {
     var header = document.querySelector('.l-header');
     if (!header) return;
@@ -2255,14 +2764,32 @@ html.lm-dark [style*="background-image"] {
     /* Каждая строка шапки — самостоятельный блок. В разметке лепры они
        лежат в разных обёртках, а флекс строит строку только из соседей
        по одному родителю, поэтому переносим их прямо в .l-header. */
+    var tabsPage = document.documentElement.classList.contains('lm-tabs');
+
     ['.b-header_nav_new_post', '.b-header_counters',
      '.b-index_slider', '.b-header_search'].forEach(function (sel) {
+      /* На страницах с вкладками поиск отдельной строкой не нужен — он
+         уходит в конец строки ссылок шагом ниже. */
+      if (tabsPage && sel === '.b-header_search') return;
       var el = document.querySelector(sel);
       if (el && !el.dataset.lmMoved && el.parentElement !== header) {
         el.dataset.lmMoved = '1';
         header.appendChild(el);
       }
     });
+
+    /* Сжатая шапка: из строки ссылок ушли «Магазин», «Избранное» и
+       приглашение написать пост, место освободилось — ставим туда поиск.
+       Метку lmMoved выставляем той же, чтобы обход выше не утащил его
+       обратно в .l-header на следующем проходе. */
+    if (tabsPage) {
+      var navBox = header.querySelector('.b-header_nav');
+      var srch = document.querySelector('.b-header_search');
+      if (navBox && srch && srch.parentElement !== navBox) {
+        srch.dataset.lmMoved = '1';
+        navBox.appendChild(srch);
+      }
+    }
 
     var th = document.querySelector('.b-posts_threshold');
     if (th && !th.dataset.lmMoved && !header.contains(th)) {
@@ -2302,11 +2829,71 @@ html.lm-dark [style*="background-image"] {
     return document.documentElement.classList.contains('lm-dark');
   }
 
+  function themeColorValue() { return isDark() ? '#1a1a1a' : '#ffffff'; }
+
+  /* Свой метатег ставим ПЕРВЫМ в head, а не последним. По правилам
+     разметки браузер берёт первый подходящий theme-color, а не
+     последний — своего у лепры сейчас нет, но появись он, наш в конце
+     просто не подействовал бы. */
+  function themeMeta() {
+    var m = document.querySelector('meta[name="theme-color"][data-lm]');
+    if (m) return m;
+    var head = document.head || document.documentElement;
+    if (!head) return null;
+    m = document.createElement('meta');
+    m.setAttribute('name', 'theme-color');
+    m.setAttribute('data-lm', '1');
+    head.insertBefore(m, head.firstChild);
+    return m;
+  }
+
+  /* Цвет — фон страницы: белый обычно, тёмный при нашей тёмной теме.
+     Она сделана инверсией всего документа, поэтому белый там становится
+     почти чёрным, и панели должны быть под стать.
+
+     nudge: Safari перерисовывает панели по изменению метатега, а не по
+     содержимому страницы, и верхнюю строку обновляет заметно ленивее
+     нижней. Поэтому там, где цвет должен смениться прямо сейчас, сперва
+     ставим соседний оттенок и через кадр возвращаем нужный: разница в
+     один шаг глазу не видна, а обновление вызывает. */
+  function setThemeColor(nudge) {
+    if (!CFG.themeColor) return;
+    var m = themeMeta();
+    if (!m) return;
+    var want = themeColorValue();
+    if (!nudge) { m.setAttribute('content', want); return; }
+    m.setAttribute('content', isDark() ? '#1b1b1b' : '#fefefe');
+    setTimeout(function () { m.setAttribute('content', want); }, 60);
+  }
+
+  /* Затемнение окна покупки перекрывает обе кромки экрана, и Safari
+     красит панели по нему. После закрытия окна сам он их не пересчитает,
+     поэтому ловим переход «было затемнение — не стало» и обновляем цвет
+     принудительно. Следим за подложкой, а не за держателем: держатель
+     высотой в один пиксель и виден всегда. */
+  var darkOverlayOn = false;
+
+  function syncThemeColor() {
+    if (!CFG.themeColor) return;
+    var box = document.getElementById('charley_holder');
+    var b = box && box.querySelector('.black');
+    var now = false;
+    if (b) {
+      var cs = getComputedStyle(b);
+      now = cs.display !== 'none' && cs.visibility !== 'hidden' &&
+            parseFloat(cs.opacity) > 0.05;
+    }
+    if (now === darkOverlayOn) return;
+    darkOverlayOn = now;
+    if (!now) setThemeColor(true);
+  }
+
   function setDark(on) {
     document.documentElement.classList.toggle('lm-dark', on);
     try { localStorage.setItem('lm-dark', on ? '1' : '0'); } catch (e) {}
     var b = document.getElementById('lm-theme');
     if (b) b.textContent = on ? '\u2600' : '\u263E';
+    setThemeColor(true);
   }
 
   /* применяем до отрисовки, иначе страница мигнёт белым */
@@ -2890,6 +3477,65 @@ html.lm-dark [style*="background-image"] {
     });
   }
 
+  /* Всё, что всплывает поверх страницы: подложки, модальные окна,
+     подсказки. Обычные разделы отчёта их не видят: они ходят по
+     содержимому страницы, а окно живёт своей жизнью — и, как выяснилось,
+     не обязательно рядом с содержимым.
+     Показываем цепочку предков (чьё окно — лепры, капчи, расширения),
+     инлайновые стили (в них пишут ширину и координаты) и потомков,
+     вышедших за края: при рамке шириной ровно в экран виновато
+     содержимое, а оно статическое и в перечень слоёв не попадает. */
+  function reportOverlays(L) {
+    var W = document.documentElement.clientWidth, n = 0;
+
+    L.push('ширина окна ' + W);
+
+    eachLayer(function (el, r) {
+      if (n >= 12) return;
+      n++;
+      var cs = getComputedStyle(el);
+      L.push('');
+      L.push('[' + n + '] ' + describe(el) +
+             '  pos=' + cs.position + ' z=' + cs.zIndex +
+             ' L=' + Math.round(r.left) + ' R=' + Math.round(r.right) +
+             ' T=' + Math.round(r.top) + ' B=' + Math.round(r.bottom) +
+             ' w=' + Math.round(r.width) + ' h=' + Math.round(r.height) +
+             (r.right > W + 1 || r.left < -1 ? '  ЗА ЭКРАНОМ' : ''));
+
+      var path = [], p = el.parentElement, i = 0;
+      while (p && p !== document.body && i++ < 4) {
+        path.push(describe(p));
+        p = p.parentElement;
+      }
+      L.push('   в: ' + (path.length ? path.join(' < ') : 'прямо в body'));
+
+      var st = (el.getAttribute('style') || '').replace(/\s+/g, ' ').trim();
+      if (st) L.push('   style="' + st.slice(0, 200) + '"');
+
+      var out = [];
+      sliceOf(el.querySelectorAll('*')).forEach(function (k) {
+        if (out.length > 12) return;
+        var kr = k.getBoundingClientRect();
+        if (!kr.width && !kr.height) return;
+        if (kr.right <= W + 1 && kr.left >= -1) return;
+        out.push('     ' + describe(k) +
+                 '  L=' + Math.round(kr.left) + ' R=' + Math.round(kr.right) +
+                 ' w=' + Math.round(kr.width) +
+                 ' pos=' + getComputedStyle(k).position);
+      });
+      if (out.length) {
+        L.push('   содержимое за краями экрана:');
+        out.forEach(function (s) { L.push(s); });
+      }
+
+      L.push('   разметка: ' +
+             el.innerHTML.replace(/ on[a-z]+="[^"]*"/g, '')
+                         .replace(/\s+/g, ' ').trim().slice(0, 700));
+    });
+
+    if (!n) L.push('(слоёв нет — окно надо открыть ДО отчёта)');
+  }
+
   function reportFloats(L) {
     L.push('', '--- плавающие колонки ---');
     var n = 0;
@@ -2929,6 +3575,22 @@ html.lm-dark [style*="background-image"] {
     return s;
   }
 
+  /* Лепра прячет формы покупки не классом, а высотой: контейнеру ставится
+     height: 0 с overflow: hidden, и содержимое обрезается. Прямоугольники
+     у обрезанного содержимого остаются прежние, поэтому в отчёте оно
+     исправно «перекрывало» соседей — треть страницы магазина уходила на
+     наложения, которых глазом не видно. Считаем невидимым всё, что лежит
+     внутри обрезающего предка нулевой высоты. */
+  function insideCollapsed(el) {
+    for (var p = el.parentElement; p && p !== document.body; p = p.parentElement) {
+      if (p.clientHeight > 0 && p.clientWidth > 0) continue;
+      var cs = getComputedStyle(p);
+      if (cs.overflow === 'hidden' || cs.overflowY === 'hidden' ||
+          cs.overflowX === 'hidden') return true;
+    }
+    return false;
+  }
+
   /* Наложения ищем попарно среди «листьев» — элементов без вложенных блоков.
      Самый частый вид поломки при переносе десктопной вёрстки, и на глаз
      заметен не всегда. */
@@ -2945,6 +3607,7 @@ html.lm-dark [style*="background-image"] {
       var r = el.getBoundingClientRect();
       if (r.width < 4 || r.height < 4) continue;
       if (r.bottom < -2000 || r.top > window.innerHeight + 4000) continue;
+      if (insideCollapsed(el)) continue;
       cand.push({ el: el, r: r, f: fragments(el, r) });
     }
 
@@ -3120,6 +3783,22 @@ html.lm-dark [style*="background-image"] {
       }
     }
 
+    /* Окно голосов: если хвостик показывает мимо счётчика или окно всё
+       ещё за краем — здесь видно, к чему оно на самом деле прицеплено
+       и какие у него координаты. Гадать про это дороже, чем напечатать. */
+    var vp = document.querySelector('.b-votes_popup:not(.invisible)');
+    L.push('', 'окно голосов: ' + (vp ? 'открыто' : '(закрыто)'));
+    if (vp) {
+      L.push(line('  ', vp));
+      L.push('  сдвиг: ' + (vp.style.transform || '(нет)') +
+             ' | предок по позиции: ' + positionedParent(vp));
+      var an = popupAnchor(vp);
+      if (an) L.push(line('  якорь: ', an));
+      sliceOf(vp.querySelectorAll('.b-votes_popup_arrow')).forEach(function (t) {
+        L.push(line('  хвостик: ', t));
+      });
+    }
+
     var pn = document.querySelector('.b-user_public_notes');
     if (pn) {
       L.push('', 'строка заметок:');
@@ -3243,6 +3922,9 @@ html.lm-dark [style*="background-image"] {
     L.push('', '--- панель фильтров ---');
     reportFilters(L);
 
+    L.push('', '--- слои поверх страницы ---');
+    reportOverlays(L);
+
     L.push('', '--- журнал скрипта ---');
     if (!LOG.length) L.push('(пусто — ошибок не было)');
     else LOG.forEach(function (m) { L.push(m); });
@@ -3360,17 +4042,24 @@ html.lm-dark [style*="background-image"] {
   /* Полный проход: тяжёлые обходы DOM только здесь, не при прокрутке. */
   function fullPass() {
     guard('ensureThemeToggle', ensureThemeToggle)();
+    guard('setThemeColor', setThemeColor)();
     guard('ensureNav', ensureNav)();
     guard('watchRefreshButton', watchRefreshButton)();
     guard('compactThreadToggles', compactThreadToggles)();
     guard('compactPostFooters', compactPostFooters)();
     guard('compactCommentDates', compactCommentDates)();
+    /* класс страницы — до перестройки шапки: она смотрит на него */
+    guard('markTabsPage', markTabsPage)();
     guard('relayoutHeader', relayoutHeader)();
     guard('fixUserNote', fixUserNote)();
     guard('moveKarmaToName', moveKarmaToName)();
+    guard('watchVotesPopup', watchVotesPopup)();
+    guard('fitVotesPopup', fitVotesPopup)();
+    guard('fitOverlays', fitOverlays)();
     guard('groupNotesRow', groupNotesRow)();
     guard('compactCitizen', compactCitizen)();
     guard('fixMyThings', fixMyThings)();
+    guard('shortenSubNav', shortenSubNav)();
     guard('fitSelects', fitSelects)();
     /* строку фильтров меряем ПОСЛЕ подгонки полей: до неё ширины ещё не те */
     guard('fitFiltersRow', fitFiltersRow)();
@@ -3388,6 +4077,11 @@ html.lm-dark [style*="background-image"] {
     guard('fixMediaSizes', fixMediaSizes)();
     /* заметка профиля: лепра переписывает её содержимое своим скриптом */
     guard('maybeShortenNote', maybeShortenNote)();
+    /* окно голосов наполняется списком после ответа сервера — переставляем
+       его ещё раз, когда узлы списка уже на месте */
+    guard('fitVotesPopup', fitVotesPopup)();
+    guard('fitOverlays', fitOverlays)();
+    guard('syncThemeColor', syncThemeColor)();
     /* комментарии могли догрузиться — числа и подписи устарели */
     guard('refreshCommentCounters', refreshCommentCounters)();
     guard('compactThreadToggles', compactThreadToggles)();
@@ -3407,7 +4101,9 @@ html.lm-dark [style*="background-image"] {
     document.addEventListener('DOMContentLoaded', start);
   else start();
 
-  window.addEventListener('load', function () { setTimeout(fullPass, 300); watchDom(); });
+  window.addEventListener('load', function () {
+    setTimeout(fullPass, 300); watchDom(); guard('watchTaps', watchTaps)();
+  });
   window.addEventListener('orientationchange', function () { setTimeout(fullPass, 300); });
 
   /* Прокрутка сама по себе ничего не запускает: раньше каждые 150 мс шёл
@@ -3423,6 +4119,20 @@ html.lm-dark [style*="background-image"] {
       mutationTimer = null;
       lightPass();
     }, 400);
+  }
+
+  /* Модальное окно лепра рисует в ответ на нажатие. Наблюдатель за узлами
+     ловит не всякое: часть окон уже лежит в разметке скрытой, и лепра
+     только меняет им стиль — добавления узлов при этом нет. Поэтому после
+     каждого нажатия проверяем слои отдельно, тремя заходами: разметка,
+     раскладка и анимация появления доходят до конца не сразу. */
+  function watchTaps() {
+    document.addEventListener('click', function () {
+      [60, 260, 700].forEach(function (ms) {
+        setTimeout(guard('fitOverlays', fitOverlays), ms);
+        setTimeout(guard('syncThemeColor', syncThemeColor), ms);
+      });
+    }, true);
   }
 
   function watchDom() {
