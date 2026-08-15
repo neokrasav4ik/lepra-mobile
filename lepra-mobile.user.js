@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Lepra Mobile
 // @namespace    lepra.mobile
-// @version      0.9.63
+// @version      0.9.64
 // @description  Мобильная адаптация leprosorium.ru для iOS Safari
 // @author       neokrasav4ik
 // @homepageURL  https://github.com/neokrasav4ik/lepra-mobile
@@ -39,7 +39,7 @@
 (function () {
   'use strict';
 
-  var VERSION = '0.9.63';
+  var VERSION = '0.9.64';
 
   /* ============================================================
      НАСТРОЙКИ
@@ -1349,6 +1349,21 @@ body.l-profile .l-header { margin-bottom: 1px !important; }
 .b-menu_list_text { height: auto !important; line-height: 1.4 !important; }
 .b-menu_list_link_content { float: none !important; margin-right: 0 !important; }
 .b-menu_list_link__last { width: auto !important; }
+
+/* Активная вкладка отличается от соседних фоном rgb(241,240,241) против
+   белого — полтора процента яркости. На бумаге это разница, на телефоне
+   при боковом свете её нет вовсе. Затемняем фон и рамку настолько, чтобы
+   вкладка читалась сразу, но не выглядела нажатой кнопкой.
+   Нижнюю границу оставляем цветом самой вкладки, как у лепры: так она
+   «открывается» в содержимое, а не обводится со всех сторон.
+   Профиль и панель-кнопки не трогаем: там своё оформление активной
+   вкладки — залитая серым с белым текстом и рамка без заливки. */
+.b-menu:not(.b-menu__profile):not(.b-menu__buttons) .b-menu_list_link_active,
+.b-menu:not(.b-menu__profile):not(.b-menu__buttons) .b-menu_list_link_active:hover {
+  background-color: rgb(223, 221, 223) !important;
+  border-color: rgb(184, 182, 184) rgb(184, 182, 184)
+                rgb(223, 221, 223) !important;
+  color: rgb(40, 40, 40) !important; }
 
 /* Четыре вкладки профиля с общими полями по 12px не помещались в 369px и
    переносились. При масштабе страницы 110% ширина падает до ~333, поэтому
