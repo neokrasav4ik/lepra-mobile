@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Lepra Mobile
 // @namespace    lepra.mobile
-// @version      0.9.18
+// @version      0.9.47
 // @description  Мобильная адаптация leprosorium.ru для iOS Safari
 // @author       neokrasav4ik
 // @homepageURL  https://github.com/neokrasav4ik/lepra-mobile
@@ -39,7 +39,7 @@
 (function () {
   'use strict';
 
-  var VERSION = '0.9.18';
+  var VERSION = '0.9.47';
 
   /* ============================================================
      НАСТРОЙКИ
@@ -77,6 +77,12 @@
        В обоих случаях лепровский обработчик глушится: он подменяет узел
        и выбрасывает страницу наверх. */
     imageTap: 'off',
+
+    /* НАСТРОЙКА: на сколько пикселей укоротить поле поиска на главной.
+       Там оно делит нижнюю строку шапки с выбором режимов, и лишняя
+       длина ни к чему. На инбоксе и в «моих вещах» поле не трогается:
+       строка там своя, укорачивать нечего. 0 — не укорачивать. */
+    searchTrim: 10,
 
     /* Потолок на разовый обход DOM. Лепра тратит около 150 элементов
        на комментарий, поэтому тред на тысячу комментариев — это 150 тысяч
@@ -275,7 +281,7 @@ body {
 /* Порядок в строке: приветствие (гибкое) - переключатель темы - логотипы,
    затем навигация во всю ширину, затем две колонки со счётчиками и фильтром. */
 .l-header {
-  margin: 0 0 16px 0 !important; padding: 8px 0 12px !important;
+  margin: 0 0 8px 0 !important; padding: 8px 0 12px !important;
   min-height: 0 !important;
   flex-wrap: wrap !important; align-items: flex-start !important;
   /* у лепры здесь space-between — он растаскивал приветствие,
@@ -375,25 +381,100 @@ body {
   margin: 2px 0 4px !important; }
 
 .l-header > .b-header_counters {
-  order: 5 !important; flex: 1 1 50% !important;
+  order: 5 !important; flex: 0 1 auto !important;
   text-align: left !important; line-height: 1.5 !important;
   height: auto !important;
+  /* Строка «N сайтов и M человек» набрана шрифтом в пикселях, а ширина
+     колонки зависит от масштаба страницы: при увеличении окно в CSS-пикселях
+     сужается, надпись перестаёт помещаться и переносится второй строкой —
+     шапка от этого становится выше. Запрещаем перенос: строка остаётся
+     одной при любом масштабе, а если места совсем нет, хвост срезается
+     многоточием, и высота шапки всё равно не меняется. */
+  white-space: nowrap !important;
+  min-width: 0 !important;
+  overflow: hidden !important; text-overflow: ellipsis !important;
+  font-size: 12px !important;
   /* НАСТРОЙКА: первое число — насколько опустить эту надпись.
      Больше — ниже, меньше (можно отрицательное) — выше.
      Соседние блоки не двигаются: отступ только у неё. */
   margin: 8px 0 0 0 !important; }
+/* внутри две ссылки — они тоже не должны рваться по своим пробелам */
+.l-header > .b-header_counters a { white-space: nowrap !important; }
 
 .l-header > .b-index_slider {
-  order: 6 !important; flex: 1 1 50% !important;
+  order: 6 !important; flex: 1 1 auto !important; min-width: 0 !important;
   display: flex !important; justify-content: flex-end !important;
   align-items: center !important; gap: 18px !important;
-  margin: 0 !important; }
+  margin: 0 !important;
+  /* НАСТРОЙКА: на сколько сдвинуть переключатель влево. Он выровнен по
+     правому краю, поэтому сдвиг задаётся отступом справа. Нужен, чтобы
+     его середина совпала с серединой блока порога строкой ниже: у
+     значков переключателя есть собственные поля, из-за которых он
+     заканчивается не там же, где блок под ним. */
+  padding-right: 8px !important; }
 
+/* Основа 0, а не 50%: соседом в этой строке стоит надпись со счётчиками,
+   которой перенос запрещён. Поле поиска берёт то, что осталось, и
+   отдаёт место первым — иначе при увеличении масштаба места не хватало
+   обоим сразу и надпись срезало многоточием почём зря. */
 .l-header > .b-header_search {
-  order: 7 !important; flex: 1 1 50% !important;
+  order: 7 !important; flex: 1 1 0% !important; min-width: 0 !important;
   margin: 4px 0 0 !important; }
-.l-header > .b-header_search form {
-  display: flex !important; align-items: center !important; gap: 4px !important; }
+
+/* На главной в шапке есть ещё и переключатель вида. С основой 0 поиск
+   переставал требовать себе места, все три блока умещались в одну
+   строку, и поле поиска, у которого снизу ограничение в 90 пикселей,
+   вылезало влево поверх значков переключателя. Возвращаем половину
+   строки: счётчики с переключателем встают строкой выше, а поиск делит
+   нижнюю с выбором режимов — как и было. Признак — сам переключатель:
+   скрипт переносит блоки в шапку в известном порядке, поэтому он
+   всегда стоит в разметке раньше поиска. */
+.l-header > .b-index_slider ~ .b-header_search {
+  flex: 1 1 50% !important; }
+
+/* Порядок в строке: лупа, затем поле, всё прижато к правому краю.
+   Правила заданы одним блоком по id формы, а не по .l-header: во-первых,
+   нужны и там, где шапка не перебрана скриптом; во-вторых, два набора
+   правил на один элемент уже однажды дали зависимость от порядка. */
+#js-header_search_form {
+  display: flex !important; align-items: center !important;
+  justify-content: flex-end !important; gap: 4px !important; }
+/* Обёртка поля мерилась на 22 пикселя шире самого поля при нулевых
+   отступах и без псевдоэлементов — откуда берётся её ширина, по цифрам
+   так и не сошлось. display:contents убирает её коробку целиком:
+   поле становится прямым флекс-элементом формы, и мерить больше нечего. */
+#js-header_search_form .b-header_search_input_holder {
+  display: contents !important; }
+#js-header_search_form .b-header_search_input_holder::before,
+#js-header_search_form .b-header_search_input_holder::after {
+  content: none !important; display: none !important; }
+/* Нижний предел, ниже которого поле сжиматься не должно: строкой выше
+   ему разрешено уступать место счётчикам, а поле шириной в сантиметр
+   бесполезно. */
+#js-header_search_form .i-form_text_input {
+  order: 2 !important; flex: 0 1 auto !important;
+  min-width: 90px !important; margin: 0 !important; }
+#js-header_search_form input[type="submit"] { display: none !important; }
+#js-header_search_form .b-icon_button_search {
+  order: 1 !important; flex: 0 0 auto !important;
+  position: static !important; inset: auto !important; margin: 0 !important; }
+
+/* На главной поиск делит нижнюю строку с выбором режимов, и лупа слева
+   от поля упирается в них. Там меняем порядок на обратный: поле, затем
+   лупа у самого края. Признак тот же, что и для ширины строкой выше, —
+   наличие переключателя вида. Селекторы длиннее базовых нарочно: они
+   должны перевешивать их и по весу, и по месту в файле, иначе результат
+   зависел бы от того, как браузер разрешает спор. */
+.l-header > .b-index_slider ~ .b-header_search
+  #js-header_search_form .i-form_text_input { order: 1 !important; }
+.l-header > .b-index_slider ~ .b-header_search
+  #js-header_search_form .b-icon_button_search { order: 2 !important; }
+/* и прижимаем связку к левому краю. Форма по умолчанию выровнена вправо,
+   поэтому укорочение поля съедало пиксели слева и оставляло отступ от
+   края экрана. Теперь поле с лупой стоят у левого края — на том же
+   расстоянии, что и блок режимов от правого. */
+.l-header > .b-index_slider ~ .b-header_search #js-header_search_form {
+  justify-content: flex-start !important; }
 
 .l-header > .b-posts_threshold {
   order: 8 !important; flex: 1 1 50% !important;
@@ -802,32 +883,198 @@ input[type="radio"], input[type="checkbox"] {
 .b-search_threshold_settings input[type="radio"] {
   position: static !important; margin: 0 !important; flex: 0 0 auto !important; }
 
+/* ============ МОИ ВЕЩИ ============ */
+/* Разделитель под подшапкой — парный к тому, что под шапкой страницы */
+.b-my_posts_feed_controls {
+  padding-bottom: 10px !important; margin-bottom: 12px !important;
+  border-bottom: 1px solid rgb(214, 212, 212) !important; }
+/* Строка с вводной фразой остаётся обычным текстом: поле выбора стоит
+   внутри предложения, и флекс бы его оттуда вырвал — фраза встала бы
+   блоком слева, поле отдельно справа. */
+.b-my_posts_feed_controls p {
+  line-height: 1.7 !important; margin: 0 0 6px !important; }
+.b-my_posts_feed_controls select { vertical-align: middle !important; }
+
+/* Строка из одних полей — флекс, и это не украшательство. В разметке
+   лепры пробелы лежат не только МЕЖДУ пунктами, но и внутри них: перед
+   чекбоксом и после каждого поля выбора. Инлайновый пробел рисуется
+   шириной около четырёх пикселей, и к заданному интервалу их набегало
+   два — по одному с каждой стороны стыка. У флекс-элементов пробельные
+   узлы между ними не рисуются вовсе, а начальные и конечные пробелы
+   внутри каждого элемента браузер срезает сам. Тогда интервал задан
+   ровно в одном месте — в gap.
+   Свободное место раздаётся между пунктами, а не копится справа — иначе
+   поля жмутся к левому краю, а правая треть строки пустует.
+   Перенос разрешён, но нужен редко: ширину полям скрипт задаёт по
+   ВЫБРАННОМУ пункту списка (см. fitSelects), а не по самому длинному,
+   и в обычном положении строка помещается целиком. Если же выбраны
+   самые длинные варианты сразу в двух списках, пункт уезжает на вторую
+   строку — это некрасиво ровно один раз, тогда как подрезанный текст
+   в поле выглядит поломкой всегда. */
+.b-my_posts_feed_controls p.lm-filters_row {
+  display: flex !important; flex-wrap: wrap !important;
+  align-items: center !important; gap: 4px 5px !important;
+  justify-content: space-between !important; }
+/* Подпись и её поле не разрывать: «За» вставало строкой выше своего
+   поля, как только пункту не хватало ширины. */
+.b-my_posts_feed_controls p.lm-filters_row > .b-my_posts_feed_controls_item {
+  min-width: 0 !important; white-space: nowrap !important; }
+.b-my_posts_feed_controls p.lm-filters_row >
+  .b-my_posts_feed_controls_item:last-child {
+  flex: 0 0 auto !important; }
+.b-my_posts_feed_controls p.lm-filters_row select {
+  max-width: 100% !important; }
+/* В «моих вещах» поле сортировки лежит в строке само по себе, без
+   обёртки лепры, то есть само является пунктом строки. Форменным
+   элементам браузер задаёт нижний предел ширины по содержимому — снимаем,
+   иначе строка не сожмётся вовсе. Сжатие здесь — запас на крайний
+   случай: ширину полю скрипт уже подобрал по выбранному значению. */
+.b-my_posts_feed_controls p.lm-filters_row > select {
+  flex: 0 1 auto !important; min-width: 0 !important; }
+/* Собственные отступы пунктов и полей снимаем целиком: у лепры они
+   рассчитаны на широкую строку и складывались с нашими. */
+.b-my_posts_feed_controls_item {
+  margin: 0 !important; padding: 0 !important; }
+.b-my_posts_feed_controls_item > select,
+.b-my_posts_feed_controls_item > label,
+.b-my_posts_feed_controls_item > input {
+  margin: 0 !important; }
+/* у чекбокса «только новое» лепра держит margin-left: 14px прямо
+   в атрибуте style — снимаем, иначе к интервалу прибавляются её */
+.b-my_posts_feed_controls_item input[type="checkbox"] {
+  margin-left: 0 !important; }
+/* чекбокс с подписью скрипт сводит сюда, чтобы подпись не отрывалась
+   от квадратика при переносе */
+.b-my_posts_feed_controls .lm-unread_row {
+  display: flex !important; align-items: center !important;
+  gap: 6px !important; margin-top: 4px !important; }
+/* внутри строки из одних полей он идёт наравне с ними: свой отступ
+   сверху ему там не нужен, а сжиматься ему нечем */
+.b-my_posts_feed_controls p.lm-filters_row > .lm-unread_row {
+  margin-top: 0 !important; flex: 0 0 auto !important; }
+.b-my_posts_feed_controls .lm-unread_row input {
+  margin: 0 !important; flex: 0 0 auto !important; }
+.b-my_posts_feed_controls .lm-unread_row label {
+  flex: 1 1 auto !important; }
+
+/* ============ ИНБОКС ============ */
+/* «Написать инбокс» у лепры стоит в потоке слева, под панелью фильтров, и
+   на широком экране этого хватает. На телефоне строка из значка и подписи
+   теряется у самого края — единственное действие страницы выглядит как
+   служебная сноска. Ставим её отдельной строкой по центру.
+   Флекс, а не text-align: сама ссылка блочная, и центровать надо её,
+   а не текст внутри. */
+.b-inbox_write_link {
+  position: static !important; float: none !important; clear: both !important;
+  width: auto !important; margin: 4px 0 8px !important;
+  display: flex !important; justify-content: center !important; }
+.b-inbox_write_link > a {
+  position: static !important; float: none !important;
+  display: inline-flex !important; align-items: center !important;
+  gap: 6px !important; }
+/* значок внутри — такой же b-svg-icon, как в подписях: у лепры он
+   позиционирован относительно и сдвинут по вертикали, внутри флекса
+   это уводит его от подписи на пару пикселей */
+.b-inbox_write_link .b-svg-icon {
+  position: static !important; inset: auto !important;
+  top: auto !important; margin: 0 !important;
+  display: inline-flex !important; align-items: center !important;
+  flex: 0 0 auto !important; }
+.b-inbox_write_link .b-svg-icon svg { display: block !important; }
+.b-inbox_write { width: 100% !important; box-sizing: border-box !important; }
+
 /* ============ ПРОФИЛЬ ============ */
 /* Блок пользователя был жёстко 1200px с минимумом 800px, плюс шесть
-   абсолютно позиционированных вставок поверх друг друга. */
-.b-i-user_block, .b-user_data, .b-i-user_data,
+   абсолютно позиционированных вставок поверх друг друга.
+   Боковые отступы снимаем вместе с ширинами: под аватар и колонку фона
+   лепра держит поля в несколько десятков пикселей с каждой стороны, и на
+   телефоне содержимое профиля оказывалось ужатым в середину экрана,
+   заметно уже шапки и подвала. Поля страницы уже заданы на .l-wrapper. */
+.b-user_block, .b-i-user_block,
+.b-user_data, .b-i-user_data,
+.b-user_data h2, .b-i-user_data h2,
 .l-content_wrapper, .b-content_section,
 .b-profile_left_col, .b-profile_right_col {
   width: auto !important; min-width: 0 !important; max-width: 100% !important;
   box-sizing: border-box !important; float: none !important;
-  margin-left: 0 !important; margin-right: 0 !important; }
+  margin-left: 0 !important; margin-right: 0 !important;
+  padding-left: 0 !important; padding-right: 0 !important; }
 .b-user_data, .b-i-user_data, .b-info_block { display: block !important; }
+/* h2 у лепры: display:flex, padding-right:195px под голосовалку кармы,
+   white-space:nowrap и кегль 36px. Отступ снимаем, перенос разрешаем,
+   кегль убавляем — имя в 36px занимало на телефоне почти всю ширину.
+   Флекс оставляем: в эту же строку проход moveKarmaToName переносит
+   голосовалку, а заметка с базой 100% уходит на строку ниже. */
+.b-user_data h2, .b-i-user_data h2 {
+  display: flex !important; flex-wrap: wrap !important;
+  align-items: center !important; gap: 8px !important;
+  margin-top: 0 !important;
+  font-size: 24px !important; white-space: normal !important;
+  line-height: 1.2 !important; }
+.b-user_name-link {
+  flex: 0 1 auto !important; min-width: 0 !important;
+  word-break: break-word !important; }
 .b-profile_left_col, .b-profile_right_col { line-height: 1.6 !important; }
+/* карточка пользователя: 285px под аватар и поля под колонку контактов */
+.b-userpic_wrapper, .b-userpic { width: auto !important; max-width: 100% !important; }
+.b-userpic_image { max-width: 100% !important; height: auto !important; }
+/* Подпись к картинке, приглашение и «редактировать» шли левым столбиком
+   с полями по 16-30px под десктопную колонку в 330px. В одну колонку
+   уместнее по центру и вплотную. */
+.b-profile_left_col { text-align: center !important; }
+.b-userpic_title { margin-bottom: 2px !important; }
+.b-userpic_title_add { padding: 2px !important; }
+.b-user_friends, .b-user_contacts {
+  padding-right: 0 !important; margin-bottom: 4px !important;
+  text-align: center !important; }
+.b-user_parent { margin-bottom: 4px !important; }
+.b-user_edit_info { margin-bottom: 6px !important; text-align: center !important; }
+/* Серая полоса между шапкой и карточкой профиля — это фон .l-i-wrapper
+   (#e1e1e1), видимый в зазоре под шапкой. Зазор мой: .l-header оставляет
+   снизу 8px. На ленте это воздух между шапкой и первым постом, на профиле
+   белая карточка начинается сразу, и полоска бросается в глаза. */
+body.l-profile .l-header { margin-bottom: 1px !important; }
+
+/* «#93307, с нами с …» — у лепры под этой строкой 30px пустоты: на широком
+   экране в этот зазор попадает голосовалка кармы, прибитая абсолютно
+   справа. В одну колонку голосовалка встаёт своей строкой, и зазор
+   остаётся просто дырой в треть экрана. */
+.b-user_data_registered { margin-bottom: 6px !important; }
+/* содержимое профиля ниже вкладок: у лепры 38px сверху и 44px снизу
+   плюс блоки с полями по 30-40px — на телефоне это экран пустоты */
+.l-content_wrapper { padding-top: 14px !important; padding-bottom: 20px !important; }
+.b-info_block, .b-user_citizen { margin-bottom: 16px !important; }
+.b-user_stat { padding-bottom: 8px !important; margin-bottom: 8px !important; }
+.b-userpic { margin-bottom: 6px !important; }
+.b-profile_right_col { padding-bottom: 0 !important; }
+.b-menu__profile .b-menu_list { float: none !important; margin-right: 0 !important; }
+
+/* Серая полоса под фон профиля. Причина по all.css:
+   .b-user_block { padding-top: 46px; background: ... rgb(204,204,204) }
+   Под картинку фона отведено 46px высоты и серая заливка на случай, когда
+   картинки нет. Убираем и то и другое; вкладка смены фона скрыта ниже.
+   Данные пользователя оставляем на белом — это карточка, а не полоса. */
+.b-user_block {
+  padding-top: 0 !important; background: none !important;
+  min-height: 0 !important; height: auto !important; }
+.b-user_data { padding-top: 14px !important; padding-bottom: 20px !important; }
 
 .b-user_note_container {
   position: static !important; display: block !important;
-  flex: 1 1 100% !important; width: 100% !important;
-  max-width: 100% !important; margin: 6px 0 !important; }
+  flex: 1 1 100% !important; width: auto !important;
+  max-width: 100% !important; margin: 2px 0 0 !important;
+  padding-left: 0 !important; }
 .b-user_note, #js-usernote {
   position: static !important; display: block !important;
-  width: 100% !important; max-width: 100% !important;
+  width: auto !important; max-width: none !important; min-width: 0 !important;
+  white-space: normal !important; padding: 2px 0 !important;
   box-sizing: border-box !important; }
 
 /* карма: обёртка плавала вправо с отрицательными полями по всем сторонам,
    значение и кнопки висели абсолютно друг на друге */
 .b-user_votes_wrapper {
   position: static !important; float: none !important;
-  width: auto !important; height: auto !important; margin: 8px 0 !important; }
+  width: auto !important; height: auto !important; margin: 4px 0 6px !important; }
 .b-user_karma {
   position: relative !important; height: auto !important;
   display: inline-flex !important; align-items: center !important;
@@ -840,25 +1087,125 @@ input[type="radio"], input[type="checkbox"] {
   height: auto !important; margin: 0 !important;
   display: inline-flex !important; gap: 4px !important; }
 .b-user_karma .b-karma_button {
-  position: static !important; width: 26px !important; height: 26px !important;
-  line-height: 24px !important; font-size: 14px !important; }
-/* нижний блок дублировал верхний: в потоке давал четыре кнопки вместо двух */
-.b-user_karma .b-karma_controls__bot { display: none !important; }
+  position: static !important; width: 22px !important; height: 22px !important;
+  line-height: 20px !important; font-size: 13px !important; }
+/* Ошибка прежних версий: нижний блок кнопок я счёл дубликатом верхнего и
+   скрыл. На деле сверху два минуса, снизу два плюса — на телефоне карму
+   можно было только убавить. Показываем обе группы одной строкой:
+   [− −] значение [+ +], порядок в разметке уже такой. */
+.b-user_karma .b-karma_controls__bot { display: inline-flex !important; }
+/* Голосовалка, перенесённая в строку с именем: прижата к правому краю.
+   Правило стоит НИЖЕ общего .b-user_votes_wrapper и специфичнее его —
+   побеждает и по весу селектора, и по порядку объявления.
+   Кегль задаём явно: внутри h2 голосовалка наследовала его 24px, отчего
+   «41» и знаки выглядели как заголовок. */
+.b-i-user_data h2 .b-user_votes_wrapper {
+  flex: 0 0 auto !important; margin: 0 0 0 auto !important;
+  font-size: 13px !important; line-height: 1.2 !important; }
+.b-i-user_data h2 .b-karma_value,
+.b-i-user_data h2 .b-karma_value_inner {
+  font-size: 13px !important; line-height: 20px !important;
+  height: 22px !important; min-width: 30px !important; }
+/* Имя ужимается с многоточием, а не переносит голосовалку на строку ниже:
+   при масштабе 110% и выше пара «имя + карма» перестаёт помещаться. */
+.b-i-user_data h2 .b-user_name-link {
+  flex: 0 1 auto !important; min-width: 0 !important;
+  overflow: hidden !important; text-overflow: ellipsis !important;
+  white-space: nowrap !important; word-break: normal !important;
+  font-size: 22px !important; }
 
-.b-user_public_notes_logo { display: none !important; }
-.b-user_public_notes_switcher, .b-user_public_notes_sorting {
-  position: static !important; width: auto !important;
+/* Пенсне — родная кнопка разворота панели заметок. У лепры это картинка
+   75×75, прибитая абсолютно слева от жёлтого поля (left:0, top:-5px).
+   Слева от поля на телефоне места нет, поэтому ставим её в поток первой
+   в строке и уменьшаем до 30px. */
+.b-user_public_notes_logo {
+  display: block !important; position: static !important;
+  width: 30px !important; height: 30px !important; top: auto !important;
+  flex: 0 0 auto !important; margin: 0 !important;
+  background-size: contain !important;
+  background-position: center center !important; }
+
+/* «Показать авторов» у лепры — не текст, а полоса-картинка 158×34 со
+   сдвигом margin-left:133px под ширину десктопной колонки. Оставляем
+   подпись, картинку и сдвиг убираем. */
+.b-user_public_notes__opened .b-user_public_notes_authors {
   display: inline-flex !important; align-items: center !important;
-  gap: 8px !important; margin: 4px 10px 8px 0 !important; }
+  position: static !important; overflow: visible !important;
+  width: auto !important; height: auto !important;
+  margin: 0 !important; padding: 0 !important;
+  background: none !important; line-height: 1.3 !important;
+  font-size: 12px !important; flex: 0 0 auto !important; }
+/* Чекбокс «публиковать заметки» и переключатель «по рейтингу / по дате» —
+   одной строкой, прижаты вправо. У лепры оба прибиты абсолютно
+   (top:31px right:160px и top:30px right:0) к ширине, которой на телефоне нет. */
+.b-user_public_notes {
+  display: flex !important; flex-wrap: wrap !important;
+  align-items: center !important; gap: 6px 10px !important;
+  width: auto !important; margin: 8px 0 !important; padding-left: 0 !important; }
+.b-user_public_notes_switcher {
+  margin-left: auto !important; }
+.b-user_public_notes_switcher, .b-user_public_notes_sorting {
+  position: static !important; float: none !important;
+  width: auto !important; flex: 0 0 auto !important;
+  display: inline-flex !important; align-items: center !important;
+  gap: 6px !important; margin-top: 0 !important; margin-bottom: 0 !important;
+  padding: 0 !important; }
+.b-user_public_notes_switcher label,
+.b-user_public_notes_sorting_button { margin: 0 !important; }
+
 .b-user_public_notes_list, .b-user_public_notes_list ul {
   width: auto !important; margin-left: 0 !important; padding-left: 0 !important; }
+/* список заметок — со своей строки на всю ширину, иначе он встаёт
+   четвёртым элементом той же строки и жмётся в узкую колонку */
+.b-user_public_notes_list {
+  flex: 1 1 100% !important; margin-top: 8px !important; }
+/* Строка «пенсне + жёлтое поле», которую собирает groupNotesRow.
+   Пенсне держим у верхнего края: в развёрнутом виде поле высотой
+   в несколько экранов, и кнопка по центру уехала бы из виду. */
+.lm-notes-row {
+  display: flex !important; align-items: flex-start !important;
+  gap: 8px !important; flex: 1 1 100% !important; width: 100% !important; }
+.lm-notes-row .b-user_public_notes_list {
+  flex: 1 1 auto !important; min-width: 0 !important; margin-top: 0 !important; }
+/* Пенсне у верхнего края строки, но со сдвигом: свёрнутое поле высотой 48,
+   кнопка 30 — половина разницы и есть 9px. В развёрнутом виде поле высотой
+   в несколько экранов, и центровать по нему нельзя: кнопка уехала бы
+   из виду, поэтому сдвиг фиксированный, а не align-items: center. */
+.lm-notes-row .b-user_public_notes_logo { margin-top: 9px !important; }
+
+/* Кнопка продления гражданства — по центру колонки. display:table даёт
+   ширину по содержимому, и поля auto её центруют; у inline-элемента
+   auto-поля не работают. */
+.b-user_citizen_extend {
+  display: table !important; margin: 8px auto 0 !important; }
+/* Пара «публиковать заметки» + сортировка: прижата вправо, при нехватке
+   места переносится целиком, а не по одному элементу. */
+.lm-notes-controls {
+  display: flex !important; align-items: center !important;
+  gap: 10px !important; flex: 0 0 auto !important;
+  margin-left: auto !important; }
+.lm-notes-controls .b-user_public_notes_switcher { margin-left: 0 !important; }
+
+/* В свёрнутом виде остаются пенсне и последняя заметка: у лепры кнопка
+   авторов и переключатели относятся к раскрытой панели, а сложенные в
+   одну строку над одной заметкой они выглядели набором ярлыков без повода. */
+.b-user_public_notes:not(.b-user_public_notes__opened) .b-user_public_notes_authors,
+.b-user_public_notes:not(.b-user_public_notes__opened) .b-user_public_notes_switcher,
+.b-user_public_notes:not(.b-user_public_notes__opened) .b-user_public_notes_sorting,
+.b-user_public_notes:not(.b-user_public_notes__opened) .lm-notes-controls,
+.b-user_public_notes:not(.b-user_public_notes__opened) .vote {
+  display: none !important; }
+/* поля внутри жёлтого поля: 60px по бокам и 100px справа у текста
+   оставлены под стрелки листания и голосовалку, на телефоне это половина
+   ширины экрана под пустоту */
+.b-user_public_notes_list ul { padding: 8px 10px !important; }
+.b-user_public_notes_list li { padding-bottom: 0 !important; }
+.b-user_public_notes_list_note_body { padding-right: 0 !important; }
+/* В развёрнутой панели заметки идут списком — им нужен зазор между собой */
+.b-user_public_notes__opened .b-user_public_notes_list li {
+  padding-bottom: 10px !important; }
 .b-user_public_notes_list_note { margin-left: 0 !important; }
 .b-user_public_notes_list_previous { display: none !important; }
-
-.b-inbox_write_link {
-  position: static !important; width: auto !important;
-  margin: 8px 0 16px !important; }
-.b-inbox_write { width: 100% !important; box-sizing: border-box !important; }
 
 .b-profile_search .i-form_text_input,
 #js-profile_search_input,
@@ -898,6 +1245,9 @@ input[type="radio"], input[type="checkbox"] {
 /* ============ ВКЛАДКИ (мои вещи, профиль, настройки) ============ */
 /* Свёрстаны CSS-таблицей: ячейки таблицы не переносятся в принципе,
    строка обязана уместиться целиком. Переводим на флекс. */
+/* верхний отступ блока: вместе с полем шапки давал пустую полосу
+   под разделителем */
+.b-menu { margin-top: 0 !important; padding-top: 0 !important; }
 .b-menu_list {
   display: block !important; width: auto !important;
   height: auto !important; margin-bottom: 8px !important; }
@@ -909,6 +1259,15 @@ input[type="radio"], input[type="checkbox"] {
 .b-menu_list_text { height: auto !important; line-height: 1.4 !important; }
 .b-menu_list_link_content { float: none !important; margin-right: 0 !important; }
 .b-menu_list_link__last { width: auto !important; }
+
+/* Четыре вкладки профиля с общими полями по 12px не помещались в 369px и
+   переносились. При масштабе страницы 110% ширина падает до ~333, поэтому
+   считаем с запасом: кегль 11, поля 5, зазор 3 — вся четвёрка около 280. */
+.b-menu__profile .b-menu_list_row { gap: 3px !important; }
+.b-menu__profile .b-menu_list_link {
+  padding: 6px 5px !important; font-size: 11px !important;
+  white-space: nowrap !important; flex: 0 1 auto !important; }
+.b-menu__profile .b-menu_list_link i { font-size: 10px !important; }
 
 /* ============ ПОДСАЙТЫ ============ */
 .l-header_subsite { padding-left: 0 !important; }
@@ -1092,7 +1451,13 @@ html.lm-dark [style*="background-image"] {
      подсайтов, редкие страницы, будущие изменения вёрстки.
      ============================================================ */
 
-  var SKIP = 'svg,path,polygon,em,i,.comment,.b-svg-icon,#lm-debug,#lm-debug *';
+  /* .plupload — невидимый слой загрузчика файлов: контейнер с opacity:0 и
+     полем input внутри, у которого font-size 999px, чтобы палец попадал
+     куда угодно. Он честно вылезает за экран и накладывается на область
+     перетаскивания, но увидеть его нельзя, а в отчёте он занимал место
+     настоящих поломок. */
+  var SKIP = 'svg,path,polygon,em,i,.comment,.b-svg-icon,#lm-debug,#lm-debug *,' +
+             '.plupload,.plupload *';
 
   function scanOverflow(rescanAll) {
     var W = document.documentElement.clientWidth, out = [];
@@ -1128,7 +1493,11 @@ html.lm-dark [style*="background-image"] {
         el.style.setProperty('margin-right', '0', 'important');
       if (cs.position === 'absolute' && b.r.left < -2)
         el.style.setProperty('left', '0', 'important');
-      if (b.r.width > W) el.style.setProperty('width', 'auto', 'important');
+      /* Элементы, которым ширину задал сам скрипт (поле поиска, поля
+         выбора в панели фильтров), не трогаем: иначе этот проход
+         возвращал бы им исходную длину. */
+      if (b.r.width > W && !el.dataset.lmWidth)
+        el.style.setProperty('width', 'auto', 'important');
     });
   }
 
@@ -1172,26 +1541,503 @@ html.lm-dark [style*="background-image"] {
 
   /* Заметка в профиле: inline-block с flex-grow внутри флекса получал
      нулевую ширину и переносился по одной букве. Кто именно режет ширину,
-     из CSS не видно, поэтому правим инлайном по цепочке предков. */
+     из CSS не видно, поэтому правим инлайном по цепочке предков.
+     Заодно снимаем боковые отступы: ширину они не задают, но сдвигают
+     текст к середине экрана. */
+
+  /* Пустую заметку лепра заполняет подсказкой «Место для заметок. Заметки
+     могут быть видны всем гражданам.» — на телефоне это четыре строки ради
+     одной мысли. Оставляем первое предложение.
+     Полный текст возвращаем на место при первом же касании: лепра узнаёт
+     подсказку по совпадению строки и очищает поле перед вводом. Не вернём —
+     сокращённая фраза уедет в заметку как её содержимое. */
+  var NOTE_HINT = 'Место для заметок';
+  var NOTE_HINT_RE = /^Место для заметок\.\s*Заметки могут быть видны/i;
+
+  function noteEl() { return document.querySelector('#js-usernote, .b-user_note'); }
+
+  function noteText(el) {
+    return (el.textContent || '').replace(/\u00a0/g, ' ').replace(/\s+/g, ' ').trim();
+  }
+
+  function shortenNoteHint(el) {
+    if (!el || !NOTE_HINT_RE.test(noteText(el))) return;   /* своя заметка — не трогаем */
+    el.dataset.lmHint = el.textContent;                    /* исходная строка, до буквы */
+    el.textContent = NOTE_HINT;
+  }
+
+  function restoreNoteHint(el) {
+    if (!el || !el.dataset.lmHint) return;
+    if (noteText(el) !== NOTE_HINT) return;                /* человек уже что-то ввёл */
+    el.textContent = el.dataset.lmHint;
+  }
+
+  /* Возврат полного текста по касанию оставлял его на месте навсегда, если
+     ввод так и не открылся: focusout не приходит, потому что фокуса не
+     было. Через секунду проверяем, редактирует ли человек заметку, и если
+     нет — сокращаем обратно. */
+  function noteEditing(el) {
+    if (!el) return false;
+    if (el.classList.contains('active')) return true;
+    if (el.querySelector('input, textarea')) return true;
+    return !!(document.activeElement && el.contains(document.activeElement));
+  }
+
+  function maybeShortenNote() {
+    var el = noteEl();
+    if (el && !noteEditing(el)) shortenNoteHint(el);
+  }
+
+  var noteTimer = null;
+
+  function scheduleNoteRecheck(ms) {
+    clearTimeout(noteTimer);
+    noteTimer = setTimeout(maybeShortenNote, ms || 900);
+  }
+
   function fixUserNote() {
-    var note_ = document.querySelector('#js-usernote, .b-user_note');
-    if (!note_ || note_.dataset.lmNote) return;
-    note_.dataset.lmNote = '1';
+    var note_ = noteEl();
+    if (!note_) return;
+
+    shortenNoteHint(note_);
+
+    if (!note_.dataset.lmNote) {
+      note_.dataset.lmNote = '1';
+      /* слушаем на погружении: обработчик лепры висит на самой заметке,
+         и к моменту его вызова полный текст должен быть на месте */
+      ['pointerdown', 'touchstart', 'mousedown', 'focusin'].forEach(function (ev) {
+        document.addEventListener(ev, function (e) {
+          var el = noteEl();
+          if (el && e.target && (e.target === el || el.contains(e.target))) {
+            restoreNoteHint(el);
+            scheduleNoteRecheck(900);
+          }
+        }, true);
+      });
+      /* ушли из поля — лепра вернула подсказку целиком, сокращаем снова */
+      document.addEventListener('focusout', function () {
+        scheduleNoteRecheck(300);
+      }, true);
+    }
 
     var el = note_, steps = 0;
-    while (el && steps < 4) {
-      if (el === document.body || el.classList.contains('l-i-wrapper')) break;
-      el.style.setProperty('display', 'block', 'important');
+    while (el && steps < 6) {
+      if (el === document.body ||
+          el.classList.contains('l-i-wrapper') ||
+          el.classList.contains('b-user_block')) break;
+      /* h2 оставляем флексом: в нём имя и голосовалка стоят рядом,
+         а display:block свёл бы их в две строки */
+      if (el.tagName !== 'H2')
+        el.style.setProperty('display', 'block', 'important');
       el.style.setProperty('position', 'static', 'important');
       el.style.setProperty('float', 'none', 'important');
-      el.style.setProperty('width', '100%', 'important');
-      el.style.setProperty('max-width', '100%', 'important');
+      el.style.setProperty('width', 'auto', 'important');
+      el.style.setProperty('max-width', 'none', 'important');
       el.style.setProperty('min-width', '0', 'important');
       el.style.setProperty('box-sizing', 'border-box', 'important');
       el.style.setProperty('margin-left', '0', 'important');
+      el.style.setProperty('margin-right', '0', 'important');
+      el.style.setProperty('padding-left', '0', 'important');
+      el.style.setProperty('padding-right', '0', 'important');
       el = el.parentElement;
       steps++;
     }
+  }
+
+  /* Прохода, который искал серую полосу по признакам, здесь больше нет.
+     Он был написан вслепую, пока не было таблицы стилей лепры, и находил
+     не то: под определение «широкий узел без текста» попал сам аватар
+     (285×285) и слой загрузчика поверх него — картинка пропадала со
+     страницы. Причина полосы оказалась в одном правиле CSS
+     (.b-user_block: padding-top 46px и серая заливка), и закрыта там же. */
+
+  /* Голосовалка кармы у лепры прибита абсолютно к правому верхнему углу
+     карточки (top:47px right:35px), под неё же в h2 оставлено 195px поля.
+     В одну колонку она вставала отдельной строкой под датой регистрации.
+     Переносим её в строку с именем — там она и стояла на десктопе. */
+  function moveKarmaToName() {
+    var h2 = document.querySelector('.b-i-user_data h2, .b-user_data h2');
+    var karma = document.querySelector('.b-user_votes_wrapper');
+    if (!h2 || !karma || karma.parentElement === h2) return;
+    var name = h2.querySelector('.b-user_name-link');
+    if (name && name.nextSibling) h2.insertBefore(karma, name.nextSibling);
+    else h2.appendChild(karma);
+  }
+
+  /* «Гражданин Лепрозория до 3 Сентября 2027» — строка на две строки
+     экрана, из которых половина уходит на слова, известные и без того.
+     Оставляем «Гражданство до 03.09.27», полную дату кладём в подсказку.
+     Узел даты забираем ДО того, как переписать заголовок: textContent
+     сносит всех детей, и потом вставлять было бы уже нечего. */
+  function compactCitizen() {
+    var box = document.querySelector('.b-user_citizen');
+    if (!box || box.dataset.lmCitizen) return;
+    var h3 = box.querySelector('h3');
+    if (!h3) return;
+    box.dataset.lmCitizen = '1';
+
+    var date = h3.querySelector('.js-date');
+    if (!date) { h3.textContent = 'Гражданство'; return; }
+
+    var full = (date.textContent || '').trim();
+    var epoch = parseInt(date.getAttribute('data-epoch_date'), 10);
+    if (epoch) {
+      var d = new Date(epoch * 1000);
+      if (!isNaN(d.getTime())) {
+        date.title = full;
+        date.textContent = pad2(d.getDate()) + '.' + pad2(d.getMonth() + 1) +
+                           '.' + String(d.getFullYear()).slice(2);
+      }
+    }
+    h3.textContent = 'Гражданство до ';
+    h3.appendChild(date);
+  }
+
+  /* Пенсне и жёлтое поле должны стоять в одной строке, как на десктопе,
+     а переключатели — выше. Одним флексом с переносом это не выражается:
+     строки набираются жадно, и порядок узлов у лепры другой. Поэтому
+     собираем пенсне и список в свою строку-обёртку.
+     Обработчик разворота вешает скрипт лепры прямо на узел пенсне —
+     перенос узла его сохраняет, слушатели переезжают вместе с элементом. */
+  function groupNotesRow() {
+    var box = document.querySelector('.b-user_public_notes');
+    if (!box) return;
+    var logo = box.querySelector('.b-user_public_notes_logo');
+    var list = box.querySelector('.b-user_public_notes_list');
+    if (!logo || !list) return;
+
+    /* Чекбокс и сортировка — в общую обёртку. Порознь они набираются в
+       строки жадно: «показать авторов» (128) и чекбокс (152) влезали в
+       одну строку, а сортировке (138) места уже не оставалось, и она
+       уходила третьей строкой к левому краю. Вместе они переносятся и
+       прижимаются вправо одной парой. */
+    var sw = box.querySelector('.b-user_public_notes_switcher');
+    var sort = box.querySelector('.b-user_public_notes_sorting');
+    if (sw && sort && !(sw.parentElement &&
+        sw.parentElement.classList.contains('lm-notes-controls'))) {
+      var ctl = document.createElement('div');
+      ctl.className = 'lm-notes-controls';
+      box.insertBefore(ctl, sw);
+      ctl.appendChild(sw);
+      ctl.appendChild(sort);
+    }
+
+    if (logo.parentElement && logo.parentElement.classList.contains('lm-notes-row')) return;
+
+    var row = document.createElement('div');
+    row.className = 'lm-notes-row';
+    box.appendChild(row);
+    row.appendChild(logo);
+    row.appendChild(list);
+  }
+
+
+
+  /* ============================================================
+     СТРАНИЦА «МОИ ВЕЩИ»
+     ============================================================ */
+
+  /* Панель фильтров — два абзаца сплошного инлайнового потока. На узком
+     экране вводная фраза занимала две строки, а подпись чекбокса
+     переносилась под сам чекбокс. Фразу сокращаем, чекбокс с подписью
+     заворачиваем в отдельную флекс-строку: перенос подписи тогда идёт
+     по её собственному краю, а не по краю колонки. */
+  function fixMyThings() {
+    var box = document.querySelector('.b-my_posts_feed_controls');
+    if (!box || box.dataset.lmMyThings) return;
+    box.dataset.lmMyThings = '1';
+
+    /* «В ваших вещах — все, к чему вы имели отношение за последние
+       [месяц]» — предложение длиной в строку, хотя вся его смысловая
+       нагрузка в предлоге перед полем выбора. Полный текст уходит в
+       подсказку узла-обёртки ниже. */
+    var period = box.querySelector('#js-my_things_period');
+    if (period) {
+      var t = period.previousSibling;
+      while (t && t.nodeType !== 3) t = t.previousSibling;
+      if (t && /отношение/.test(t.nodeValue))
+        t.nodeValue = 'За ';
+    }
+
+    /* Та же панель стоит на инбоксе, и там в «сортировать» лежит подпись
+       «по последним комментариям». Поле выбора растягивается по самой
+       длинной строке списка, и вся строка панели уезжает за край экрана.
+       Меняем только видимую подпись: value лепра шлёт на сервер, его не
+       трогаем. */
+    sliceOf(box.querySelectorAll('select option')).forEach(function (o) {
+      var t = (o.textContent || '').replace(/\u00a0/g, ' ').trim();
+      if (/^по\s+последним\s+комментариям$/i.test(t))
+        o.textContent = 'по комментариям';
+    });
+
+    /* Подписи «Показывать» и «Сортировать» занимали больше места, чем сами
+       поля, хотя выбранное значение («все», «по дате») и так читается без
+       них. Убираем только текстовые узлы с точным совпадением: вводная
+       фраза «моих вещей» лежит в этой же строке и должна остаться. */
+    var w = document.createTreeWalker(box, NodeFilter.SHOW_TEXT, null, false);
+    var caption = [], node;
+    while ((node = w.nextNode())) {
+      var tag = node.parentNode && node.parentNode.nodeName;
+      if (tag === 'SELECT' || tag === 'OPTION') continue;
+      if (/^(показывать|сортировать)$/i.test(
+            node.nodeValue.replace(/\u00a0/g, ' ').trim()))
+        caption.push(node);
+    }
+    caption.forEach(function (n) { n.parentNode.removeChild(n); });
+
+    /* Пункты панели — инлайновые span'ы, между ними в разметке лежат
+       переводы строк. Пробел между инлайновыми элементами рисуется, и к
+       заданному отступу молча прибавлялось ещё четыре-пять пикселей.
+       Убираем только чисто пробельные узлы, у которых с обеих сторон
+       стоит пункт панели: вводная фраза «моих вещей» так не пострадает. */
+    sliceOf(box.querySelectorAll('.b-my_posts_feed_controls_item'))
+      .forEach(function (it) {
+        var n = it.nextSibling;
+        if (!n || n.nodeType !== 3 || n.nodeValue.trim()) return;
+        var after = n.nextSibling;
+        while (after && after.nodeType === 3 && !after.nodeValue.trim())
+          after = after.nextSibling;
+        if (after && after.nodeType === 1 &&
+            after.classList.contains('b-my_posts_feed_controls_item'))
+          n.parentNode.removeChild(n);
+      });
+
+    /* Отступ чекбокса лепра пишет прямо в атрибут style. Правило с
+       !important его перебивает, но убрать источник надёжнее: тогда
+       величина интервала видна в одном месте, а не спорит в двух. */
+    sliceOf(box.querySelectorAll('input[type="checkbox"][style]'))
+      .forEach(function (el) {
+        el.style.removeProperty('margin-left');
+        if (!el.getAttribute('style')) el.removeAttribute('style');
+      });
+
+    /* «только новые посты и комментарии» — подпись длиной в полстроки при
+       том, что фильтр в этой панели ровно один и других «новых» тут нет. */
+    sliceOf(box.querySelectorAll('label')).forEach(function (el) {
+      if (/^только\s+новые\s+посты\s+и\s+комментарии$/i
+            .test((el.textContent || '').replace(/\u00a0/g, ' ').trim())) {
+        el.title = (el.textContent || '').trim();
+        el.textContent = 'только новые';
+      }
+    });
+
+    /* Чекбокс с подписью сводим в один узел: дальше он идёт по строке
+       как единое целое и подпись не отрывается от квадратика.
+       Только там, где они лежат прямо в абзаце («мои вещи»). На инбоксе
+       их и так держит вместе собственный span лепры, и лишняя обёртка
+       там только сдвинула бы их на свои отступы. */
+    var chk = box.querySelector('p > input[type="checkbox"]');
+    var lab = chk && chk.id && box.querySelector('label[for="' + chk.id + '"]');
+    if (chk && lab && chk.parentNode === lab.parentNode) {
+      var pair = document.createElement('span');
+      pair.className = 'lm-unread_row';
+      chk.parentNode.insertBefore(pair, chk);
+      pair.appendChild(chk);
+      /* между ними лежит &nbsp; — иначе останется висеть пустой строкой */
+      var n = pair.nextSibling;
+      while (n && n !== lab) {
+        var next = n.nextSibling;
+        if (n.nodeType === 3 && !n.nodeValue.trim()) n.parentNode.removeChild(n);
+        n = next;
+      }
+      pair.appendChild(lab);
+    }
+
+    /* «Мои вещи»: панель разбита на два абзаца — предлог с периодом в
+       первом, сортировка с чекбоксом во втором. После сокращения фразы
+       обе строки заняты едва наполовину, поэтому сводим их в одну.
+       Предлог с полем периода заворачиваем в общий узел: иначе при
+       раздаче свободного места предлог уедет к левому краю, а его поле —
+       к середине строки, и связь между ними потеряется. */
+    if (period && period.parentNode && period.parentNode.nodeName === 'P') {
+      var p1 = period.parentNode;
+      var grp = document.createElement('span');
+      grp.className = 'b-my_posts_feed_controls_item';
+      grp.title = 'Всё, к чему вы имели отношение за выбранный срок';
+      p1.insertBefore(grp, p1.firstChild);
+      var n = grp.nextSibling, done = false;
+      while (n && !done) {
+        var next = n.nextSibling;
+        done = (n === period);
+        if (n.nodeType === 3 && !n.nodeValue.trim()) p1.removeChild(n);
+        else grp.appendChild(n);
+        n = next;
+      }
+
+      sliceOf(box.querySelectorAll('p')).forEach(function (p) {
+        if (p === p1) return;
+        sliceOf(p.childNodes).forEach(function (node) {
+          if (node.nodeType === 3 && !node.nodeValue.trim()) return;
+          p1.appendChild(node);
+        });
+        p.parentNode.removeChild(p);
+      });
+    }
+
+    /* Строки панели бывают двух видов, и обращаться с ними надо
+       по-разному. Строка из одних полей (обе на инбоксе, вторая в «моих
+       вещах») держится в одну линию и растягивается по ширине. Строка с
+       вводной фразой остаётся обычным текстом: поле выбора стоит внутри
+       предложения, и превращать её во флекс нельзя — фраза оторвётся от
+       поля и встанет отдельным блоком.
+       Признак — есть ли среди прямых потомков непробельный текст. */
+    sliceOf(box.querySelectorAll('p')).forEach(function (p) {
+      var bare = sliceOf(p.childNodes).some(function (n) {
+        return n.nodeType === 3 && n.nodeValue.trim();
+      });
+      var units = p.querySelectorAll(
+        'select, .lm-unread_row, .b-my_posts_feed_controls_item').length;
+      if (!bare && units > 1) p.classList.add('lm-filters_row');
+    });
+  }
+
+
+  /* Подписи вкладок рассчитаны на широкую строку. На телефоне каждая лишняя
+     буква — это перенос всего ряда, поэтому две самые длинные сокращаем.
+     Число приглашений подставляет сервер, поэтому вытаскиваем его из текста
+     и склоняем сами. */
+  function pluralRu(n, one, few, many) {
+    var a = Math.abs(n) % 100, b = a % 10;
+    if (a > 10 && a < 20) return many;
+    if (b > 1 && b < 5) return few;
+    if (b === 1) return one;
+    return many;
+  }
+
+  function shortenTabs() {
+    document.querySelectorAll('.b-menu_list_link').forEach(function (a) {
+      if (a.dataset.lmTab) return;
+      var t = (a.textContent || '').replace(/\u00a0/g, ' ').trim();
+      if (/приглашени/.test(t)) {
+        var m = t.match(/\d+/);
+        a.dataset.lmTab = '1';
+        a.textContent = m
+          ? m[0] + ' ' + pluralRu(+m[0], 'инвайт', 'инвайта', 'инвайтов')
+          : 'нет инвайтов';
+      } else if (/личная информация/.test(t)) {
+        a.dataset.lmTab = '1';
+        a.textContent = 'настройки';
+      }
+    });
+  }
+
+
+  /* Ширину поля выбора браузер берёт по САМОМУ ДЛИННОМУ пункту списка,
+     а показывает выбранный. У сортировки список меряется по «по
+     комментариям», а стоит обычно «по времени» — сорок лишних пикселей
+     пустоты справа от значения, и так в каждом поле. На широкой строке
+     это незаметно, на телефоне из-за этого не помещался чекбокс.
+     Считаем ширину по выбранному пункту. Служебную часть поля (стрелка,
+     собственные поля, рамка) не угадываем: меряем копию поля вне строки,
+     где на неё не действует сжатие, и вычитаем из её ширины ширину
+     самого длинного текста. Остаток и есть служебная часть — точно,
+     без подгонки под конкретный браузер. */
+  function textWidth(probe, s) {
+    probe.textContent = s;
+    return probe.getBoundingClientRect().width;
+  }
+
+  function fitSelect(sel) {
+    if (!sel.options || sel.options.length < 2) return;
+    var cs = getComputedStyle(sel);
+
+    var probe = document.createElement('span');
+    probe.style.cssText = 'position:absolute!important;left:-9999px!important;' +
+                          'top:0!important;visibility:hidden!important;' +
+                          'white-space:pre!important';
+    probe.style.fontFamily = cs.fontFamily;
+    probe.style.fontSize = cs.fontSize;
+    probe.style.fontWeight = cs.fontWeight;
+    probe.style.fontStyle = cs.fontStyle;
+    probe.style.letterSpacing = cs.letterSpacing;
+    document.body.appendChild(probe);
+
+    var widest = 0, cur = 0;
+    for (var i = 0; i < sel.options.length; i++) {
+      var t = sel.options[i].textContent || '';
+      var wt = textWidth(probe, t);
+      if (wt > widest) widest = wt;
+      if (i === sel.selectedIndex) cur = wt;
+    }
+    probe.parentNode.removeChild(probe);
+    if (!widest) return;
+
+    /* Служебная часть постоянна для поля — считаем её один раз. */
+    var chrome = parseFloat(sel.dataset.lmChrome);
+    if (!(chrome >= 0)) {
+      var copy = sel.cloneNode(true);
+      copy.removeAttribute('id');
+      copy.style.cssText = 'position:absolute!important;left:-9999px!important;' +
+                           'top:0!important;visibility:hidden!important;' +
+                           'width:auto!important;max-width:none!important;' +
+                           'min-width:0!important;flex:none!important';
+      document.body.appendChild(copy);
+      chrome = copy.getBoundingClientRect().width - widest;
+      copy.parentNode.removeChild(copy);
+      if (!(chrome >= 0)) return;
+      sel.dataset.lmChrome = chrome;
+    }
+
+    sel.dataset.lmWidth = '1';
+    sel.style.setProperty('width', Math.ceil(cur + chrome) + 'px', 'important');
+  }
+
+  /* Вызывается на каждом полном проходе: шрифт мог догрузиться и сместить
+     замеры, а выбранное значение — смениться. Считать дёшево: полей два,
+     обходов списка столько же. */
+  function fitSelects() {
+    sliceOf(document.querySelectorAll('.lm-filters_row select'))
+      .forEach(function (sel) {
+        fitSelect(sel);
+        if (sel.dataset.lmFitBound) return;
+        sel.dataset.lmFitBound = '1';
+        sel.addEventListener('change', function () { fitSelect(sel); });
+      });
+  }
+
+  /* Строка фильтров при масштабе страницы 110% и выше перестаёт помещаться
+     и переносит чекбокс на вторую строку. Считать заранее нечего: ширина
+     полей зависит от выбранных пунктов, а доступная — от масштаба, который
+     скрипту не виден. Поэтому меряем по факту — по вертикальной отбивке
+     между первым и последним пунктом — и ужимаем ступенями, пока не сойдётся.
+     Ступень применяется только если она помогла: иначе панель мельчала бы
+     впустую там, где не помещается ничто. */
+  function rowWrapped(row) {
+    var k = row.children;
+    if (k.length < 2) return false;
+    return k[k.length - 1].getBoundingClientRect().top -
+           k[0].getBoundingClientRect().top > 4;
+  }
+
+  function fitFiltersRow() {
+    var row = document.querySelector('.b-my_posts_feed_controls p.lm-filters_row');
+    if (!row) return;
+    /* До загрузки шрифта ширины подписей другие, и мерить рано: строка
+       могла бы «не поместиться» на ровном месте, а укороченная подпись
+       обратно уже не вернётся. */
+    if (document.fonts && document.fonts.status !== 'loaded') return;
+    if (!rowWrapped(row)) return;
+
+    /* Ступень первая: подпись чекбокса. Полный текст уже лежит в подсказке,
+       а фильтр в этой панели ровно один — «новые» ни с чем не спутать. */
+    var lab = row.querySelector('.lm-unread_row label');
+    if (lab && (lab.textContent || '').trim() !== 'новые') {
+      lab.textContent = 'новые';
+      if (!rowWrapped(row)) return;
+    }
+
+    /* Ступень вторая: кегль всей панели. Поля выбора после этого надо
+       обмерить заново — их ширину скрипт задаёт в пикселях по выбранному
+       пункту, и от прежнего кегля она осталась бы великовата. */
+    var box = row.closest('.b-my_posts_feed_controls');
+    if (box && box.dataset.lmSmall !== '1') {
+      box.dataset.lmSmall = '1';
+      box.style.setProperty('font-size', '92%', 'important');
+      fitSelects();
+      if (!rowWrapped(row)) return;
+    }
+
+    /* Дальше ужимать нечем: перенос честнее подрезанного текста. */
   }
 
 
@@ -1424,8 +2270,23 @@ html.lm-dark [style*="background-image"] {
       header.appendChild(th);
     }
 
-    /* Опустевшую обёртку прячем — но только убедившись, что её содержимое
-       действительно переехало, иначе при неудачном переносе исчезли бы
+    /* Длина поля поиска задана не разметкой, а атрибутом size, то есть
+       числом знаков — в пикселях её из CSS не убавить, не зная шрифта.
+       Поэтому меряем готовое поле и вычитаем настроенное число.
+       Величина постоянная (зависит от шрифта, а не от ширины окна), так
+       что снимаем её один раз и запоминаем, иначе каждый следующий
+       проход укорачивал бы поле ещё на столько же. */
+    var slider = header.querySelector('.b-index_slider');
+    var inp = header.querySelector('#js-header_search_input');
+    if (slider && inp && CFG.searchTrim > 0 && !inp.dataset.lmWidth) {
+      var iw = inp.getBoundingClientRect().width;
+      if (iw > CFG.searchTrim + 60) {
+        inp.dataset.lmWidth = '1';
+        inp.style.setProperty('width', (iw - CFG.searchTrim) + 'px', 'important');
+      }
+    }
+
+    /* Опустевшую обёртку прячем — но только убедившись, что её содержимое       действительно переехало, иначе при неудачном переносе исчезли бы
        поиск и счётчик. У неё нет order, то есть он равен нулю, и в строке
        она вставала перед приветствием, сдвигая его вправо. */
     var aside = document.querySelector('.l-header_aside');
@@ -2045,6 +2906,29 @@ html.lm-dark [style*="background-image"] {
     if (!n) L.push('(нет)');
   }
 
+  /* Инлайновый элемент, текст которого перенёсся на несколько строк, отдаёт
+     из getBoundingClientRect объединяющий прямоугольник: он накрывает и то,
+     что стоит слева от первой строки, и то, что справа от последней. Отсюда
+     ложные «наложения» на ровном месте. Поэтому сравниваем не габарит, а
+     строчные фрагменты. */
+  function fragments(el, r) {
+    var list = el.getClientRects();
+    if (!list || list.length < 2) return [r];
+    var out = [];
+    for (var i = 0; i < list.length && i < 16; i++) {
+      if (list[i].width > 1 && list[i].height > 1) out.push(list[i]);
+    }
+    return out.length ? out : [r];
+  }
+
+  function lines(c) { return c.f.length > 1 ? ' (строк: ' + c.f.length + ')' : ''; }
+
+  function rectsArea(rs) {
+    var s = 0;
+    for (var i = 0; i < rs.length; i++) s += rs[i].width * rs[i].height;
+    return s;
+  }
+
   /* Наложения ищем попарно среди «листьев» — элементов без вложенных блоков.
      Самый частый вид поломки при переносе десктопной вёрстки, и на глаз
      заметен не всегда. */
@@ -2056,12 +2940,12 @@ html.lm-dark [style*="background-image"] {
 
     for (var i = 0; i < all.length && cand.length < 300; i++) {
       var el = all[i];
-      if (el.closest('#lm-debug')) continue;
+      if (el.closest('#lm-debug') || el.closest('.plupload')) continue;
       if (el.querySelector('a, span, label, input, button, select, div')) continue;
       var r = el.getBoundingClientRect();
       if (r.width < 4 || r.height < 4) continue;
       if (r.bottom < -2000 || r.top > window.innerHeight + 4000) continue;
-      cand.push({ el: el, r: r });
+      cand.push({ el: el, r: r, f: fragments(el, r) });
     }
 
     var found = 0;
@@ -2069,15 +2953,31 @@ html.lm-dark [style*="background-image"] {
       for (var b = a + 1; b < cand.length && found < 12; b++) {
         var A = cand[a], B = cand[b];
         if (A.el.contains(B.el) || B.el.contains(A.el)) continue;
+        /* дешёвая отсечка по габаритам: если не пересекаются они,
+           не пересекутся и фрагменты */
         var w = Math.min(A.r.right, B.r.right) - Math.max(A.r.left, B.r.left);
         var h = Math.min(A.r.bottom, B.r.bottom) - Math.max(A.r.top, B.r.top);
         if (w <= 1 || h <= 1) continue;
-        var small = Math.min(A.r.width * A.r.height, B.r.width * B.r.height);
-        if (w * h < small * 0.3) continue;
+
+        var inter = 0;
+        for (var i = 0; i < A.f.length; i++) {
+          for (var j = 0; j < B.f.length; j++) {
+            var fw = Math.min(A.f[i].right, B.f[j].right) -
+                     Math.max(A.f[i].left, B.f[j].left);
+            var fh = Math.min(A.f[i].bottom, B.f[j].bottom) -
+                     Math.max(A.f[i].top, B.f[j].top);
+            if (fw > 1 && fh > 1) inter += fw * fh;
+          }
+        }
+        if (inter <= 1) continue;
+        var small = Math.min(rectsArea(A.f), rectsArea(B.f));
+        if (inter < small * 0.3) continue;
         found++;
-        L.push(describe(A.el) + '  [' + (A.el.textContent || '').trim().slice(0, 20) + ']');
+        L.push(describe(A.el) + lines(A) + '  [' +
+               (A.el.textContent || '').trim().slice(0, 20) + ']');
         L.push('   \u2195 перекрывает \u2195');
-        L.push(describe(B.el) + '  [' + (B.el.textContent || '').trim().slice(0, 20) + ']');
+        L.push(describe(B.el) + lines(B) + '  [' +
+               (B.el.textContent || '').trim().slice(0, 20) + ']');
         L.push('   pos: ' + getComputedStyle(A.el).position + ' / ' +
                getComputedStyle(B.el).position);
         L.push('   предок A: ' + positionedParent(A.el));
@@ -2110,6 +3010,125 @@ html.lm-dark [style*="background-image"] {
     L.push('плееров: ' + players.length +
            ', пустых: ' + (empty ? 'есть' : 'нет'));
     if (empty) L.push(empty.outerHTML.slice(0, 500));
+  }
+
+  /* Панель «показывать / сортировать / только новое». Интервалы здесь
+     складываются из четырёх источников: собственные поля пунктов, поля
+     самих полей выбора, пробельные узлы между инлайновыми элементами и
+     внутренние отступы select'а, который в Safari рисует стрелку внутри
+     своей коробки. Глазом эти четыре не различить, поэтому меряем зазор
+     между соседями напрямую и рядом печатаем, из чего он складывается. */
+  function reportFilters(L) {
+    var box = document.querySelector('.b-my_posts_feed_controls');
+    if (!box) { L.push('(нет)'); return; }
+
+    var p = box.querySelector('p') || box;
+    L.push(p.outerHTML.replace(/<option[\s\S]*?<\/option>/g, '')
+                      .replace(/ on[a-z]+="[^"]*"/g, '')
+                      .replace(/\s+/g, ' ').slice(0, 500));
+
+    var kids = sliceOf(p.childNodes).filter(function (n) {
+      if (n.nodeType === 3) return !!n.nodeValue.replace(/\s/g, '').length ||
+                                   n.nodeValue.length > 0;
+      return n.nodeType === 1;
+    });
+    L.push('узлов в строке: ' + kids.length + ' (текстовых пробельных: ' +
+           kids.filter(function (n) {
+             return n.nodeType === 3 && !n.nodeValue.trim();
+           }).length + ')');
+
+    /* Всё, что реально занимает место: пункты и поля внутри них. */
+    var prev = null;
+    sliceOf(p.querySelectorAll(
+      '.b-my_posts_feed_controls_item, select, input, label')).forEach(function (el) {
+      var cs = getComputedStyle(el), r = el.getBoundingClientRect();
+      if (cs.display === 'none' || (!r.width && !r.height)) return;
+      var isItem = el.classList.contains('b-my_posts_feed_controls_item');
+      L.push((isItem ? '' : '   ') + describe(el).slice(0, 40) +
+             ' L=' + Math.round(r.left) + ' R=' + Math.round(r.right) +
+             ' w=' + Math.round(r.width) +
+             ' mar=' + cs.margin + ' pad=' + cs.padding +
+             ' style="' + (el.getAttribute('style') || '') + '"');
+      if (isItem) {
+        if (prev) L.push('  ЗАЗОР между пунктами: ' +
+                         Math.round(r.left - prev.right) + 'px');
+        prev = r;
+      }
+    });
+
+    /* Зазор, который видит человек, считается не от коробок пунктов,
+       а от края нарисованного поля до края следующего. */
+    var ctrls = sliceOf(p.querySelectorAll('select, input, label'))
+      .filter(function (el) {
+        var r = el.getBoundingClientRect();
+        return getComputedStyle(el).display !== 'none' && r.width > 0;
+      });
+    for (var i = 1; i < ctrls.length; i++) {
+      var a = ctrls[i - 1].getBoundingClientRect(),
+          b = ctrls[i].getBoundingClientRect();
+      if (b.left < a.left) continue;              /* перенос строки */
+      L.push('ВИДИМЫЙ зазор ' + ctrls[i - 1].nodeName.toLowerCase() +
+             ' \u2192 ' + ctrls[i].nodeName.toLowerCase() + ': ' +
+             Math.round(b.left - a.right) + 'px');
+    }
+  }
+
+  /* Профиль. Без таблицы стилей лепры под рукой ширины и отступы здесь
+     приходится угадывать, а угадывание стабильно стоит трёх лишних кругов.
+     Отчёт отвечает на три вопроса сразу: чем нарисована серая полоса, кто
+     режет ширину заметки и откуда боковые поля у блока пользователя. */
+  function reportProfile(L) {
+    var block = document.querySelector('.b-user_block');
+    if (!block) { L.push('(страница не профиль)'); return; }
+
+    var W = document.documentElement.clientWidth;
+
+    function line(pad, el) {
+      var cs = getComputedStyle(el), r = el.getBoundingClientRect();
+      return pad + describe(el).slice(0, 44) +
+             ' disp=' + cs.display + ' pos=' + cs.position +
+             ' fl=' + cs.cssFloat +
+             ' w=' + cs.width + ' maxw=' + cs.maxWidth +
+             ' pad=' + cs.padding + ' mar=' + cs.margin +
+             ' bg=' + cs.backgroundColor +
+             (cs.backgroundImage === 'none' ? '' : ' bgimg=есть') +
+             ' | L=' + Math.round(r.left) + ' w=' + Math.round(r.width) +
+             ' h=' + Math.round(r.height);
+    }
+
+    L.push('CSS-ширина ' + W);
+    L.push(line('блок: ', block));
+
+    L.push('', 'узлы блока (широкие или бестекстовые):');
+    sliceOf(block.querySelectorAll('*')).slice(0, 120).forEach(function (el) {
+      var cs = getComputedStyle(el);
+      if (cs.display === 'none') return;
+      var r = el.getBoundingClientRect();
+      if (r.height < 8) return;
+      var empty = (el.textContent || '').replace(/[\s\u00a0]/g, '') === '';
+      if (!empty && r.width > W * 0.5) return;      /* нормальные широкие — не интересны */
+      L.push(line('  ', el));
+    });
+
+    var n = noteEl();
+    L.push('', 'заметка: ' + (n ? JSON.stringify(noteText(n).slice(0, 60)) : '(нет)'));
+    if (n) {
+      var el = n, d = 0;
+      while (el && d < 7 && el !== document.body) {
+        L.push(line('  ', el));
+        el = el.parentElement; d++;
+      }
+    }
+
+    var pn = document.querySelector('.b-user_public_notes');
+    if (pn) {
+      L.push('', 'строка заметок:');
+      L.push(line('  ', pn));
+      sliceOf(pn.children).forEach(function (c) {
+        if (getComputedStyle(c).display === 'none') return;
+        L.push(line('    ', c));
+      });
+    }
   }
 
   function report() {
@@ -2188,6 +3207,41 @@ html.lm-dark [style*="background-image"] {
                ' L=' + Math.round(ir.left) + ' w=' + Math.round(ir.width));
       }
     }
+
+    L.push('', '--- шапка: поиск ---');
+    var sf = document.querySelector('.l-header .b-header_search form');
+    if (!sf) L.push('(нет)');
+    else {
+      L.push(sf.outerHTML.replace(/ on[a-z]+="[^"]*"/g, '')
+                         .replace(/\s+/g, ' ').slice(0, 400));
+      var scs = getComputedStyle(sf), sr = sf.getBoundingClientRect();
+      L.push('форма: disp=' + scs.display + ' justify=' + scs.justifyContent +
+             ' gap=' + scs.gap +
+             ' L=' + Math.round(sr.left) + ' R=' + Math.round(sr.right));
+      sliceOf(sf.querySelectorAll('*')).slice(0, 10).forEach(function (el) {
+        var cs = getComputedStyle(el), r = el.getBoundingClientRect();
+        L.push('  ' + describe(el).slice(0, 40) +
+               ' disp=' + cs.display + ' pos=' + cs.position +
+               ' left=' + cs.left +
+               ' w=' + cs.width + ' pad=' + cs.padding +
+               ' mar=' + cs.margin +
+               ' | L=' + Math.round(r.left) + ' R=' + Math.round(r.right) +
+               ' h=' + Math.round(r.height));
+        ['::before', '::after'].forEach(function (p) {
+          var ps = getComputedStyle(el, p);
+          if (!ps || ps.content === 'none' || ps.display === 'none') return;
+          L.push('    ' + p + ' content=' + ps.content +
+                 ' disp=' + ps.display + ' w=' + ps.width +
+                 ' pad=' + ps.padding + ' mar=' + ps.margin);
+        });
+      });
+    }
+
+    L.push('', '--- профиль ---');
+    reportProfile(L);
+
+    L.push('', '--- панель фильтров ---');
+    reportFilters(L);
 
     L.push('', '--- журнал скрипта ---');
     if (!LOG.length) L.push('(пусто — ошибок не было)');
@@ -2313,6 +3367,14 @@ html.lm-dark [style*="background-image"] {
     guard('compactCommentDates', compactCommentDates)();
     guard('relayoutHeader', relayoutHeader)();
     guard('fixUserNote', fixUserNote)();
+    guard('moveKarmaToName', moveKarmaToName)();
+    guard('groupNotesRow', groupNotesRow)();
+    guard('compactCitizen', compactCitizen)();
+    guard('fixMyThings', fixMyThings)();
+    guard('fitSelects', fitSelects)();
+    /* строку фильтров меряем ПОСЛЕ подгонки полей: до неё ширины ещё не те */
+    guard('fitFiltersRow', fitFiltersRow)();
+    guard('shortenTabs', shortenTabs)();
     guard('unfloatWide', unfloatWide)();
     guard('registerMedia', registerMedia)();
     guard('fixMediaSizes', fixMediaSizes)();
@@ -2324,6 +3386,8 @@ html.lm-dark [style*="background-image"] {
   function lightPass() {
     guard('registerMedia', registerMedia)();
     guard('fixMediaSizes', fixMediaSizes)();
+    /* заметка профиля: лепра переписывает её содержимое своим скриптом */
+    guard('maybeShortenNote', maybeShortenNote)();
     /* комментарии могли догрузиться — числа и подписи устарели */
     guard('refreshCommentCounters', refreshCommentCounters)();
     guard('compactThreadToggles', compactThreadToggles)();
