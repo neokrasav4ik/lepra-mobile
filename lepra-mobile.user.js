@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Lepra Mobile
 // @namespace    lepra.mobile
-// @version      0.9.81
+// @version      0.9.98
 // @description  Мобильная адаптация leprosorium.ru для iOS Safari
 // @author       neokrasav4ik
 // @homepageURL  https://github.com/neokrasav4ik/lepra-mobile
@@ -39,7 +39,12 @@
 (function () {
   'use strict';
 
-  var VERSION = '0.9.81';
+  /* Внутри скрытого окна, которым грузится лента уведомлений (см. раздел
+     4.2), скрипт не нужен: там ничего не показывают человеку, а второй
+     проход по всей странице — это лишняя работа и лишние наблюдатели. */
+  if (window.name === 'lm-pyn-frame') return;
+
+  var VERSION = '0.9.98';
 
   /* ============================================================
      НАСТРОЙКИ
@@ -130,6 +135,90 @@
        100 — во всю ширину экрана. */
     charleyArt: 90,
 
+    /* НАСТРОЙКА: блок «что это такое» на странице званий (/fraud/ranks/).
+       Четыре абзаца объяснения аукциона стоят ПЕРЕД таблицей и на телефоне
+       занимают целый экран: до первого звания приходится листать.
+       Сворачиваем его в строку с уголком. true — раскрывать сразу,
+       false — держать свёрнутым. Дальше состояние помнится по нажатию,
+       настройка задаёт только первое посещение. */
+    ranksAbout: false,
+
+    /* НАСТРОЙКА: страница нового поста.
+       newPostBody — высота поля ввода в пикселях. У лепры она прописана
+       прямо в разметке (200) и рассчитана на десктоп, где справа от поля
+       стоит колонка опций и пустоты не остаётся. На телефоне опции ушли
+       вниз, и поле — единственное, ради чего страницу открыли.
+       newPostCats — в сколько колонок раскладывать список категорий.
+       Две — предел для 393 пикселей: подпись вроде «Книги / Дизайн»
+       в половину ширины уже переносится, но читается. Одна — если у
+       подлепры длинные названия и переносится каждая вторая. */
+    newPostBody: 240,
+    newPostCats: 2,
+
+    /* НАСТРОЙКА: свёрнутая строка навигационной штуки.
+       navRow — её высота в пикселях. Двадцать девять — то, что было до
+       появления герба: подпись в 13 пунктов с межстрочным 1.3 плюс по
+       шесть на отбивки. Число ведущее: отбивки считаются от него, и
+       гнездо герба растёт внутрь строки, а не раздвигает её.
+       navIcon — сторона гнезда под герб. Двадцать один влезает в строку
+       без её роста (остаётся по четыре на отбивки). Больше — строка
+       начнёт расти; при navIcon от 30 отбивки кончаются совсем. */
+    navRow: 29,
+    navIcon: 21,
+
+    /* НАСТРОЙКА: прыгалки — навигация по комментариям справа по центру.
+       Вид взят у лепры: треугольники и маска, нарисованные в её же
+       координатах (сетка 40×40), поэтому jumpSize меняет и размер
+       значка, и площадь нажатия разом.
+       jumpSize — сторона значка. У лепры 40, отступ справа 10, значки
+       стоят вплотную друг к другу.
+       jumpRight — отступ от правого края экрана.
+       jumpGap — просвет между значками. У лепры нуля; на телефоне
+       пара пикселей уменьшает промахи, не сдвигая столбик заметно.
+       jumpColor, jumpEye — заливка значков и глаз маски, ровно как
+       у лепры. Светло-серый на десктопе лежит в пустом поле справа,
+       а на телефоне попадает на текст: если плохо видно, темнее.
+       jumpHalo — белый ореол под значком. У лепры его нет и не нужно:
+       там под значками пусто. Тут они висят над текстом поста, и без
+       ореола светло-серый контур теряется в строчках. false вернёт
+       чистый исходный вид. */
+    jumpSize: 40,
+    jumpRight: 10,
+    jumpGap: 2,
+    jumpColor: 'rgb(210,211,212)',
+    jumpEye: 'rgb(236,34,39)',
+    jumpHalo: true,
+
+    /* НАСТРОЙКА: гертруда в развёрнутой штуке.
+       gertruda — её обычная ширина в пикселях.
+       gertrudaGrow — насколько процентов ей позволено вырасти, если
+       столбик ссылок слева оказался выше картинки. Растёт она по высоте
+       столбика, но не больше этого предела: дальше начнёт наползать на
+       гвоздик, стоящий между ними. */
+    gertruda: 118,
+    gertrudaGrow: 10,
+
+    /* НАСТРОЙКА: пынь. В десктопе по нажатию на колокольчик всплывает
+       окошко со списком, а на страницу уведомлений ведёт ссылка в его
+       низу. На телефоне окошко не открывалось, и тап уходил прямо на
+       страницу. pynPopup: true возвращает окошко — своё, но с лепровским
+       содержимым; false оставляет прежний переход по ссылке.
+       pynHeight — высота окошка в процентах экрана.
+       pynFresh — сколько секунд считать загруженный список свежим:
+       повторное открытие в эти секунды рисуется сразу, без загрузки.
+       pynWait — сколько секунд ждать, пока лента соберётся в скрытом
+       окне; дальше окно закрывается и человеку пишут, что не вышло.
+       pynShade — насколько процентов затемнить страницу под окном.
+       Лепра своё окно ничем не затемняет, но оно у неё маленькое и висит
+       под колокольчиком; наше во всю ширину, и без подложки по краям
+       торчит страница. Ноль уберёт затемнение совсем — закрывать тапом
+       мимо окна это не мешает. */
+    pynPopup: true,
+    pynHeight: 78,
+    pynFresh: 60,
+    pynWait: 12,
+    pynShade: 60,
+
     /* НАСТРОЙКА: красить панели Safari — адресную строку сверху и полосу
        кнопок снизу — в цвет страницы. Сам Safari угадывает этот цвет по
        содержимому у верхней и нижней кромок экрана и пересчитывает его
@@ -212,6 +301,91 @@
   }
 
   function sliceOf(nodes) { return Array.prototype.slice.call(nodes); }
+
+  /* ------------------------------------------------------------
+     ПЕРЕХВАТ ЗАПРОСОВ (только для отчёта)
+     Хронология ресурсов показывает адрес, но не показывает ни метода,
+     ни заголовков. Для пыни этого не хватило: по адресу из хронологии
+     сервер отвечает 404 даже на заведомо рабочий /api/replacements/,
+     значит лепра зовёт его как-то иначе. Подмена XMLHttpRequest и fetch
+     это покажет — если скрипт живёт в том же окружении, что и лепра.
+     Если ничего не перехватится, а хронология запросы показывает, —
+     значит окружения разные, и это тоже ответ.
+     Ставится до скриптов лепры: скрипт работает с document-start.
+     ------------------------------------------------------------ */
+
+  var NET = [];
+
+  function netLog(line) {
+    if (NET.length > 60) return;
+    NET.push(line);
+  }
+
+  function headerList(h) {
+    var out = [];
+    try {
+      if (!h) return out;
+      if (typeof h.forEach === 'function')
+        h.forEach(function (v, k) { out.push(k + ': ' + v); });
+      else
+        Object.keys(h).forEach(function (k) { out.push(k + ': ' + h[k]); });
+    } catch (e) {}
+    return out;
+  }
+
+  function watchNet() {
+    if (!CFG.debug) return;
+
+    try {
+      var X = window.XMLHttpRequest;
+      if (X && X.prototype && !X.prototype.lmHooked) {
+        X.prototype.lmHooked = true;
+        var open = X.prototype.open,
+            send = X.prototype.send,
+            setH = X.prototype.setRequestHeader;
+
+        X.prototype.open = function (m, u) {
+          this.lmM = m; this.lmU = u; this.lmH = [];
+          return open.apply(this, arguments);
+        };
+        X.prototype.setRequestHeader = function (k, v) {
+          if (this.lmH) this.lmH.push(k + ': ' + v);
+          return setH.apply(this, arguments);
+        };
+        X.prototype.send = function () {
+          var self = this;
+          self.addEventListener('load', function () {
+            netLog('XHR ' + self.lmM + ' ' + String(self.lmU).slice(0, 100) +
+                   '  → ' + self.status +
+                   (self.lmH && self.lmH.length ? '\n     ' + self.lmH.join('\n     ') : ''));
+          });
+          return send.apply(this, arguments);
+        };
+      }
+    } catch (e) {}
+
+    try {
+      var f = window.fetch;
+      if (f && !f.lmHooked) {
+        var wrapped = function (input, init) {
+          var u = (typeof input === 'string') ? input : (input && input.url);
+          var m = (init && init.method) ||
+                  (typeof input !== 'string' && input && input.method) || 'GET';
+          var h = headerList((init && init.headers) ||
+                             (typeof input !== 'string' && input && input.headers));
+          return f.apply(this, arguments).then(function (r) {
+            netLog('fetch ' + m + ' ' + String(u).slice(0, 100) + '  → ' + r.status +
+                   (h.length ? '\n     ' + h.join('\n     ') : ''));
+            return r;
+          });
+        };
+        wrapped.lmHooked = true;
+        window.fetch = wrapped;
+      }
+    } catch (e) {}
+  }
+
+  watchNet();
 
   /* Метки «уже обработано» держим в WeakSet, а не в data-атрибутах:
      атрибут на каждом из десятков тысяч элементов — это лишняя память
@@ -300,6 +474,32 @@
                ' { padding-left: ' + Math.min(i * 13, 78) + 'px !important; }');
     return out.join('\n');
   }
+
+  /* Герб «Блогов Империи» (empire_blogs.png) — файл 65×58, но рисунок в
+     нём занимает только 39×38, начиная с точки (12, 10): шесть седьмых
+     площади — прозрачные поля под вырез в фоновой подложке десктопной
+     колонки. Оттого вписанный целиком герб и выходил втрое мельче
+     гнезда: при гнезде в 24 на сам рисунок приходилось четырнадцать.
+     Поэтому картинку не вписываем, а увеличиваем и обрезаем полями
+     обёртки — в гнезде оказывается ровно рисунок.
+     Числа — замер файла, а не подбор на глаз; если лепра его заменит,
+     поля разъедутся, и мерить надо будет заново. */
+  var CREST = { w: 65, h: 58, x: 12, y: 10, aw: 39, ah: 38 };
+  /* Множитель считаем по ширине рисунка: гнездо квадратное, а рисунок
+     почти квадратный, и по высоте он занимает 38/39 гнезда — оставшийся
+     пиксель делим пополам сверху и снизу, чтобы стоял по центру. */
+  var CREST_CSS = {
+    w: (CREST.w / CREST.aw * 100).toFixed(2),
+    x: (-CREST.x / CREST.aw * 100).toFixed(2),
+    y: ((-CREST.y + (CREST.aw - CREST.ah) / 2) / CREST.aw * 100).toFixed(2)
+  };
+
+  /* Отбивка свёрнутой строки: столько, чтобы гнездо герба уместилось в
+     заданную высоту строки. Семнадцать — высота самой подписи (13
+     пунктов при межстрочном 1.3): пока гнездо ниже неё, высоту держит
+     подпись, и отбивки считаются от неё. */
+  var NAV_PAD = Math.max(0,
+    Math.round((CFG.navRow - Math.max(CFG.navIcon, 17)) / 2));
 
   var css = `
 /* ============ КАРКАС ============ */
@@ -776,11 +976,6 @@ img.js-image_in_comments_original {
 /* Форма быстрого поста с кнопкой YARRR: скрыта, для создания поста
    есть отдельная кнопка в шапке. Чтобы вернуть — удалите эту строку. */
 .b-new_post_miniform, .b-new_post_miniform_footer { display: none !important; }
-/* загрузчик файлов живёт и на полной странице создания поста:
-   у него была фиксированная высота и отрицательный внешний отступ */
-.b-new_post_file_uploader {
-  width: 100% !important; height: auto !important; margin: 0 !important; }
-.b-new_post_file_uploader .b-file_uploader { top: 0 !important; }
 
 /* ============ КОММЕНТАРИИ ============ */
 .post_comments_page, #js-comments { padding: 0 !important; }
@@ -1053,6 +1248,142 @@ textarea, select {
   box-sizing: border-box !important; }
 input[type="radio"], input[type="checkbox"] {
   transform: scale(1.2); margin-right: 6px; }
+
+/* ============ СТРАНИЦА НОВОГО ПОСТА ============ */
+/* Разметка формы — самая старая на лепре: одна таблица во всю страницу,
+   внутри неё ещё четыре, ширины колонок процентами, раскраска атрибутами
+   bgcolor. Общее правило «form table → block» её разбирает, но в блоки
+   превращается и то, что должно стоять рядом: квадратик отдельной
+   строкой, подпись к нему — следующей. Отсюда и размашистость.
+   Поэтому таблицы не чиним, а разбираем в свою колонку — см. fixNewPost.
+   Здесь только вид собранного. */
+.lm-np { display: block !important; padding-top: 4px !important; }
+
+/* Панель кнопок оформления — это ячейка таблицы, поэтому display задаём
+   явно, поверх общего правила. Десять подписей в 13 пунктов занимают
+   около 364 пикселей: в 393 они укладываются в строку впритык, при
+   увеличенном масштабе страницы переносятся во вторую. Перенос и есть
+   запасной вариант — обрезать в такой панели нечего. */
+.lm-np #js-new_post_body_wysiwyg {
+  display: flex !important; flex-wrap: wrap !important;
+  align-items: center !important; gap: 6px 4px !important;
+  padding: 0 0 6px !important; white-space: normal !important; }
+.lm-np .b-textarea_editor_button {
+  margin: 0 !important; padding: 3px 0 !important; font-size: 13px !important; }
+
+/* Высота поля прописана у лепры в разметке — перебиваем своей.
+   Кегль 16 обязателен: ниже Safari наезжает увеличением при касании. */
+.lm-np #js-new_post_body {
+  width: 100% !important; height: ${CFG.newPostBody}px !important;
+  font-size: 16px !important; box-sizing: border-box !important;
+  margin: 0 !important; }
+
+/* Два списка под полем ввода. Кнопки стоят в одну строку, раскрытый
+   список ложится под ними во всю ширину: в половину экрана подписи
+   категорий не помещаются, а рвать их пополам ради симметрии незачем.
+   Порядок в разметке — обе кнопки, потом обе группы, поэтому строка
+   получается сама, без order. */
+.lm-np_lists {
+  display: flex !important; flex-wrap: wrap !important;
+  gap: 6px !important; margin: 14px 0 0 !important; }
+.lm-np_toggle {
+  flex: 1 1 calc(50% - 3px) !important; min-width: 0 !important;
+  box-sizing: border-box !important; display: block !important;
+  text-align: left !important; margin: 0 !important;
+  padding: 7px 24px 7px 9px !important; position: relative !important;
+  font-family: inherit !important; color: inherit !important;
+  background: rgba(0, 0, 0, 0.05) !important;
+  border: 1px solid rgba(0, 0, 0, 0.15) !important;
+  border-radius: 4px !important;
+  -webkit-appearance: none !important; appearance: none !important; }
+/* Если список остался один — занимает строку целиком, чтобы рядом
+   не висела пустая половина. */
+.lm-np_toggle:only-of-type { flex: 1 1 100% !important; }
+/* Уголок — переключением содержимого, а не поворотом: у правого края
+   узкой кнопки повёрнутый глиф заметно прыгает. */
+.lm-np_toggle::after {
+  content: '▾'; position: absolute !important; right: 8px !important;
+  top: 50% !important; margin-top: -0.6em !important;
+  font-size: 12px !important; opacity: 0.6 !important; }
+.lm-np_toggle.lm-open::after { content: '▴'; }
+.lm-np_toggle_t {
+  display: block !important; font-size: 13px !important;
+  font-weight: bold !important; line-height: 1.25 !important; }
+/* Что в списке выбрано. Строка одна: длинное название категории
+   обрезаем — тут это не поломка, полное видно в самом списке. */
+.lm-np_toggle_v {
+  display: block !important; font-size: 11px !important;
+  line-height: 1.35 !important; opacity: 0.65 !important;
+  white-space: nowrap !important; overflow: hidden !important;
+  text-overflow: ellipsis !important; }
+/* Группа пунктов: закрыта по умолчанию, открывается классом. */
+.lm-np_group {
+  display: none !important; flex-wrap: wrap !important;
+  flex: 1 1 100% !important; gap: 3px !important;
+  margin: 2px 0 4px !important; }
+.lm-np_group.lm-open { display: flex !important; }
+/* Квадратик с подписью — один пункт: порознь подпись отрывалась от
+   своего квадратика на переносе. Подложка вместо lepr'овского bgcolor:
+   его ячейки при разборе таблицы всё равно исчезают. */
+.lm-np_opt {
+  display: flex !important; align-items: flex-start !important;
+  gap: 7px !important; padding: 6px 7px !important;
+  box-sizing: border-box !important; min-width: 0 !important;
+  background: rgba(0, 0, 0, 0.045) !important; border-radius: 3px !important; }
+.lm-np_opt input { margin: 0 !important; flex: 0 0 auto !important; }
+.lm-np_opt label {
+  font-size: 13px !important; line-height: 1.35 !important;
+  display: block !important; min-width: 0 !important; }
+.lm-np_opt img { vertical-align: middle !important; }
+/* Специальные опции — по одной в строку: подписи там фразами.
+   Категории — в колонки, число берётся из CFG.newPostCats. */
+.lm-np_flags .lm-np_opt { flex: 1 1 100% !important; }
+.lm-np_cats .lm-np_opt {
+  flex: 1 1 ${Math.max(0, 100 / CFG.newPostCats - 3).toFixed(1)}% !important; }
+
+/* Строка отправки. Отбивка сверху вместо лепровского <hr>: он жил
+   внутри таблицы и при разборе уходит вместе с ней. */
+.lm-np_send {
+  display: flex !important; align-items: center !important;
+  gap: 12px !important; margin: 16px 0 0 !important;
+  padding: 12px 0 4px !important;
+  border-top: 1px solid rgba(0, 0, 0, 0.12) !important; }
+/* Кнопка отправки у лепры — картинка 54×20. Пальцем в неё попасть можно,
+   но с запасом: поля добавляют площади нажатия, не трогая саму картинку. */
+.lm-np_send #js-new_post_submit {
+  flex: 0 0 auto !important; padding: 9px 14px !important;
+  border-radius: 4px !important; background: rgba(0, 0, 0, 0.06) !important; }
+
+/* Загрузчик картинки. У лепры и кнопка «прикреплю», и панель выбора
+   файла позиционированы абсолютно внутри контейнера, у которого своей
+   высоты нет вовсе: на десктопе они просто лежат в пустом поле слева от
+   кнопки отправки. В строке из двух элементов такой контейнер
+   схлопывается в ноль, и надпись наезжает на то, что окажется под ней.
+   Ставим обоих в поток. */
+.lm-np_send #js-new_post_file {
+  flex: 1 1 auto !important; width: auto !important; height: auto !important;
+  min-width: 0 !important; margin: 0 !important; text-align: left !important; }
+.lm-newpost .b-file_uploader_button,
+.lm-newpost .b-file_uploader {
+  position: static !important; margin: 0 !important; padding: 0 !important;
+  font-size: 13px !important; }
+.lm-newpost .b-file_uploader_browse_button {
+  float: none !important; margin: 0 !important;
+  padding: 0 10px 0 0 !important; }
+/* «или перетащить сюда» на телефоне бессмысленно, но узел не прячем:
+   похоже, лепра пишет в него имя выбранного файла, а скриптов её в
+   сохранённой странице нет и проверить нечем. Пока просто убираем
+   абсолютные координаты и нижний предел ширины в 200 пикселей. */
+.lm-newpost .b-file_uploader_drag {
+  position: static !important; display: inline !important;
+  min-width: 0 !important; max-width: 100% !important;
+  padding: 0 !important; font-size: 11px !important; }
+.lm-newpost .b-new_post_delete_file { font-size: 11px !important; }
+/* Табличка «Интернет включён» под формой — украшение, но 150 пикселей
+   у правого края смотрятся обрезком. Ставим по центру. */
+.lm-newpost #js-new_post_form + div[align="right"] { text-align: center !important; }
+
+
 
 /* ============ СТРАНИЦА ПОИСКА ============ */
 .b-search_form {
@@ -1577,6 +1908,67 @@ body.l-profile .l-header { margin-bottom: 1px !important; }
 .b-menu__profile .b-menu_list_link i { font-size: 10px !important; }
 
 /* ============ МАГАЗИН (/fraud/) ============ */
+/* ---- Строка ссылок под навигационной штукой ----
+   Шесть пунктов набраны Verdana в 12.8 с полями по 12 — это 642 пикселя
+   с зазорами при доступных 369, и они ложились в ТРИ строки, причём
+   третью занимал один знак вопроса: вторая недобирала восьми пикселей
+   (377 против 369). Мерить эту строку по Arial нельзя — Verdana идёт по
+   0.545 кегля против 0.519, и при равных числах она заметно шире.
+
+   Ужимаем кегль, поля и зазор, а самый длинный пункт сокращаем в
+   shortenTabs. Тогда 488 вместо 642, и две строки держатся не только при
+   100%, но и при масштабе страницы 125%, когда доступных остаётся 316. */
+.b-menu_fraud .b-menu_list_row { gap: 4px !important; }
+.b-menu_fraud .b-menu_list_link, .b-menu_fraud span.b-menu_list_link {
+  padding: 6px 9px !important; font-size: 12px !important;
+  line-height: 1.15 !important; white-space: nowrap !important; }
+/* Знак вопроса свои поля держит на вложенной ссылке — иначе они
+   складывались бы с полями пункта и он выходил бы вдвое шире прочих. */
+.b-menu_fraud .b-menu_list_link__last { padding: 0 !important; }
+.b-menu_fraud .b-menu_list_link_content {
+  padding: 6px 9px !important; border-radius: 3px !important; }
+/* Тунец остаётся, но вписывается в строку. У лепры он 28×40 при кнопке
+   в 29 — то есть выше её, и торчал вверх на дюжину пикселей, наезжая на
+   строку над собой. Пропорции сохраняем: 28×24/40 = 17. */
+.b-menu_fraud .b-charlie_item { padding-left: 20px !important; }
+.b-menu_fraud .b-charlie_item i {
+  width: 17px !important; height: 24px !important;
+  background-size: 17px 24px !important;
+  margin-top: -12px !important; }
+
+/* ---- Общее для всех страниц магазина ----
+   Кегль полей ввода. У лепры они идут по 12–14, а всё, что ниже 16,
+   Safari на iOS встречает наездом камеры при касании: страница
+   прыгает масштабом, и вернуть его обратно нечем. Ставим 16 всему
+   разделу разом — по одному правилу на страницу их набиралось шесть,
+   и каждая новая форма приносила бы седьмое. */
+html.lm-fraud input[type="text"], html.lm-fraud input[type="password"],
+html.lm-fraud input[type="email"], html.lm-fraud input[type="tel"],
+html.lm-fraud input[type="number"], html.lm-fraud textarea,
+html.lm-fraud select { font-size: 16px !important; }
+/* Поля с шириной в пикселях под десктопную колонку — их на страницах
+   магазина россыпь (500, 450, 130). Ширину отдаём содержимому, но с
+   рамками в расчёте: иначе поле во всю карточку вылезает на их толщину. */
+html.lm-fraud input[type="text"], html.lm-fraud input[type="password"],
+html.lm-fraud textarea {
+  max-width: 100% !important; box-sizing: border-box !important; }
+
+/* Подменю разделов («Пополнение счета | Переводы | История операций»,
+   «Приветствия | Смена никнейма | Будка…»): отступ слева в 20 пикселей
+   рассчитан на логотип магазина, стоящий выше и левее. Справа его нет,
+   и на телефоне строка стояла несимметрично. */
+.b-fraud_sub_navigation {
+  padding: 12px 0 0 !important; font-size: 12px !important;
+  line-height: 1.7 !important; }
+
+/* Обёртки содержимого: 96% ширины оставляли полосу справа и ничего не
+   давали взамен, отступ слева в 18 и верхний в 43 — тот же логотип.
+   Правило держим на классе страницы: .b-tabs_content лепра использует и
+   в профиле, и в настройках, а их я не проверял. */
+html.lm-fraud .b-tabs_content, html.lm-fraud .b-inner_container {
+  width: auto !important; padding-left: 0 !important;
+  padding-right: 0 !important; padding-top: 0 !important; }
+
 /* Ширина документа 882 при экране 393 бралась не из содержимого, а из двух
    нижних пределов: min-width 770 у витрины и min-width 870 у отдела с
    мерчем. Всё остальное в отчёте — следствие: колонки, отступы, кегли и
@@ -1625,8 +2017,7 @@ body.l-profile .l-header { margin-bottom: 1px !important; }
    иначе поле шириной во всю карточку вылезает на толщину рамки. */
 .b-fraud_showcase .i-form_text_input,
 .b-fraud_showcase .i-form_textarea {
-  font-size: 15px !important; max-width: 100% !important;
-  box-sizing: border-box !important; }
+  max-width: 100% !important; box-sizing: border-box !important; }
 .b-fraud_showcase_product_form .b-hidden_content {
   padding: 14px 12px 12px !important; }
 .b-fraud_showcase_product_form_price { font-size: 18px !important; }
@@ -1637,9 +2028,304 @@ body.l-profile .l-header { margin-bottom: 1px !important; }
 .b-fraud_showcase_pro_new_sublepro_form label {
   margin-right: 6px !important; }
 .b-fraud_showcase_pro_new_sublepro_link i { font-size: 15px !important; }
-.b-pro_acc_prolongation_friend_form { padding-left: 0 !important; }
+.b-fraud_showcase .b-pro_acc_prolongation_friend_form { padding-left: 0 !important; }
 /* поля наружу по 20 пикселей с каждой стороны — под широкую карточку */
 .b-fraud_showcase_ranks_rebuy { margin: 0 !important; }
+
+/* ============ ЗВАНИЯ (/fraud/ranks/) ============ */
+/* Отступ слева в 20 пикселей рассчитан на логотип магазина, который лежит
+   выше и левее содержимого. Справа его нет, поэтому на телефоне текст
+   стоит несимметрично: слева 32 пикселя от края, справа 12. */
+.b-fraud_text { padding: 14px 0 0 !important; }
+
+/* ---- Строка «у вас нет должности» и галочка ----
+   Оба куска — inline, и на десктопе стоят в одну строку. На телефоне
+   галочка «не хочу званий от других» переносится и её подпись отрывается
+   от квадратика. Ставим отдельной строкой. */
+.b-ranks_current { margin-bottom: 12px !important; font-size: 13px !important; }
+.b-block_external_ranks { display: block !important; margin: 6px 0 0 !important; }
+
+/* ---- Форма «Добавить должность» ----
+   Заголовок набран кеглем 30: одна надпись «Добавить должность:» — это
+   296 пикселей при доступных 369, и поле в 25% ширины (92) уже не влезало
+   в ту же строку. Дальше в той же строке шли поле ника фиксированной
+   ширины 130, «за», поле цены 50, «ЛВ» и кнопка — всё это ломалось
+   вперемешку. Кегль сбавляем, а поле должности пускаем отдельной
+   строкой блоком: тогда предложение читается «Добавить должность: /
+   <поле> / <ник> за <N> ЛВ» и переносы получаются по смыслу, а не по
+   тому, где кончилось место.
+   Шестнадцать у полей обязательны: ниже Safari на iOS наезжает
+   увеличением при касании. */
+.b-ranks_add_form { margin-bottom: 18px !important; }
+.b-ranks_add_form h1 {
+  font-size: 15px !important; line-height: 2 !important;
+  margin: 0 0 4px !important; }
+.b-ranks_add_form .b-ranks_input_rank {
+  display: block !important; width: 100% !important;
+  box-sizing: border-box !important;
+  font-size: 16px !important; text-align: left !important;
+  margin: 3px 0 6px !important; }
+.b-ranks_add_form .b-ranks_input_username {
+  width: 45% !important; max-width: 170px !important;
+  box-sizing: border-box !important; font-size: 16px !important; }
+.b-ranks_add_form .b-ranks_input_value {
+  width: 62px !important; box-sizing: border-box !important;
+  font-size: 16px !important; }
+/* кнопка — картинка 54×20, у лепры она сидит на базовой линии текста */
+.b-ranks_add_form .b-ranks_input_yarrr {
+  margin-left: 8px !important; vertical-align: middle !important; }
+
+/* ---- Блок объяснения: строка с уголком ----
+   Уголок — переключением содержимого, а не поворотом: у правого края
+   повёрнутый глиф заметно прыгает. */
+.lm-ranks_about {
+  display: block !important; width: 100% !important;
+  box-sizing: border-box !important; text-align: left !important;
+  position: relative !important; margin: 0 !important;
+  padding: 9px 28px 9px 12px !important;
+  font-family: inherit !important; font-size: 13px !important;
+  color: inherit !important;
+  background: rgb(236, 237, 239) !important;
+  border: 0 !important; border-radius: 4px !important;
+  -webkit-appearance: none !important; appearance: none !important; }
+.lm-ranks_about:not(.lm-open) { margin-bottom: 14px !important; }
+.lm-ranks_about.lm-open { border-radius: 4px 4px 0 0 !important; }
+.lm-ranks_about::after {
+  content: '▾'; position: absolute !important; right: 10px !important;
+  top: 50% !important; margin-top: -0.6em !important;
+  font-size: 12px !important; opacity: 0.6 !important; }
+.lm-ranks_about.lm-open::after { content: '▴'; }
+.lm-ranks_about:not(.lm-open) + .b-ranks_about { display: none !important; }
+.b-ranks_about {
+  padding: 2px 12px 4px !important; margin: 0 0 14px !important;
+  border-radius: 0 0 4px 4px !important;
+  font-size: 13px !important; line-height: 1.45 !important; }
+.b-ranks_about h3 {
+  font-size: 16px !important; line-height: 1.25 !important;
+  margin: 0 0 6px !important; }
+.b-ranks_about p { margin: 0 0 8px !important; }
+
+/* ---- Таблица званий ----
+   Четыре колонки с полями по 15 с каждой стороны требуют 595 пикселей при
+   доступных 369: должность 146, ник 146, история 222, цена 81. Ячейки
+   таблицы не переносятся целиком, поэтому браузер жмёт каждую по буквам —
+   отсюда и «криво». Разворачиваем строку в две:
+
+       должность                              2025 ЛВ
+       ник   с 1 Марта 2021 перекупалась 2 раза
+
+   Перелом строки делаем пустым флекс-элементом на 100% ширины: он занимает
+   целую строку и уносит всё, что после него, вниз. Порядок задаём
+   свойством order, а не перестановкой узлов, — разметку лепра
+   перерисовывает своим скриптом при сортировке и по кнопке «Ещё». */
+.b-ranks_table { display: block !important; width: auto !important; }
+.b-ranks_table tbody { display: block !important; }
+.b-ranks_table tr {
+  display: flex !important; flex-wrap: wrap !important;
+  align-items: baseline !important; gap: 2px 8px !important; }
+.b-ranks_table_stat::after {
+  content: '' !important; flex: 0 0 100% !important;
+  height: 0 !important; order: 2 !important; }
+
+/* Рамку и поля переносим с ячеек на строку: у ячеек они умножались на
+   четыре и съедали 120 пикселей из 369.
+   Селектор с tbody взят не для красоты: у лепры есть правило
+   .b-ranks_table .b-ranks_table_stat_my td весом в два класса — своё
+   звание она подчёркивает красным. Ровно по весу спор решался бы
+   порядком объявления, а jsdom и браузер считают его по-разному, поэтому
+   берём заведомо больший вес. */
+.b-ranks_table tbody .b-ranks_table_stat td {
+  display: block !important; border: 0 !important; padding: 0 !important;
+  width: auto !important; }
+.b-ranks_table tbody .b-ranks_table_stat {
+  padding: 9px 0 8px !important;
+  border-bottom: 1px solid rgb(224, 224, 224) !important; }
+.b-ranks_table tbody .b-ranks_table_stat_my {
+  border-bottom-color: rgb(255, 0, 0) !important; }
+
+.b-ranks_table tbody .b-ranks_table_rank {
+  order: 1 !important; flex: 1 1 auto !important; min-width: 0 !important;
+  font-size: 15px !important; line-height: 1.25 !important; }
+/* Цена — то, ради чего сюда приходят: по ней и перекупают. Держим её
+   в конце первой строки и не даём сжиматься. */
+.b-ranks_table tbody .b-ranks_table_price {
+  order: 1 !important; flex: 0 0 auto !important;
+  font-size: 15px !important; font-weight: bold !important;
+  line-height: 1.25 !important; text-align: right !important; }
+.b-ranks_table tbody .b-ranks_table_username {
+  order: 3 !important; flex: 0 0 auto !important; font-size: 13px !important; }
+.b-ranks_table tbody .b-ranks_table_history {
+  order: 4 !important; flex: 1 1 auto !important; min-width: 0 !important;
+  font-size: 11px !important; line-height: 1.3 !important;
+  opacity: 0.6 !important; }
+
+/* Заголовки колонок — это переключатели сортировки (по ним есть
+   обработчик у лепры, а подчёркиванием она их и помечает). Строкой
+   таблицы им быть больше незачем, но кнопками остаться надо. */
+.b-ranks_table tbody th {
+  display: block !important; border: 0 !important;
+  padding: 5px 8px !important; border-radius: 4px !important;
+  background: none !important; }
+.b-ranks_table tbody th.b-active {
+  background-color: rgb(224, 226, 230) !important; }
+.b-ranks_table tbody th span { font-size: 12px !important; }
+.b-ranks_table tbody th.b-active span { text-decoration: none !important; }
+
+/* Поле, в которое превращается цена при перекупке. Кегль у лепры 14 —
+   ниже порога, за которым Safari наезжает увеличением на касание.
+   Высота 34 с таким же межстрочным раздвигала строку вдвое. */
+.b-ranks_table .js-ranks_new_price_holder_table {
+  height: auto !important; line-height: 1.25 !important; }
+.b-ranks_table .js-ranks_new_price_holder input {
+  font-size: 16px !important; width: 66px !important;
+  box-sizing: border-box !important; }
+
+/* «Ещё» — плавающая кнопка шириной по содержимому. Плавание снимаем
+   (под ним пустая строка от .clear), кнопку растягиваем: она одна внизу
+   длинного списка, и промахиваться по ней незачем. */
+.b-ranks_table_more {
+  float: none !important; display: block !important;
+  height: auto !important; text-align: center !important;
+  margin: 12px 0 0 !important; padding: 11px 14px !important;
+  border-radius: 4px !important; }
+.b-ranks_cols { margin-bottom: 20px !important; }
+
+/* ============ ОПЕРАЦИИ С ЛВ (/fraud/refuel/) ============ */
+/* Снизу у контейнера 170 пикселей пустоты — почти пол-экрана ни подо что.
+   На десктопе она уравновешивала высокую правую колонку, в одну колонку
+   это просто дыра перед подвалом. */
+.b-refuel_container { padding: 16px 0 24px !important; }
+/* Две колонки 62/38 — в одну. Правая под порог unfloatWide не попадает:
+   38% от 369 — это 140 пикселей, меньше 40% экрана. */
+.b-refuel_container .b-left_col, .b-refuel_container .b-right_col {
+  float: none !important; width: auto !important;
+  padding: 0 !important; }
+.b-refuel_container .b-right_col { margin-top: 20px !important; }
+
+.b-fraud_refuel { font-size: 15px !important; }
+.b-fraud_refuel form { margin-bottom: 16px !important; }
+.b-fraud_refuel .i-form_text_input { width: 90px !important; }
+.b-fraud_refuel_fz54_contact .i-form_text_input { width: 100% !important; }
+.b-fraud_refuel_fz54_contact { font-size: 12px !important; }
+/* Кнопки оплаты: два блока по 150 в inline-block. Логотипы 127×27 и
+   128×24 в них влезают, а вот сдвиг самой кнопки на -5 пикселей влево
+   ставил её мимо центра своего блока — это заметно, когда блоки стоят
+   парой. */
+.b-fraud_refuel_pay_button .b-button {
+  margin-left: 0 !important; padding: 8px 14px !important; }
+
+/* Курс — шутка, набранная 53 пикселями с запретом переноса: «1 ЛВ = 1
+   РУБ» это 300 пикселей текста плюс 74 полей, то есть 374 при доступных
+   369, и плашка вылезала за экран. Ужимаем ровно настолько, чтобы она
+   осталась крупной и при масштабе 125%: 216 текста плюс 40 полей. */
+.b-refuel_rate {
+  font-size: 38px !important; padding: 18px 20px !important;
+  text-align: center !important; margin: 8px 0 10px !important; }
+.b-refuel_rate em { font-size: 26px !important; }
+.b-refuel_rate_desc { font-size: 12px !important; line-height: 1.45 !important; }
+
+/* ============ ПРОФ. АККАУНТ (/fraud/professional/) ============ */
+/* Заголовок в 29 пикселей с отбивкой сверху в 48 и дата в 24 — на
+   десктопе это шапка страницы во всю ширину, на телефоне «Вы —
+   гражданин Лепрозория.» занимало две строки, а дата под ним — три. */
+.b-fraud_members h2 {
+  font-size: 21px !important; line-height: 1.25 !important;
+  padding-top: 16px !important; margin-bottom: 10px !important; }
+.b-payed_duration {
+  font-size: 16px !important; line-height: 1.35 !important;
+  margin-bottom: 18px !important; }
+
+/* Блок продления был жёстко 600 пикселей — переполнение на 231 при
+   доступных 369, и оно тянуло за собой ширину всего документа. */
+.b-pro_acc_prolongation { width: auto !important; font-size: 13px !important; }
+/* Отступ слева держит красную руку: она 32x34 и прибита абсолютно к
+   левому краю. Отбивка снизу в 34 между двумя абзацами — десктопный
+   воздух. */
+.b-pro_acc_prolongation_text {
+  padding-left: 38px !important; margin-bottom: 16px !important;
+  line-height: 1.4 !important; }
+.b-fraud_members .b-pro_acc_prolongation_friend_form {
+  padding-left: 38px !important; }
+.fraud_members_payed_text { font-size: 13px !important; line-height: 1.5 !important; }
+
+/* Вопросы-ответы. Заголовок «У меня есть вопросы!» — 24 пикселя с полем
+   снизу в 43, и это при том, что сам список свёрнут: до нажатия на
+   странице стоял пустой отступ в полсотни пикселей. */
+.b-fraud_members_questions {
+  margin-top: 24px !important; padding-bottom: 20px !important; }
+.b-fraud_members_questions h3 {
+  font-size: 17px !important; line-height: 1.3 !important;
+  padding: 16px 0 18px !important; }
+.b-members_questions h4 { margin-top: 16px !important; line-height: 1.3 !important; }
+.b-members_questions p { padding-bottom: 14px !important; line-height: 1.5 !important; }
+/* Образец меню с Чарли — картинка 271x78 обтеканием справа. Рядом с ней
+   на текст оставалось меньше сотни пикселей. */
+.b-charley_in_menu_sample {
+  float: none !important; display: block !important;
+  max-width: 100% !important; height: auto !important;
+  margin: 0 0 12px !important; }
+
+/* ============ ЗАМЕНЫ (/fraud/replacements/) ============ */
+/* 85% ширины без центрирования: справа оставалась полоса в 55 пикселей,
+   а полезной ширины внутри полей по 20 выходило 274 из 369. */
+.b-fraud_replace { width: auto !important; padding: 16px 0 !important; }
+/* Заголовок в 28 пикселей — «Замена слов и фраз в Лепрозории на 1 день!»
+   это 641 пиксель текста, то есть три строки. Красный кружок с ценой
+   лежит ВНУТРИ заголовка строчным блоком 120x120 и на десктопе стоит
+   справа от него; в узкой колонке он попадает в поток текста, поэтому
+   уменьшаем его вместе с кеглем и уводим отдельной строкой. */
+.b-fraud_replace_caption {
+  font-size: 20px !important; line-height: 1.3 !important;
+  margin-bottom: 14px !important; }
+.b-fraud_replace_price {
+  display: block !important; width: 84px !important; height: 84px !important;
+  line-height: 84px !important; font-size: 19px !important;
+  margin: 10px 0 0 !important; }
+
+/* Форма замены: два поля по 28% — это по 77 пикселей, куда не помещается
+   даже подсказка «другое». Подписи и поля ставим столбиком во всю
+   ширину. */
+.b-fraud_replace_form { padding: 16px 14px !important; }
+.b-fraud_replace_form_label {
+  display: block !important; margin: 0 0 3px !important;
+  font-size: 13px !important; }
+.b-fraud_replace_form_input {
+  display: block !important; width: 100% !important;
+  box-sizing: border-box !important; margin-bottom: 12px !important; }
+.b-fraud_replace_form_submit { margin-top: 4px !important; }
+.b-fraud_replace_description {
+  margin-bottom: 20px !important; font-size: 13px !important;
+  line-height: 1.5 !important; }
+
+/* Проверялка замен: поле ввода и окно вывода по 35% строчными блоками,
+   то есть на десктопе рядом. В 369 пикселях рядом им не встать.
+   Раскрытие ведёт лепра через max-height — механику не трогаем. */
+.b-fraud_replace_checker_form { margin-bottom: 20px !important; }
+.b-fraud_replace_checker_form_input {
+  display: block !important; width: 100% !important;
+  box-sizing: border-box !important; height: 110px !important;
+  margin-bottom: 8px !important; }
+.b-fraud_replace_checker_form_output {
+  display: block !important; width: 100% !important;
+  box-sizing: border-box !important; }
+.b-fraud_replace_checker_toggle { font-size: 16px !important; }
+
+/* ============ ОСНОВНЫЕ ВЕЩИ (/fraud/greetings/) ============ */
+/* Форма приветствий — две колонки 60/39 с разделительной чертой между
+   ними. У гражданина без денег на счету лепра не выводит ни одной из
+   них, но левая остаётся в разметке пустой, а нижний предел высоты у
+   неё 186 пикселей плюс отбивка сверху 25 — полэкрана пустоты сразу под
+   подписью «сначала пополните счет».
+   Отступ между колонками задаём полем, а не отбивкой: пустая колонка с
+   одним лишь полем схлопывается сама, отбивка осталась бы видна. */
+.b-fraud_greetings { padding: 8px 0 16px !important; }
+.b-fraud_greetings .b-settings_left_col,
+.b-fraud_greetings .b-settings_right_col {
+  float: none !important; width: auto !important; max-width: none !important;
+  min-height: 0 !important; margin: 0 !important;
+  padding: 0 !important; border: 0 !important; }
+.b-fraud_greetings .b-settings_right_col { padding-top: 16px !important; }
+.b-fraud_greetings .b-form_field { margin-bottom: 14px !important; }
 
 /* ---- Окно подтверждения покупки («окно Чарли») ----
    Открывается на любой покупке: продление гражданства, звания, никнейм.
@@ -2240,6 +2926,121 @@ body.l-profile .l-header { margin-bottom: 1px !important; }
 .b-notification-item_header, .b-notification-item_footer {
   margin-left: 0 !important; }
 
+/* Страница уведомлений. Лента лежит последним потомком body и прибита
+   абсолютно: top ей считает скрипт лепры от высоты своей шапки (вышло
+   112 пикселей), а у нас шапка другая и выше — лента наезжала на неё.
+   Ставим в поток; сам узел переносится в главную колонку скриптом,
+   иначе статичный блок встал бы ниже подвала. */
+.b-notification-feed_layout_page {
+  position: static !important; top: auto !important;
+  min-height: 0 !important; }
+.b-notification-item {
+  padding: 9px 10px 9px 38px !important; line-height: 18px !important; }
+.b-notification-item_icon { margin-left: -30px !important; }
+/* Внутри пункта было четыре отбивки по 5–10 пикселей: под шапкой со
+   значком, под строкой «кто ответил», над подписью и под ней. На экране
+   в 393 это давало полтора пункта на высоту одного. */
+.b-notification-item_header { margin-bottom: 0 !important; }
+.b-notification-item_message { margin-bottom: 4px !important; }
+.b-notification-item_footer {
+  margin-top: 4px !important; padding-bottom: 0 !important; }
+.b-notification-item_mention_comment_text { word-break: break-word !important; }
+/* Три раздела шли строкой по 30 пикселей высотой, с отбивками под
+   десктопную колонку в 320. Ставим столбиком и обнуляем всю цепочку
+   обёрток: у сайдбара своя отбивка (.b-right_sidebar margin-top),
+   у секции своя, у списка своя — по отдельности каждая мелочь, вместе
+   полпальца пустоты. */
+.b-notification-feed_layout_page .b-notification-feed_sidebar,
+.b-notification-feed_layout_page .b-notification-feed_fixed,
+.b-notification-feed_layout_page .b-notification-settings {
+  margin: 0 !important; padding: 0 !important; }
+.b-notification-feed_layout_page .b-notification-settings_list {
+  display: block !important; margin: 0 !important; padding: 0 !important; }
+.b-notification-feed_layout_page .b-notification-settings_separator {
+  display: none !important; }
+.b-notification-feed_layout_page .b-notification-settings_category {
+  line-height: 22px !important; height: auto !important;
+  font-size: 13px !important; margin: 0 !important; padding: 0 !important; }
+/* Ячейка внутри пункта была шириной во всю строку и высотой ровно в 40 —
+   от этого счётчик уходил под название отдельной строкой. */
+.b-notification-feed_layout_page .b-notification-settings_category_content {
+  width: auto !important; height: auto !important;
+  white-space: nowrap !important; }
+.b-notification-feed_layout_page .b-notification-settings_category_icon {
+  height: 20px !important; width: 20px !important;
+  margin: 1px 4px 0 0 !important; }
+.b-notification-feed_layout_page .b-notification-settings_category_icon svg {
+  height: 20px !important; width: 20px !important; }
+/* Отбивка в 36 пикселей и невидимая (opacity: 0, но display: block)
+   ссылка «Показать отписки» давали пустую полосу почти в палец высотой. */
+.b-notification-feed_layout_page .b-notification-unsubscriptions {
+  display: flex !important; flex-wrap: wrap !important;
+  align-items: center !important; gap: 2px 14px !important;
+  font-size: 13px !important; line-height: 22px !important;
+  margin: 0 !important;
+  padding: 0 0 6px !important;
+  border-bottom: 1px solid #ebebeb !important; }
+.b-notification-unsubscriptions_link.hidden { display: none !important; }
+.b-notification-mark_link, .b-notification-unsubscriptions_link {
+  margin-bottom: 0 !important; }
+
+/* ============ ПЫНЬ: своё окошко ============ */
+/* У лепры по нажатию на колокольчик всплывает окно со списком, а внизу
+   у него ссылка на страницу целиком. На телефоне оно не открывается, да
+   и рассчитано на мышь: минимум 446 пикселей ширины, а прокрутка ленты
+   включается только под наведением (:hover). Поэтому окно своё, а
+   содержимое — леприно, загруженное со страницы уведомлений. */
+html.lm-pyn_on .b-notification-feed_layout_popup { display: none !important; }
+#lm-pyn {
+  position: fixed !important; top: 0 !important; left: 0 !important;
+  right: 0 !important; bottom: 0 !important;
+  z-index: 2147483000 !important;
+  display: flex !important; align-items: flex-start !important; }
+/* Своё окно лепра ничем не затемняет — оно у неё маленькое и висит под
+   колокольчиком. У нас во всю ширину экрана, и без подложки по краям
+   торчала бы страница. Держим её еле заметной; CFG.pynShade: 0 уберёт
+   совсем, тогда тап мимо окна всё равно закрывает. */
+.lm-pyn_shade {
+  position: absolute !important; top: 0 !important; left: 0 !important;
+  right: 0 !important; bottom: 0 !important;
+  background: rgba(0, 0, 0, ${CFG.pynShade / 100}) !important; }
+/* Рамка и подвал — как у лепровского окна уведомлений:
+   .b-notification-feed_layout_popup — рамка 1px rgb(215,215,215) без
+   скруглений и без строки заголовка; .b-notification-feed__footer —
+   полоса 42px цветом rgb(224,224,226), надписи 12px rgb(37,37,37)
+   с отступом 20 по краям. */
+.lm-pyn_box {
+  position: relative !important; z-index: 1 !important;
+  margin: 6px !important; width: 100% !important; box-sizing: border-box !important;
+  max-height: ${CFG.pynHeight}vh !important;
+  display: flex !important; flex-direction: column !important;
+  overflow: hidden !important;
+  background: #fff !important;
+  border: 1px solid #d7d7d7 !important;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, .25) !important; }
+.lm-pyn_body {
+  flex: 1 1 auto !important; overflow-y: auto !important;
+  -webkit-overflow-scrolling: touch !important;
+  background: #fff !important; }
+.lm-pyn_note {
+  padding: 20px 12px !important; text-align: center !important;
+  color: #777 !important; font: 13px/1.4 Arial, sans-serif !important; }
+.lm-pyn_foot {
+  flex: 0 0 auto !important; display: flex !important;
+  align-items: center !important; justify-content: space-between !important;
+  height: 42px !important; padding: 0 20px !important;
+  box-sizing: border-box !important;
+  background: #e0e0e2 !important; }
+/* Кнопка закрытия — на месте лепровского «Отметить всё как прочитанное»
+   (та без её скрипта не работает, а закрывать окно на телефоне чем-то
+   надо: строки заголовка у лепры нет). */
+.lm-pyn_foot a, .lm-pyn_close {
+  font: 12px/42px Arial, sans-serif !important; color: #252525 !important;
+  text-decoration: none !important;
+  background: none !important; border: 0 !important; padding: 0 !important; }
+#lm-pyn .b-notification-item { font-size: 13px !important; }
+#lm-pyn .b-notification-item_footer { padding-bottom: 0 !important; }
+
 /* ============ СКРЫТОЕ ============ */
 .b-navthing_holder, .b-chat, .b-chat_open,
 .b-footer_left_col, .b-footer_futurico, .b-gertruda,
@@ -2258,10 +3059,11 @@ body.l-profile .l-header { margin-bottom: 1px !important; }
 .b-comments_navigation, #js-comments_navigation { display: none !important; }
 
 #lm-nav {
-  position: fixed !important; right: 8px !important; top: 50% !important;
+  position: fixed !important; right: ${CFG.jumpRight}px !important;
+  top: 50% !important;
   transform: translateY(-50%) !important; z-index: 30 !important;
   display: flex !important; flex-direction: column !important;
-  gap: 8px !important;
+  gap: ${CFG.jumpGap}px !important;
   /* коробка тапы не ловит — иначе перекрывала бы ссылки под собой */
   pointer-events: none !important; }
 #lm-nav button, #lm-theme {
@@ -2270,22 +3072,32 @@ body.l-profile .l-header { margin-bottom: 1px !important; }
   -webkit-touch-callout: none !important;
   -webkit-tap-highlight-color: transparent !important;
   touch-action: manipulation !important; }
+/* Кнопка — только площадь нажатия: ни фона, ни рамки, весь вид несёт
+   значок внутри. -webkit-appearance снимаем явно, иначе Safari рисует
+   свою серую капсулу поверх заданного background. */
 #lm-nav button {
   pointer-events: auto !important;
-  width: 44px !important; height: 44px !important; padding: 0 !important;
-  font: 20px/42px -apple-system, sans-serif !important;
-  color: rgb(90,90,90) !important; text-align: center !important;
-  background: rgba(255,255,255,.88) !important;
-  border: 1px solid rgb(206,204,204) !important;
-  border-radius: 22px !important; cursor: pointer !important; }
-#lm-nav button:active { background: rgb(235,235,235) !important; }
-#lm-nav .lm-nav_mine { font-size: 17px !important; }
-#lm-nav .lm-nav_mine.lm-on {
-  color: rgb(255,255,255) !important;
-  background: rgb(120,120,120) !important;
-  border-color: rgb(120,120,120) !important; }
-#lm-nav .lm-nav_mine.lm-off {
-  color: rgb(190,190,190) !important; opacity: .55 !important; }
+  width: ${CFG.jumpSize}px !important; height: ${CFG.jumpSize}px !important;
+  padding: 0 !important; margin: 0 !important;
+  -webkit-appearance: none !important; appearance: none !important;
+  background: none !important; border: 0 !important;
+  border-radius: 0 !important; box-shadow: none !important;
+  display: block !important; cursor: pointer !important;
+  opacity: 1 !important; transition: opacity .3s !important; }
+#lm-nav button svg {
+  display: block !important;
+  width: 100% !important; height: 100% !important; }
+${CFG.jumpHalo ? `#lm-nav button svg {
+  filter: drop-shadow(0 0 1px rgba(255,255,255,.95))
+          drop-shadow(0 0 2px rgba(255,255,255,.8)) !important; }` : ''}
+/* Нижняя стрелка — та же картинка, повёрнутая, как у лепры. Поворот
+   здесь безопасен: значок квадратный и стоит в квадратной кнопке,
+   прыгать при вращении нечему. */
+#lm-nav .lm-nav_down svg { transform: rotate(180deg) !important; }
+/* Неактивная кнопка — прозрачность лепры (0.3), не серый цвет:
+   перекрашивать пришлось бы каждую фигуру отдельно. */
+#lm-nav button.lm-off { opacity: .3 !important; cursor: default !important; }
+#lm-nav button:active:not(.lm-off) { opacity: .55 !important; }
 /* одиночная кнопка «наверх»: появляется, когда отлистан хотя бы экран */
 #lm-nav.lm-nav__top { opacity: 0 !important; transition: opacity .2s !important; }
 #lm-nav.lm-nav__top.lm-visible { opacity: 1 !important; }
@@ -2319,7 +3131,7 @@ body.l-profile #lm-navthing { margin-bottom: 0 !important; }
 .lm-navthing_row {
   display: flex !important; align-items: center !important; gap: 6px !important;
   width: 100% !important; box-sizing: border-box !important;
-  margin: 0 !important; padding: 6px 8px !important;
+  margin: 0 !important; padding: ${NAV_PAD}px 8px !important;
   background: rgb(232, 230, 228) !important;
   border: 0 !important; border-radius: 0 !important;
   -webkit-appearance: none !important; appearance: none !important;
@@ -2332,9 +3144,28 @@ body.l-profile #lm-navthing { margin-bottom: 0 !important; }
   -webkit-user-select: none !important; user-select: none !important;
   -webkit-tap-highlight-color: transparent !important; }
 /* Пиктограмма и шеврон одной ширины: иначе подпись между ними встаёт
-   сдвинутой на разницу их размеров, а не по середине строки. */
-.lm-navthing_icon, .lm-navthing_arrow { flex: 0 0 20px !important; }
-.lm-navthing_icon { display: block !important; }
+   сдвинутой на разницу их размеров, а не по середине строки.
+   Значок — герб «Блогов Империи», тот самый, что внутри стоял слева от
+   заголовка. Гнездо работает окошком: картинка внутри увеличена так,
+   чтобы её рисунок (39 из 65 пикселей ширины файла) занял гнездо
+   целиком, а прозрачные поля ушли под обрезку. Проценты считаются от
+   стороны гнезда, поэтому размер меняется одной настройкой navIcon.
+   max-width: none обязателен — общее правило для картинок в теле
+   страницы иначе прижмёт герб к ста процентам, и увеличение пропадёт.
+   Если герба нет ни на странице, ни в памяти, гнездо остаётся пустым:
+   место под него нужно всё равно, иначе подпись съедет вправо. */
+.lm-navthing_icon, .lm-navthing_arrow {
+  flex: 0 0 ${CFG.navIcon}px !important; }
+.lm-navthing_icon {
+  display: block !important; position: relative !important;
+  width: ${CFG.navIcon}px !important; height: ${CFG.navIcon}px !important;
+  overflow: hidden !important; line-height: 0 !important; }
+.lm-navthing_icon img {
+  display: block !important; position: absolute !important;
+  left: ${CREST_CSS.x}% !important; top: ${CREST_CSS.y}% !important;
+  width: ${CREST_CSS.w}% !important; height: auto !important;
+  max-width: none !important; max-height: none !important;
+  margin: 0 !important; }
 .lm-navthing_arrow {
   font-size: 10px !important; text-align: right !important;
   color: rgb(120, 120, 120) !important; }
@@ -2358,23 +3189,37 @@ body.l-profile #lm-navthing { margin-bottom: 0 !important; }
 #lm-navthing.lm-navthing__open .lm-navthing_body { display: block !important; }
 
 /* Ссылки слева, гертруда справа: картинка узкая и высокая, рядом с ней
-   как раз остаётся колонка под пять коротких строк. */
+   как раз остаётся колонка под пять коротких строк. Между ними —
+   растяжимая пустая середина с гвоздиком: он должен стоять посередине
+   промежутка, а не липнуть к картинке. Поэтому ссылкам роста не даём
+   (flex-grow 0) — иначе они забирают весь свободный ход, и центрировать
+   гвоздик становится не в чем.
+   Нижний предел ширины середины — под сам гвоздик: на длинных названиях
+   подлепр она сжимается до него, и гвоздик просто оказывается вплотную
+   к гертруде вместо середины. Это лучше, чем резать названия. */
 .lm-navthing_top {
   display: flex !important; align-items: flex-start !important;
   gap: 10px !important; }
-.lm-navthing_links { flex: 1 1 auto !important; min-width: 0 !important; }
+.lm-navthing_links { flex: 0 1 auto !important; min-width: 0 !important; }
+.lm-navthing_mid {
+  flex: 1 1 auto !important; min-width: 22px !important;
+  display: flex !important; align-items: flex-start !important;
+  justify-content: center !important; }
 /* Блоги Империи. У лепры отбивка слева 45 пикселей — под герб, прибитый
    абсолютно в левый верхний угол, плюс ещё по 20 у заголовка и пунктов
    списка: там оставлено место под крестик «отписаться». Двадцатки убираем
-   вместе с крестиком (см. ниже), а герб ужимаем до 30, иначе на колонку
-   остаётся полторы сотни пикселей.
+   вместе с крестиком (см. ниже), а отбивку под герб — вместе с гербом:
+   он теперь стоит в свёрнутой строке слева от подписи «Навигационная
+   штука», и держать его копию внутри незачем. Столбик ссылок встаёт
+   вплотную к левому краю блока.
    Ширина 140 и черта снизу приходят от .b-aside_item — того же элемента. */
 .lm-navthing_links .b-aside_imperial_blogs {
   width: auto !important; min-height: 0 !important;
-  margin: 0 !important; padding: 0 0 0 36px !important;
+  margin: 0 !important; padding: 0 !important;
   border-bottom: 0 !important; }
-.lm-navthing_links .b-aside_imperial_blogs_bg {
-  width: 30px !important; height: auto !important; }
+/* Герб внутри прячем, а не удаляем: узел леприн, и хотя он декоративный,
+   выдёргивать чужие узлы из разметки ради косметики не стоит. */
+.lm-navthing_links .b-aside_imperial_blogs_bg { display: none !important; }
 .lm-navthing_links .b-aside_imperial_blogs strong {
   margin-bottom: 4px !important; padding-left: 0 !important;
   font-size: 14px !important; }
@@ -2397,7 +3242,9 @@ body.l-profile #lm-navthing { margin-bottom: 0 !important; }
 .lm-navthing_links .b-aside_imperial_blogs li:hover .b-close_btn,
 .lm-navthing_links .b-aside_imperial_blogs .b-close_btn {
   display: none !important; }
-.lm-navthing_pic { flex: 0 0 118px !important; max-width: 118px !important; }
+.lm-navthing_pic {
+  flex: 0 0 ${CFG.gertruda}px !important;
+  max-width: ${CFG.gertruda}px !important; }
 /* Гертруда скрыта общим правилом выше вместе с остальной левой колонкой.
    Правило заведомо весомее скрывающего (два класса против одного) и стоит
    ниже по файлу: иначе jsdom и браузер решили бы спор по-разному.
@@ -2412,8 +3259,12 @@ body.l-profile #lm-navthing { margin-bottom: 0 !important; }
   max-width: 100% !important; margin: 0 !important; }
 
 /* Овощебаза. У лепры это блок в 213px, а подпись отбита слева на 64
-   пикселя под завиток фоновой картинки колонки, которой здесь нет. */
-.lm-navthing_veg { margin-top: 10px !important; }
+   пикселя под завиток фоновой картинки колонки, которой здесь нет.
+   Показываем только с непустым списком замен: пустая жёлтая плашка —
+   это подпись к тому, чего нет. Класс ставится проверкой (syncVeg), а
+   не безусловным правилом, потому что список приходит позже разметки. */
+.lm-navthing_veg { display: none !important; margin-top: 10px !important; }
+.lm-navthing_veg.lm-on { display: block !important; }
 .lm-navthing_veg .b-aside_replacements {
   width: auto !important; margin: 0 !important; }
 .lm-navthing_veg .b-aside_replacements_header {
@@ -3265,6 +4116,59 @@ html.lm-dark [style*="background-image"] {
   }
 
 
+  /* ---- Звания (/fraud/ranks/) ----
+     Две вещи, которые одним CSS не делаются.
+
+     Первая — блок объяснения аукциона: четыре абзаца перед таблицей,
+     на телефоне это целый экран до первого звания. Сворачиваем его в
+     строку с уголком; состояние помним, как у пенсне.
+
+     Вторая — подсказка в поле новой должности. Поле уехало отдельной
+     строкой, и подпись «Добавить должность:» осталась выше; без
+     подсказки внутри непонятно, чем это поле отличается от соседнего
+     поля ника. Заодно называем предел длины: он написан только в
+     свёрнутом объяснении. */
+
+  var ABOUT_KEY = 'lm-ranks-about';
+
+  function aboutOpen() {
+    try {
+      var v = localStorage.getItem(ABOUT_KEY);
+      if (v === '1') return true;
+      if (v === '0') return false;
+    } catch (e) {}
+    return !!CFG.ranksAbout;
+  }
+
+  function fixRanks() {
+    var about = document.querySelector('.b-ranks_about');
+    if (about && !about.dataset.lmAbout) {
+      about.dataset.lmAbout = '1';
+      var btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'lm-ranks_about';
+      btn.textContent = 'Как это устроено';
+      about.parentNode.insertBefore(btn, about);
+
+      var open = aboutOpen();
+      btn.classList.toggle('lm-open', open);
+      btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+
+      btn.addEventListener('click', function (e) {
+        e.preventDefault();
+        var on = !btn.classList.contains('lm-open');
+        btn.classList.toggle('lm-open', on);
+        btn.setAttribute('aria-expanded', on ? 'true' : 'false');
+        try { localStorage.setItem(ABOUT_KEY, on ? '1' : '0'); } catch (err) {}
+      });
+    }
+
+    var rank = document.querySelector('.b-ranks_input_rank');
+    if (rank && !rank.getAttribute('placeholder'))
+      rank.setAttribute('placeholder', 'должность, до 25 знаков');
+  }
+
+
   /* ---- Обрамление профиля ----
      Картинку фона лепра ставит инлайновым стилем на .b-user_block.
      Читаем именно инлайновый стиль, а не вычисленный: в вычисленном
@@ -3584,6 +4488,21 @@ html.lm-dark [style*="background-image"] {
       } else if (/личная информация/.test(t)) {
         a.dataset.lmTab = '1';
         a.textContent = 'настройки';
+      } else if (/профессиональн/i.test(t)) {
+        /* Самый длинный пункт меню магазина: 24 знака Verdana плюс место
+           под тунца — 219 пикселей из 369, и с ним строка ломалась
+           натрое. Подпись лежит текстовым узлом рядом с пустым <i>, в
+           котором фоном нарисован тунец, поэтому переписываем сам
+           текстовый узел: замена textContent снесла бы <i> с картинкой. */
+        var host = a.querySelector('.b-charlie_item') || a;
+        var tn = sliceOf(host.childNodes).filter(function (n) {
+          return n.nodeType === 3 && n.textContent.trim();
+        })[0];
+        if (tn) {
+          a.dataset.lmTab = '1';
+          if (!a.title) a.title = t;
+          tn.textContent = 'Проф. аккаунт';
+        }
       }
     });
   }
@@ -3909,6 +4828,15 @@ html.lm-dark [style*="background-image"] {
     if (isTabsPage()) document.documentElement.classList.add('lm-tabs');
   }
 
+  /* Класс страниц магазина. Нужен для правил, которые касаются всего
+     раздела разом (кегли полей ввода), а общего контейнера у магазина
+     нет: у каждой страницы своя обёртка со своим именем. */
+  function markFraudPage() {
+    if (/(^|\.)leprosorium\.ru$/i.test(location.hostname) &&
+        /^\/fraud(\/|$)/.test(location.pathname))
+      document.documentElement.classList.add('lm-fraud');
+  }
+
   function relayoutHeader() {
     var header = document.querySelector('.l-header');
     if (!header) return;
@@ -4013,16 +4941,20 @@ html.lm-dark [style*="background-image"] {
   var NAV_KEY = 'lm-navthing';    /* закреплено ли (открывать сразу) */
   var GERT_KEY = 'lm-gertruda';   /* последняя увиденная гертруда */
 
-  /* Компас рисуем разметкой, а не картинкой: своего значка у лепры для
-     этого блока нет, а нарисованный currentColor красится вместе с
-     подписью и переворачивается тёмной темой сам, без исключения из
-     инверсии — как стёкла пенсне. */
-  var NAV_SVG =
-    '<svg class="lm-navthing_icon" viewBox="0 0 24 24" width="18" height="18" ' +
-    'aria-hidden="true" focusable="false">' +
-    '<g fill="none" stroke="currentColor" stroke-width="2" ' +
-    'stroke-linejoin="round"><circle cx="12" cy="12" r="9"/>' +
-    '<path d="M16 8l-2.2 5.8L8 16l2.2-5.8z"/></g></svg>';
+  /* Значок свёрнутой строки — герб «Блогов Империи», тот же файл, что
+     лепра кладёт внутрь блока. Нарисованного компаса тут больше нет:
+     свой значок ни на что на странице не похож, а герб уже связан
+     смыслом с содержимым — строка развернётся именно в него.
+     Берём адрес, а не сам узел: узел леприн и прибит абсолютно в угол
+     своего блока, а в памяти на внутренних страницах его вообще нет —
+     остаётся только адрес из записи. */
+  function crestSrc() {
+    var img = document.querySelector('.b-aside_imperial_blogs_bg');
+    var src = img && img.getAttribute('src');
+    if (src && src.slice(0, 5) !== 'data:') return src;
+    var saved = cachedBlogs();
+    return (saved && saved.i) || '';
+  }
 
   /* Гвоздик. Одно и то же начертание для обоих положений: откреплённый —
      тот же значок, наклонённый и приглушённый правилом. Две разные
@@ -4037,7 +4969,38 @@ html.lm-dark [style*="background-image"] {
 
   var BLOGS_KEY = 'lm-blogs';     /* последний увиденный список подлепр */
   var BLOGS_URL = 'https://leprosorium.ru/underground/';
+  var VEG_KEY = 'lm-veg';         /* были ли у овощебазы замены */
   var VEG_URL = 'https://leprosorium.ru/fraud/replacements/';
+
+  function vegWasOn() {
+    try { return localStorage.getItem(VEG_KEY) === '1'; } catch (e) { return false; }
+  }
+
+  /* Овощебаза жива, только если в ней есть замены. Разметку лепра отдаёт
+     всегда — и заголовок, и пустой список, — поэтому решает не наличие
+     блока, а наличие пунктов.
+     Прячем блок целиком классом, а не разбираем его: список у лепры
+     наполняется её скриптом уже после разметки, и если он придёт позже,
+     достаточно вернуть класс — восстанавливать удалённые узлы не надо.
+     Состояние запоминаем: на внутренних страницах блока нет вовсе, и
+     решать там нечем, кроме прошлого захода на главную. Записываем
+     только когда блок настоящий — иначе внутренняя страница затирала бы
+     память нулём просто потому, что овощебазы на ней не бывает. */
+  function syncVeg() {
+    var veg = document.querySelector('.lm-navthing_veg');
+    if (!veg) return;
+    var box = veg.querySelector('.b-aside_replacements');
+    var on;
+    if (box) {
+      on = !!box.querySelector('.b-aside_replacements_list_item');
+      try { localStorage.setItem(VEG_KEY, on ? '1' : '0'); } catch (e) {}
+    } else {
+      /* восстановленная по памяти ссылка — её кладём, только если в
+         прошлый раз замены были; пусто здесь значит «не показывать» */
+      on = !!veg.firstChild;
+    }
+    veg.classList.toggle('lm-on', on);
+  }
 
   function navAlways() {
     try { return localStorage.getItem(NAV_KEY) === '1'; } catch (e) { return false; }
@@ -4133,6 +5096,42 @@ html.lm-dark [style*="background-image"] {
     return box;
   }
 
+  /* Гертруда подрастает под столбик ссылок. У человека с одной подлепрой
+     столбик низкий, картинка рядом с ним и так велика; у человека с
+     десятком — столбик уходит вниз, и картинка в 118 пикселей смотрится
+     обрубком рядом с длинной колонкой.
+     Считаем каждый раз ОТ ИСХОДНОЙ ширины, а не от текущей: иначе при
+     каждом пересчёте картинка прибавляла бы к уже прибавленному, и за
+     несколько поворотов экрана уехала бы через всю строку. Ровно та же
+     ловушка была у кегля девиза подлепры.
+     Предел — gertrudaGrow процентов: дальше картинка подходит вплотную
+     к гвоздику, стоящему между нею и ссылками. */
+  function fitGertruda() {
+    var pic = document.querySelector('.lm-navthing_pic');
+    var links = document.querySelector('.lm-navthing_links');
+    if (!pic || !links || !pic.querySelector('img')) return;
+
+    var base = CFG.gertruda;
+    pic.style.flexBasis = base + 'px';
+    pic.style.maxWidth = base + 'px';
+
+    var high = links.getBoundingClientRect().height;
+    var low = pic.getBoundingClientRect().height;
+    /* Свёрнутый блок и любая проверка без раскладки дают нули. Ноль в
+       делимом или делителе даст либо бесконечность, либо ложное «расти
+       некуда» — выходим, оставив исходную ширину. */
+    if (!high || !low) return;
+
+    var k = high / low;
+    if (k < 1) k = 1;
+    var max = 1 + CFG.gertrudaGrow / 100;
+    if (k > max) k = max;
+
+    var w = Math.round(base * k);
+    pic.style.flexBasis = w + 'px';
+    pic.style.maxWidth = w + 'px';
+  }
+
   function buildNavthing() {
     if (document.getElementById('lm-navthing')) return;
     var header = document.querySelector('.l-header');
@@ -4146,10 +5145,25 @@ html.lm-dark [style*="background-image"] {
     var btn = document.createElement('button');
     btn.type = 'button';
     btn.className = 'lm-navthing_row';
-    btn.innerHTML = NAV_SVG +
-      '<span class="lm-navthing_label">Навигационная штука</span>' +
-      /* знак шеврона — в CSS: он меняется по состоянию */
-      '<span class="lm-navthing_arrow"></span>';
+
+    var icon = document.createElement('span');
+    icon.className = 'lm-navthing_icon';
+    var crest = crestSrc();
+    if (crest) {
+      var crestImg = document.createElement('img');
+      crestImg.setAttribute('src', crest);
+      crestImg.setAttribute('alt', '');
+      icon.appendChild(crestImg);
+    }
+    var label = document.createElement('span');
+    label.className = 'lm-navthing_label';
+    label.textContent = 'Навигационная штука';
+    /* знак шеврона — в CSS: он меняется по состоянию */
+    var arrow = document.createElement('span');
+    arrow.className = 'lm-navthing_arrow';
+    btn.appendChild(icon);
+    btn.appendChild(label);
+    btn.appendChild(arrow);
 
     var body = document.createElement('div');
     body.className = 'lm-navthing_body';
@@ -4157,12 +5171,17 @@ html.lm-dark [style*="background-image"] {
     var top = document.createElement('div');
     top.className = 'lm-navthing_top';
 
-    /* Гвоздик — слева от герба «Блогов Империи», первым в верхней строке. */
+    /* Гвоздик — посередине между столбиком ссылок и гертрудой, в той же
+       строке и по её верху. Своей ячейкой, а не отступами: промежуток
+       зависит от длины названий подлепр, и любое постоянное число
+       промахивалось бы мимо середины на каждой второй странице. */
     var pin = document.createElement('button');
     pin.type = 'button';
     pin.className = 'lm-navthing_pin';
     pin.innerHTML = PIN_SVG;
-    top.appendChild(pin);
+    var mid = document.createElement('div');
+    mid.className = 'lm-navthing_mid';
+    mid.appendChild(pin);
 
     var links = document.createElement('div');
     links.className = 'lm-navthing_links';
@@ -4184,6 +5203,7 @@ html.lm-dark [style*="background-image"] {
       }
     }
     top.appendChild(links);
+    top.appendChild(mid);
 
     var pic = document.createElement('div');
     pic.className = 'lm-navthing_pic';
@@ -4213,7 +5233,10 @@ html.lm-dark [style*="background-image"] {
       /* Список замен лепра наполняет своим скриптом по id — перенос узла
          этому не мешает, getElementById найдёт его и на новом месте. */
       veg.appendChild(vegBox);
-    } else {
+    } else if (vegWasOn()) {
+      /* Блока на странице нет. Запасную ссылку кладём только если в
+         прошлый раз замены были: иначе на внутренних страницах висела бы
+         жёлтая плашка от овощебазы, которой человек не пользуется. */
       var vegLink = document.createElement('a');
       vegLink.className = 'b-aside_replacements_header';
       vegLink.setAttribute('href', VEG_URL);
@@ -4247,6 +5270,9 @@ html.lm-dark [style*="background-image"] {
       var on = !box.classList.contains('lm-navthing__open');
       box.classList.toggle('lm-navthing__open', on);
       btn.setAttribute('aria-expanded', on ? 'true' : 'false');
+      /* Меряем только что развёрнутое: у свёрнутого блока раскладки нет
+         и все прямоугольники нулевые. */
+      if (on) guard('fitGertruda', fitGertruda)();
     });
 
     pin.addEventListener('click', function (e) {
@@ -4255,6 +5281,477 @@ html.lm-dark [style*="background-image"] {
       showPin(on);
       try { localStorage.setItem(NAV_KEY, on ? '1' : '0'); } catch (e2) {}
     });
+
+    /* Наблюдатель — на сам блок овощебазы, а не на общий: тот повешен на
+       ленту или тред и до навигационной штуки не достаёт, а список замен
+       приходит как раз добавлением узлов внутрь блока. */
+    guard('syncVeg', syncVeg)();
+    guard('fitGertruda', fitGertruda)();
+    if (veg.querySelector('.b-aside_replacements') && 'MutationObserver' in window)
+      new MutationObserver(guard('syncVeg', syncVeg))
+        .observe(veg, { childList: true, subtree: true });
+  }
+
+  /* ============================================================
+     4.2. ПЫНЬ
+     ============================================================ */
+
+  /* В десктопе колокольчик открывает окно поверх страницы, а на саму
+     страницу уведомлений ведёт ссылка в его низу. На телефоне тап уходил
+     прямо на страницу — окно лепры не открывалось.
+
+     Чинить лепровское нечем: скрипта, который его строит, в сохранённой
+     странице нет, а по её CSS видно, что окно рассчитано на мышь —
+     min-width: 446px и прокрутка ленты только под наведением
+     (.b-notification-feed_inner:hover { overflow-y: scroll }). Поэтому
+     окно своё, а содержимое берём готовое: грузим страницу уведомлений
+     и переносим оттуда ленту.
+
+     Что переносится, то и должно работать. Всё, что у лепры держится на
+     её скрипте (отписки, «ответить», «развернуть», отметка о прочтении),
+     на перенесённых узлах обработчиков не получит, поэтому вырезается:
+     кнопка, которая ничего не делает, хуже отсутствующей.
+
+     Откуда берётся лента. Первая попытка запрашивала /my/events/ и
+     разбирала ответ — в нём ленты не оказалось вовсе: сервер отдаёт
+     30 КБ каркаса, а список собирает уже скрипт лепры, вытягивая шаблоны
+     из /static/views/notifications/ и данные из /api/my/notifications/.
+     Пойти этим же путём не вышло: тот же адрес, теми же куками, тем же
+     методом отвечает 404 — чем именно лепра его зовёт, установить пока
+     не удалось. Поэтому лента собирается её же скриптом в скрытом окне
+     на ту же страницу, а мы забираем готовые узлы. Дороже одного
+     запроса, зато не зависит от разгадки API. */
+
+  var PYN_PAGE = '/my/events/';
+  var PYN_FRAME = 'lm-pyn-frame';   /* по нему скрипт узнаёт себя в окне */
+  var pynData = null;       /* разобранный кусок ленты и набор значков */
+  var pynAt = 0;            /* когда он загружен */
+  var pynBusy = false;
+  var pynFrame = null;
+
+  function onEventsPage() {
+    return /^\/my\/events(\/|$)/.test(location.pathname);
+  }
+
+  /* Куда уходить, если окно не сложилось. Ссылка у пыни абсолютная и
+     ведёт на главный домен — её и берём, а не свой адрес. */
+  function pynHref() {
+    var a = document.querySelector('a.js-header_button_events');
+    return (a && a.getAttribute('href')) ||
+           'https://leprosorium.ru' + PYN_PAGE;
+  }
+
+  /* Подпись уведомления собрана из кусков, разделённых точками. Часть
+     кусков уходит, и точки остаются висеть по краям и парами. */
+  function dropStrayDots(f) {
+    var dot = function (el) {
+      return !!el && el.classList.contains('b-notification-item_footer-delimiter');
+    };
+    var prevDot = true;                 /* начало строки — ведущая точка лишняя */
+    sliceOf(f.children).forEach(function (el) {
+      if (dot(el) && prevDot) { el.remove(); return; }
+      prevDot = dot(el);
+    });
+    var last = f.children[f.children.length - 1];
+    if (dot(last)) last.remove();
+  }
+
+  function pynClean(box) {
+    sliceOf(box.querySelectorAll(
+      '.b-notification-item_parent_comment,' +   /* разворот родительского */
+      '.b-notification-item_unsubscribe-menu,' + /* отписки */
+      '.b-notification-item_mark-read,' +        /* отметка о прочтении */
+      '.b-notification-item_answer-message,' +   /* «Отправлено» */
+      '.b-notification-item_footer_answer,' +    /* «ответить» */
+      '.b-roll_parent_comment,' +
+      '.js-roll_action'                          /* «развернуть» / «свернуть» */
+    )).forEach(function (el) { el.remove(); });
+
+    /* Без «развернуть» обрезанный текст показывать незачем — оставляем
+       полный, он лежит рядом под классом hidden. */
+    sliceOf(box.querySelectorAll('.js-roll_snippet'))
+      .forEach(function (el) { el.remove(); });
+    sliceOf(box.querySelectorAll('.js-roll_full'))
+      .forEach(function (el) { el.classList.remove('hidden'); });
+
+    sliceOf(box.querySelectorAll('.b-notification-item_footer'))
+      .forEach(dropStrayDots);
+
+    /* Слово «комментарий» было ручкой разворота: у лепры .b-roll_down —
+       это пунктирное подчёркивание и палец под курсором. Разворачивать
+       больше нечего, а вид обещает нажатие. */
+    sliceOf(box.querySelectorAll('.js-roll_parent_comment'))
+      .forEach(function (el) {
+        el.classList.remove('b-roll_down', 'js-roll_parent_comment');
+      });
+
+    /* Совпадение id с настоящими комментариями страницы сломало бы и
+       якоря, и поиск по id в скрипте лепры: у уведомлений id родительских
+       комментариев те же, что у комментариев в треде. Набор значков это
+       не затрагивает — он лежит отдельным узлом и чистке не подлежит. */
+    sliceOf(box.querySelectorAll('[id]'))
+      .forEach(function (el) { el.removeAttribute('id'); });
+  }
+
+  function pynLoad(cb) {
+    if (pynData && Date.now() - pynAt < CFG.pynFresh * 1000) return cb(pynData);
+    if (pynBusy) return;
+    pynBusy = true;
+
+    var timer = null;
+    var done = function (data, why) {
+      pynBusy = false;
+      if (timer) clearInterval(timer);
+      if (pynFrame && pynFrame.parentNode) pynFrame.remove();
+      pynFrame = null;
+      cb(data, why);
+    };
+
+    var fr = document.createElement('iframe');
+    pynFrame = fr;
+    fr.setAttribute('name', PYN_FRAME);
+    fr.setAttribute('aria-hidden', 'true');
+    fr.setAttribute('src', location.protocol + '//' + location.host + PYN_PAGE);
+    /* Не display: none и не размер в пиксель: скрипт лепры при сборке
+       ленты меряет раскладку, и в схлопнутом окне мерить ему нечего.
+       Поэтому окно нормального размера, просто унесено за край. */
+    fr.style.cssText = 'position:fixed;left:-10000px;top:0;width:420px;' +
+                       'height:900px;border:0;opacity:0;pointer-events:none;';
+    document.body.appendChild(fr);
+
+    var t0 = Date.now();
+
+    var look = function () {
+      var d = null;
+      try { d = fr.contentDocument; } catch (e) {}
+      var main = d && d.querySelector('#js-notification-feed-main');
+      if (main && main.querySelector('.b-notification-item')) {
+        /* Забираем немедленно и к себе: после удаления окна его документ
+           пропадает, и узлы, оставленные там, станут непригодны. */
+        var mine = document.importNode(main, true);
+        pynClean(mine);
+        var sp = d.querySelector('.b-notification-svg-font');
+        pynData = { main: mine,
+                    sprite: sp ? document.importNode(sp, true) : null };
+        pynAt = Date.now();
+        return done(pynData, null);
+      }
+      if (Date.now() - t0 > CFG.pynWait * 1000)
+        done(null, d ? 'лента не собралась за ' + CFG.pynWait + ' с'
+                     : 'страница уведомлений не открылась');
+    };
+
+    timer = setInterval(guard('pynLook', look), 200);
+  }
+
+  function pynClose() {
+    var w = document.getElementById('lm-pyn');
+    if (w) w.remove();
+  }
+
+  function pynFill(body, data) {
+    if (!data) return false;
+
+    /* Значки уведомлений нарисованы через <use xlink:href="#notification_…">,
+       а сами svg лежат в отдельном наборе — на прочих страницах его нет,
+       и без него в ленте были бы пустые места. */
+    if (data.sprite && !document.querySelector('.b-notification-svg-font'))
+      document.body.appendChild(document.importNode(data.sprite, true));
+
+    body.textContent = '';
+    var main = document.importNode(data.main, true);
+    if (!main.querySelector('.b-notification-item')) {
+      var empty = document.createElement('div');
+      empty.className = 'lm-pyn_note';
+      empty.textContent = 'Пока ничего';
+      body.appendChild(empty);
+      return true;
+    }
+    body.appendChild(main);
+    return true;
+  }
+
+  function pynOpen() {
+    if (document.getElementById('lm-pyn')) { pynClose(); return; }
+    if (!document.body) return;
+
+    var wrap = document.createElement('div');
+    wrap.id = 'lm-pyn';
+
+    var shade = document.createElement('div');
+    shade.className = 'lm-pyn_shade';
+    shade.addEventListener('click', pynClose);
+    /* Страницу под окном не глушим через overflow: hidden на body — на
+       iOS это теряет позицию прокрутки и выбрасывает наверх (см. историю
+       просмотрщика картинок). Хватает того, что палец на подложке не
+       тащит страницу. */
+    shade.addEventListener('touchmove', function (e) { e.preventDefault(); },
+                           { passive: false });
+
+    var box = document.createElement('div');
+    box.className = 'lm-pyn_box';
+
+    var body = document.createElement('div');
+    body.className = 'lm-pyn_body';
+    var note = document.createElement('div');
+    note.className = 'lm-pyn_note';
+    note.textContent = 'Загружаю…';
+    body.appendChild(note);
+
+    /* Строки заголовка у лепровского окна уведомлений нет вовсе, поэтому
+       и у нас её нет: закрытие ушло в подвал, слева, на место её
+       «Отметить всё как прочитанное». */
+    var foot = document.createElement('div');
+    foot.className = 'lm-pyn_foot';
+    var close = document.createElement('button');
+    close.type = 'button';
+    close.className = 'lm-pyn_close';
+    close.textContent = 'Закрыть';
+    close.addEventListener('click', pynClose);
+    var all = document.createElement('a');
+    all.setAttribute('href', pynHref());
+    all.textContent = 'Все уведомления';
+    foot.appendChild(close);
+    foot.appendChild(all);
+
+    box.appendChild(body);
+    box.appendChild(foot);
+    wrap.appendChild(shade);
+    wrap.appendChild(box);
+    document.body.appendChild(wrap);
+
+    pynLoad(function (data, why) {
+      if (!document.getElementById('lm-pyn')) return;   /* успели закрыть */
+      if (pynFill(body, data)) return;
+      /* Раньше отсюда шёл переход на страницу уведомлений: окно мигало
+         и пропадало, а почему — оставалось неизвестным. Теперь причина
+         остаётся на виду, а уйти на страницу можно ссылкой снизу. */
+      body.textContent = '';
+      var bad = document.createElement('div');
+      bad.className = 'lm-pyn_note';
+      bad.textContent = 'Список не загрузился: ' + (why || 'неизвестно');
+      body.appendChild(bad);
+    });
+  }
+
+  if (CFG.pynPopup) {
+    document.documentElement.classList.add('lm-pyn_on');
+    document.addEventListener('click', function (e) {
+      var t = e.target;
+      if (!t || !t.closest) return;
+      var a = t.closest('a.js-header_button_events');
+      if (!a) return;
+      /* На самой странице уведомлений окно ни к чему: лента и так перед
+         глазами, а ссылка ведёт на неё же. */
+      if (onEventsPage()) return;
+      e.preventDefault();
+      e.stopPropagation();
+      if (e.stopImmediatePropagation) e.stopImmediatePropagation();
+      guard('pynOpen', pynOpen)();
+    }, true);
+  }
+
+  /* Страница уведомлений: лента лежит последним потомком body и прибита
+     абсолютно, top ей считает скрипт лепры под свою шапку. Позиционирование
+     снято в CSS, но статичный блок на месте последнего потомка body встал
+     бы ниже подвала — поэтому переносим его в главную колонку. */
+  function fixEventsPage() {
+    var feed = document.getElementById('js-notification-feed');
+    if (!feed) return;
+    var main = document.querySelector('.l-i-content_main');
+    if (main && feed.parentNode !== main) main.appendChild(feed);
+    feed.style.removeProperty('top');
+  }
+
+
+  /* ---- Страница нового поста ----
+     Форма собрана из пяти вложенных таблиц. Общее правило «form table →
+     block» их разбирает, но заодно разрывает пары «квадратик — подпись»:
+     они лежат в соседних ячейках, и каждая становится своей строкой.
+     Чинить это правилами нельзя — пары надо держать вместе, а ячейки
+     соседями не выбираются.
+
+     Поэтому таблицы разбираем сами: узлы, за которые держится скрипт
+     лепры (панель кнопок с её id, поле, загрузчик, кнопка отправки),
+     переносим целиком, пары собираем в отдельные пункты, остаток
+     выбрасываем. Порядок свой: панель — поле — два свёрнутых списка
+     (категории и специальные опции) — отправка.
+
+     Клонировать ничего нельзя: на узлах висят обработчики лепры,
+     переживает их только перенос. */
+
+  function newPostForm() {
+    var f = document.querySelector('#js-new_post_form');
+    if (!f) return null;
+    /* Форма быстрого поста в ленте носит те же id, но она скрыта и
+       разбирать её незачем. Как именно она обёрнута, по сохранённой
+       странице не видно — поэтому отсекаем и по предку, и по потомку. */
+    if (f.closest && f.closest('.b-new_post_miniform')) return null;
+    if (f.querySelector('.b-new_post_miniform')) return null;
+    return f.querySelector('#js-new_post_body') ? f : null;
+  }
+
+  /* Пара «квадратик — подпись». wrapCheckbox для этого не годится:
+     там input и label лежат в одном родителе, здесь всегда в разных
+     ячейках, и связывает их только атрибут for. */
+  function npPair(f, inp) {
+    var pair = document.createElement('span');
+    pair.className = 'lm-np_opt';
+    var lab = inp.id ? f.querySelector('label[for="' + inp.id + '"]') : null;
+    pair.appendChild(inp);
+    if (lab) pair.appendChild(lab);
+    return pair;
+  }
+
+  /* Заголовки групп лепра размечает по-разному: «Cпециальные опции:» —
+     жирным начертанием внутри ячейки (буква C в начале латинская, поэтому
+     ищем со второй), «Выберите категорию …» — просто текстом ячейки.
+     Ни класса, ни общего тега у них нет, так что ищем по тексту.
+     Годится только самый глубокий подходящий узел: у всех ячеек-обёрток
+     текст ровно тот же. */
+  function npHeadText(f, re) {
+    var all = f.querySelectorAll('b, td');
+    for (var i = 0; i < all.length; i++) {
+      if (!re.test(all[i].textContent || '')) continue;
+      if (all[i].querySelector('b, td, table')) continue;
+      return all[i];
+    }
+    return null;
+  }
+
+  /* Название списка берём у лепры, но чистим: пояснение в скобках
+     («Посты без категории автоматически получают …») занимало на телефоне
+     три строки ради того, что и так понятно, а двоеточие в подписи
+     свёрнутого списка лишнее. Если разметка изменится и заголовок не
+     найдётся — своё название. */
+  function npTitle(head, def) {
+    if (!head) return def;
+    var small = head.querySelector('.small, i, span');
+    if (small && small.parentNode) small.parentNode.removeChild(small);
+    var t = (head.textContent || '').replace(/\s+/g, ' ')
+              .replace(/\s*:\s*$/, '').trim();
+    return t || def;
+  }
+
+  function npPairs(f, sel) {
+    var list = f.querySelectorAll(sel), out = [];
+    for (var i = 0; i < list.length; i++) out.push(npPair(f, list[i]));
+    return out;
+  }
+
+  /* Список: кнопка с названием и сама группа пунктов. В разметку они
+     кладутся врозь (сначала обе кнопки, потом обе группы), поэтому
+     возвращаем пару, а расставляет уже fixNewPost.
+     Кнопке обязателен type="button": без него она внутри формы работает
+     кнопкой отправки, и первое же нажатие отправило бы пустой пост. */
+  function npList(key, title, items) {
+    if (!items.length) return null;
+    var btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'lm-np_toggle lm-np_toggle-' + key;
+    var t = document.createElement('span');
+    t.className = 'lm-np_toggle_t';
+    t.textContent = title;
+    var v = document.createElement('span');
+    v.className = 'lm-np_toggle_v';
+    btn.appendChild(t);
+    btn.appendChild(v);
+
+    var g = document.createElement('div');
+    g.className = 'lm-np_group lm-np_' + key;
+    for (var i = 0; i < items.length; i++) g.appendChild(items[i]);
+
+    btn.addEventListener('click', function () {
+      btn.classList.toggle('lm-open', g.classList.toggle('lm-open'));
+    });
+    return { btn: btn, box: g };
+  }
+
+  /* Подпись под названием: что в списке выбрано. Без неё свёрнутый список
+     прячет и сам выбор — категорию поставил, закрыл, и проверить нечем,
+     кроме как открыть заново. */
+  function npValue(lists, key, text) {
+    var v = lists.querySelector('.lm-np_toggle-' + key + ' .lm-np_toggle_v');
+    if (v) v.textContent = text;
+  }
+
+  function npStatus(lists) {
+    var cats = lists.querySelector('.lm-np_cats');
+    if (cats) {
+      var on = cats.querySelector('input:checked');
+      var lab = on && on.id && cats.querySelector('label[for="' + on.id + '"]');
+      var name = lab ? (lab.textContent || '').replace(/\s+/g, ' ').trim() : '';
+      npValue(lists, 'cats', on ? (name || 'выбрана') : 'без категории');
+    }
+    var flags = lists.querySelector('.lm-np_flags');
+    if (flags) {
+      var n = flags.querySelectorAll('input:checked').length;
+      npValue(lists, 'flags', n ? 'выбрано: ' + n : 'ничего');
+    }
+  }
+
+  function fixNewPost() {
+    var f = newPostForm();
+    if (!f) return;
+    document.documentElement.classList.add('lm-newpost');
+    if (f.querySelector('.lm-np')) return;      /* уже разобрано */
+
+    var np = document.createElement('div');
+    np.className = 'lm-np';
+
+    var tools = f.querySelector('#js-new_post_body_wysiwyg');
+    if (tools) {
+      /* инлайновый white-space:nowrap держал панель в одну строку */
+      tools.style.removeProperty('white-space');
+      np.appendChild(tools);
+    }
+    var body = f.querySelector('#js-new_post_body');
+    if (body) np.appendChild(body);
+
+    /* Категории и опции — в два свёрнутых списка под полем. Развёрнутыми
+       это два десятка строк между полем и кнопкой отправки: чтобы просто
+       написать пост, приходилось прокручивать их все. */
+    var lists = document.createElement('div');
+    lists.className = 'lm-np_lists';
+    var pack = [
+      npList('cats', npTitle(npHeadText(f, /^\s*Выберите категорию/i),
+                             'Выберите категорию'),
+             npPairs(f, 'input[type="radio"]')),
+      npList('flags', npTitle(npHeadText(f, /пециальные опции/i),
+                              'Специальные опции'),
+             npPairs(f, 'input[type="checkbox"]'))
+    ];
+    for (var p = 0; p < pack.length; p++) if (pack[p]) lists.appendChild(pack[p].btn);
+    for (p = 0; p < pack.length; p++) if (pack[p]) lists.appendChild(pack[p].box);
+    if (lists.firstChild) {
+      np.appendChild(lists);
+      lists.addEventListener('change', function () { npStatus(lists); });
+      npStatus(lists);
+    }
+
+    var send = document.createElement('div');
+    send.className = 'lm-np_send';
+    var up = f.querySelector('#js-new_post_file');
+    if (up) send.appendChild(up);
+    var go = f.querySelector('#js-new_post_submit');
+    if (go) send.appendChild(go);
+    if (send.firstChild) np.appendChild(send);
+
+    /* Всё, что осталось от таблиц, уходит вместе с ними. Но сначала
+       спасаем поля, которых мы не знаем: в сохранённой странице форма
+       обходится без служебных, а на живом сайте в ней может лежать что
+       угодно, и без такого поля пост просто не отправится. Скрытые
+       ничего не займут, видимые встанут внизу — заметно и починимо,
+       в отличие от молча пропавшего значения. */
+    var keep = document.createElement('div');
+    keep.className = 'lm-np_keep';
+    var rest = f.querySelectorAll('input, select, textarea, button');
+    for (var i = 0; i < rest.length; i++) keep.appendChild(rest[i]);
+    if (keep.firstChild) np.appendChild(keep);
+
+    var old = sliceOf(f.childNodes);
+    f.appendChild(np);
+    for (var k = 0; k < old.length; k++) f.removeChild(old[k]);
   }
 
   /* ============================================================
@@ -4362,8 +5859,49 @@ html.lm-dark [style*="background-image"] {
      6. НАВИГАЦИЯ ПО КОММЕНТАРИЯМ
      ============================================================ */
 
-  var navMode = 'new';                        /* 'new' | 'mine' */
-  var navCache = { key: '', list: [], time: 0 };
+  /* Кэш держится отдельно на каждый вид списка. Раньше он был один на
+     обоих, и стрелки со средней кнопкой выбивали друг друга: каждый
+     тап заново собирал список и дёргал offsetParent у всех
+     комментариев треда, а это принудительный пересчёт раскладки. */
+  var navCache = {};
+
+  /* Значки лепры, снятые с .b-comments_navigation: сетка 40×40,
+     треугольник и маска. Нижняя стрелка у лепры — тот же треугольник,
+     повёрнутый в CSS. Рисуем через createElementNS, а не innerHTML. */
+  var SVG_NS = 'http://www.w3.org/2000/svg';
+  var JUMP_TRIANGLE = '12,32 20,8 28,32';
+  var JUMP_MASK = '29.749,20 37,14.821 27.695,14.708 30.506,6.053 ' +
+    '22.904,11.198 20,3 17.096,11.198 9.494,6.053 12.305,14.708 ' +
+    '3,14.821 10.252,20 3,25.179 12.305,25.292 9.494,33.947 ' +
+    '17.096,28.802 20,37 22.904,28.802 30.506,33.947 27.695,25.292 ' +
+    '37,25.179';
+
+  function svgNode(name, attrs) {
+    var el = document.createElementNS(SVG_NS, name);
+    Object.keys(attrs).forEach(function (k) { el.setAttribute(k, attrs[k]); });
+    return el;
+  }
+
+  function jumpIcon(kind) {
+    var svg = svgNode('svg', {
+      viewBox: '0 0 40 40', width: '40', height: '40',
+      xmlns: SVG_NS, 'aria-hidden': 'true'
+    });
+    svg.appendChild(svgNode('polygon', {
+      fill: CFG.jumpColor,
+      points: kind === 'mine' ? JUMP_MASK : JUMP_TRIANGLE
+    }));
+    if (kind === 'mine') {
+      /* глаза маски — красные, у лепры это единственное цветное пятно */
+      svg.appendChild(svgNode('ellipse', {
+        fill: CFG.jumpEye, cx: '15.842', cy: '18.441', rx: '1.195', ry: '1.173'
+      }));
+      svg.appendChild(svgNode('ellipse', {
+        fill: CFG.jumpEye, cx: '24.573', cy: '18.442', rx: '1.195', ry: '1.172'
+      }));
+    }
+    return svg;
+  }
 
   /* Отступ приземления и порог отбора. Порог обязан быть БОЛЬШЕ отступа:
      иначе комментарий, только что поставленный на отметку LAND, снова
@@ -4372,7 +5910,8 @@ html.lm-dark [style*="background-image"] {
 
   function commentsBy(kind) {
     var now = Date.now();
-    if (navCache.key === kind && now - navCache.time < 3000) return navCache.list;
+    var kept = navCache[kind];
+    if (kept && now - kept.time < 3000) return kept.list;
 
     var host = document.getElementById('js-comments') || document;
     var list;
@@ -4387,7 +5926,7 @@ html.lm-dark [style*="background-image"] {
        поиск возвращает элемент выше экрана. */
     list = list.filter(function (el) { return el.offsetParent !== null; });
 
-    navCache = { key: kind, list: list, time: now };
+    navCache[kind] = { list: list, time: now };
     return list;
   }
 
@@ -4426,17 +5965,18 @@ html.lm-dark [style*="background-image"] {
     if (!link) return;
 
     link.addEventListener('click', function () {
-      navCache.time = 0;                      /* список комментариев устарел */
+      navCache = {};                          /* списки комментариев устарели */
       [0, 500, 1500, 3000].forEach(function (ms) {
         setTimeout(guard('refreshCommentCounters', refreshCommentCounters), ms);
       });
     });
   }
 
-  function hasMine() {
-    var host = document.getElementById('js-comments');
-    return !!(host && host.querySelector('.comment.mine'));
-  }
+  /* «Свои есть» — именно ПОКАЗАННЫЕ свои. В режиме «только новые» свои
+     комментарии в разметке лежат, но скрыты, и прыгать по ним некуда:
+     лепра в таком случае гасит маску, гасим и мы. Отсев по offsetParent
+     уже сделан внутри commentsBy. */
+  function hasMine() { return commentsBy('mine').length > 0; }
 
   /* Двоичный поиск: комментарии идут по документу сверху вниз, значит их
      координаты монотонны. Одиннадцать замеров вместо двух тысяч — линейный
@@ -4461,13 +6001,7 @@ html.lm-dark [style*="background-image"] {
     return el;
   }
 
-  function jumpComment(dir) {
-    var list = commentsBy(navMode);
-    if (!list.length) return;
-
-    var target = findTarget(list, dir);
-    if (!target) return;
-
+  function landOn(target) {
     var before = scrollTopNow();
     var wanted = before + target.getBoundingClientRect().top - LAND;
     wanted = Math.max(0, Math.min(wanted, Math.max(0, docHeight() - window.innerHeight)));
@@ -4481,15 +6015,49 @@ html.lm-dark [style*="background-image"] {
          ' стало ' + Math.round(scrollTopNow()));
   }
 
+  /* Стрелки ходят по новым; если новых нет — по всем. Так же у лепры. */
+  function jumpComment(dir) {
+    var list = commentsBy('new');
+    if (!list.length) return;
+
+    var target = findTarget(list, dir);
+    if (!target) return;
+    landOn(target);
+  }
+
+  /* Маска ходит только по своим и только вниз, а с последнего своего
+     возвращается к первому — по кругу, как на десктопе. Круг делается
+     здесь, а не в findTarget: у стрелок его быть не должно, иначе
+     дочитанный до конца тред начнёт перекидывать в начало сам. */
+  function jumpMine() {
+    var list = commentsBy('mine');
+    if (!list.length) return;
+    landOn(findTarget(list, 1) || list[0]);
+  }
+
   function refreshNavState() {
     var box = document.getElementById('lm-nav');
     if (!box) return;
+    /* одиночная кнопка «наверх» живёт своей жизнью: гасить её по
+       отсутствию комментариев нельзя, их там и не бывает */
+    if (box.classList.contains('lm-nav__top')) return;
+
     var mineBtn = box.querySelector('.lm-nav_mine');
-    if (!mineBtn) return;
-    var has = hasMine();
-    mineBtn.disabled = !has;
-    mineBtn.classList.toggle('lm-off', !has);
-    mineBtn.classList.toggle('lm-on', navMode === 'mine' && has);
+    if (mineBtn) {
+      var has = hasMine();
+      mineBtn.disabled = !has;
+      mineBtn.classList.toggle('lm-off', !has);
+    }
+
+    /* Стрелки гаснут, только когда ходить вообще не по чему. Считать на
+       каждой прокрутке, есть ли цель в конкретную сторону, нельзя:
+       обход DOM по прокрутке — то, из-за чего грелся телефон. */
+    var empty = !commentsBy('new').length;
+    sliceOf(box.querySelectorAll('.lm-nav_up, .lm-nav_down'))
+      .forEach(function (b) {
+        b.disabled = empty;
+        b.classList.toggle('lm-off', empty);
+      });
   }
 
   /* Кнопка «наверх» нужна на любой странице, а стрелки по комментариям —
@@ -4503,12 +6071,16 @@ html.lm-dark [style*="background-image"] {
     var box = document.createElement('div');
     box.id = 'lm-nav';
 
-    /* Кнопка, не выделяющаяся при удержании: содержимое рисуем текстом,
-       но выделение и системное меню запрещены стилями. */
-    var makeButton = function (label, title) {
+    /* Кнопка — площадь нажатия со значком лепры внутри. Значок именно
+       вложенный, а не фоновая картинка: фон пришлось бы отдавать
+       отдельным файлом или data:URL, а так он остаётся разметкой и
+       красится настройками. Выделение и системное меню при удержании
+       запрещены стилями. */
+    var makeButton = function (kind, cls, title) {
       var b = document.createElement('button');
       b.type = 'button';
-      b.textContent = label;
+      b.className = cls;
+      b.appendChild(jumpIcon(kind));
       if (title) b.title = title;
       b.addEventListener('contextmenu', function (e) { e.preventDefault(); });
       return b;
@@ -4528,7 +6100,7 @@ html.lm-dark [style*="background-image"] {
     if (!hasComments) {
       /* страница без комментариев: одна кнопка, и та до поры скрыта */
       box.className = 'lm-nav__top';
-      var top = makeButton('\u2191', 'в начало страницы');
+      var top = makeButton('arrow', 'lm-nav_toTop', 'в начало страницы');
       top.addEventListener('click', function (e) {
         e.preventDefault(); e.stopPropagation();
         toTop();
@@ -4539,9 +6111,11 @@ html.lm-dark [style*="background-image"] {
       return;
     }
 
-    var arrow = function (label, dir) {
-      var b = makeButton(label, dir < 0 ? 'предыдущий (удержать — в начало)'
-                                        : 'следующий (удержать — в конец)');
+    var arrow = function (dir) {
+      var b = makeButton('arrow',
+        dir < 0 ? 'lm-nav_up' : 'lm-nav_down',
+        dir < 0 ? 'к предыдущему комментарию (удержать — в начало)'
+                : 'к следующему комментарию (удержать — в конец)');
 
       /* Долгое нажатие: вверх — к шапке, вниз — к форме ответа. longPress
          гасит следующий click, иначе после отпускания сработал бы и прыжок. */
@@ -4573,19 +6147,22 @@ html.lm-dark [style*="background-image"] {
       return b;
     };
 
-    /* средняя кнопка переключает режим «новые / свои», как на десктопе */
-    var mine = makeButton('\u25C9', 'прыгать по своим комментариям');
-    mine.className = 'lm-nav_mine';
-    mine.addEventListener('click', function (e) {
+    /* Средняя кнопка — не переключатель режима, а самостоятельный
+       прыжок по своим комментариям сверху вниз и по кругу, как на
+       десктопе. Переключатель «новые / свои» был нашей выдумкой:
+       со стороны он выглядел так же, но стрелки после него ходили
+       не туда, куда ждёшь. */
+    var mine = makeButton('mine', 'lm-nav_mine',
+                          'к следующему своему комментарию');
+    mine.addEventListener('click', guard('jumpMine', function (e) {
       e.preventDefault(); e.stopPropagation();
       if (!hasMine()) return;
-      navMode = (navMode === 'mine') ? 'new' : 'mine';
-      refreshNavState();
-    });
+      jumpMine();
+    }));
 
-    box.appendChild(arrow('\u2191', -1));
+    box.appendChild(arrow(-1));
     box.appendChild(mine);
-    box.appendChild(arrow('\u2193', 1));
+    box.appendChild(arrow(1));
     document.body.appendChild(box);
     refreshNavState();
   }
@@ -4972,6 +6549,35 @@ html.lm-dark [style*="background-image"] {
     if (!n) L.push('(слоёв нет — окно надо открыть ДО отчёта)');
   }
 
+  /* Чем страница догружает содержимое. Понадобилось для пыни: ленту
+     уведомлений строит скрипт лепры уже в браузере, и в ответе сервера
+     её нет — значит, она приходит отдельным запросом, а каким именно,
+     из сохранённой страницы не узнать (скрипты в MHTML не попадают).
+     Хуки на fetch и XMLHttpRequest тут не годятся: скрипт может жить в
+     отдельном окружении и до вызовов лепры не дотянуться. Хронология
+     ресурсов общая на весь документ и видна всем. */
+  function reportNetwork(L) {
+    L.push('', '--- сетевые запросы ---');
+    var list = [];
+    try { list = performance.getEntriesByType('resource') || []; } catch (e) {}
+    var n = 0;
+    list.forEach(function (r) {
+      if (n >= 30) return;
+      if (r.initiatorType !== 'xmlhttprequest' && r.initiatorType !== 'fetch') return;
+      n++;
+      L.push(r.name.replace(/^https?:\/\/(www\.)?/, '').slice(0, 110) +
+             '  ' + Math.round(r.duration) + 'мс' +
+             (r.transferSize ? ' ' + Math.round(r.transferSize / 1024) + 'КБ' : ''));
+    });
+    if (!n) L.push('(запросов не было)');
+
+    L.push('', '--- перехвачено (метод и заголовки) ---');
+    if (!NET.length)
+      L.push('(ничего — либо запросов не было, либо скрипт живёт',
+             ' в отдельном окружении и до вызовов лепры не достаёт)');
+    NET.slice(0, 30).forEach(function (s) { L.push(s); });
+  }
+
   function reportFloats(L) {
     L.push('', '--- плавающие колонки ---');
     var n = 0;
@@ -5027,6 +6633,19 @@ html.lm-dark [style*="background-image"] {
     return false;
   }
 
+  /* Скрытое прозрачностью тоже даёт ложные наложения: у лепры меню
+     отписок в каждом уведомлении — это абсолютно позиционированный
+     список с opacity: 0 и visibility: hidden, который раскрывается
+     наведением. Прямоугольники у него настоящие, и в отчёте он
+     исправно перекрывал подписи всех уведомлений подряд. */
+  function insideInvisible(el) {
+    if (getComputedStyle(el).visibility === 'hidden') return true;
+    for (var p = el; p && p !== document.body; p = p.parentElement) {
+      if (parseFloat(getComputedStyle(p).opacity) === 0) return true;
+    }
+    return false;
+  }
+
   /* Наложения ищем попарно среди «листьев» — элементов без вложенных блоков.
      Самый частый вид поломки при переносе десктопной вёрстки, и на глаз
      заметен не всегда. */
@@ -5044,6 +6663,7 @@ html.lm-dark [style*="background-image"] {
       if (r.width < 4 || r.height < 4) continue;
       if (r.bottom < -2000 || r.top > window.innerHeight + 4000) continue;
       if (insideCollapsed(el)) continue;
+      if (insideInvisible(el)) continue;
       cand.push({ el: el, r: r, f: fragments(el, r) });
     }
 
@@ -5255,6 +6875,7 @@ html.lm-dark [style*="background-image"] {
              'ширина документа: ' + document.documentElement.scrollWidth,
              ''];
     reportOverflow(L);
+    reportNetwork(L);
     reportFloats(L);
     reportOverlaps(L);
     reportMedia(L);
@@ -5411,6 +7032,58 @@ html.lm-dark [style*="background-image"] {
     document.addEventListener('click', handler, true);
   }
 
+  /* Ленту уведомлений лепра собирает в браузере: тянет шаблоны из
+     /static/views/notifications/ и данные из /api/my/notifications/.
+     Первая же проба этого адреса вернула 404 при том, что сама лепра
+     ходит туда успешно, — значит, дело не в адресе, а в чём-то ещё:
+     заголовке, параметрах или правах. Гадать по одному варианту в круг
+     дорого, поэтому проба перебирает их сразу и показывает ответ на
+     каждый. */
+  function pynProbe() {
+    var base = location.protocol + '//' + location.host;
+    var API = '/api/my/notifications/?per_page=20&page=1';
+    var tries = [
+      ['GET, как у лепры', API, 'GET', {}],
+      ['GET + X-Requested-With', API, 'GET',
+       { 'X-Requested-With': 'XMLHttpRequest' }],
+      ['POST', API, 'POST', {}],
+      ['POST + X-Requested-With', API, 'POST',
+       { 'X-Requested-With': 'XMLHttpRequest' }],
+      ['GET замены (контроль)', '/api/replacements/', 'GET', {}],
+      ['POST замены (контроль)', '/api/replacements/', 'POST', {}],
+      ['GET страница пыни (контроль)', '/my/events/', 'GET', {}]
+    ];
+
+    var out = ['Проба API пыни',
+               'источник: ' + base,
+               'куки видны скрипту: ' +
+                 (document.cookie ? document.cookie.length + ' знаков' : 'НЕТ'),
+               ''];
+    showPanel(out.join('\n') + '\nжду ответов…');
+
+    var i = 0;
+    var next = function () {
+      if (i >= tries.length) return showPanel(out.join('\n'));
+      var t = tries[i++];
+      var say = function (s, body, ct) {
+        out.push(t[0] + '  →  ' + s + (ct ? '  [' + ct + ']' : ''));
+        out.push('   ' + t[2] + ' ' + t[1]);
+        if (body) out.push('   ' + body.slice(0, 240).replace(/\s+/g, ' '));
+        out.push('');
+      };
+      fetch(base + t[1], { method: t[2], credentials: 'same-origin', headers: t[3] })
+        .then(function (r) {
+          var ct = r.headers.get('content-type') || '';
+          return r.text().then(function (x) {
+            say('HTTP ' + r.status + '  ' + x.length + ' знаков', x, ct.slice(0, 30));
+          });
+        })
+        .catch(function (e) { say('ошибка: ' + ((e && e.message) || e)); })
+        .then(next);
+    };
+    next();
+  }
+
   function closePanel() {
     var old = document.getElementById('lm-debug');
     if (old) old.remove();
@@ -5439,12 +7112,17 @@ html.lm-dark [style*="background-image"] {
     pick.textContent = 'тык по элементу';
     pick.onclick = armInspector;
 
+    var probe = document.createElement('button');
+    probe.textContent = 'ответ пыни';
+    probe.onclick = pynProbe;
+
     var body = document.createElement('div');
     body.textContent = text;
 
     p.appendChild(copy);
     p.appendChild(close);
     p.appendChild(pick);
+    p.appendChild(probe);
     p.appendChild(body);
     document.body.appendChild(p);
   }
@@ -5486,9 +7164,15 @@ html.lm-dark [style*="background-image"] {
     guard('compactCommentDates', compactCommentDates)();
     /* класс страницы — до перестройки шапки: она смотрит на него */
     guard('markTabsPage', markTabsPage)();
+    guard('markFraudPage', markFraudPage)();
     guard('relayoutHeader', relayoutHeader)();
     /* строго после шапки: она собирает шапку, за которой встаёт блок */
     guard('buildNavthing', buildNavthing)();
+    guard('fixEventsPage', fixEventsPage)();
+    guard('fixNewPost', fixNewPost)();
+    guard('fixRanks', fixRanks)();
+    guard('syncVeg', syncVeg)();
+    guard('fitGertruda', fitGertruda)();
     /* строго после шапки: она забирает из правой колонки порог постов */
     guard('buildSubsitePince', buildSubsitePince)();
     /* после пенсне: оно забирает из-под девиза правую колонку, и до этого
@@ -5571,6 +7255,7 @@ html.lm-dark [style*="background-image"] {
       resizeTimer = null;
       if (document.documentElement.clientWidth === titleWidth) return;
       guard('fitSubsiteHeader', fitSubsiteHeader)();
+      guard('fitGertruda', fitGertruda)();
     }, 300);
   });
 
