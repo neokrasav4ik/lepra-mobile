@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Lepra Mobile
 // @namespace    lepra.mobile
-// @version      0.9.72
+// @version      0.9.81
 // @description  Мобильная адаптация leprosorium.ru для iOS Safari
 // @author       neokrasav4ik
 // @homepageURL  https://github.com/neokrasav4ik/lepra-mobile
@@ -39,7 +39,7 @@
 (function () {
   'use strict';
 
-  var VERSION = '0.9.72';
+  var VERSION = '0.9.81';
 
   /* ============================================================
      НАСТРОЙКИ
@@ -89,6 +89,39 @@
        со ссылками и отдаёт им место первым, но уже поля в сантиметр
        вводить нечего. Больше число — поле длиннее, ссылкам теснее. */
     tabsSearchMin: 74,
+
+    /* НАСТРОЙКА: поля страницы по краям экрана — та самая узкая рамка,
+       из-за которой текст не упирается в кромку. Число одно на весь
+       скрипт: им же отмеряется, насколько растянуть кастомный фон
+       подлепры, чтобы он доходил до краёв, а текст остался на месте. */
+    pageEdge: 12,
+
+    /* НАСТРОЙКА: высота полосы фона профиля между навигационной штукой и
+       телом. По бокам и снизу фон занимает дежурные поля страницы
+       (pageEdge) — те самые, что на подлепрах отданы кастомному фону.
+       Ноль оставит только боковые полосы. У профилей без своей картинки
+       обрамления нет в любом случае. */
+    profileArt: 24,
+
+    /* НАСТРОЙКА: кегль выпадающего списка режимов просмотра в шапке
+       («NORMAL (0)», «NIGHTMARE (все)»). У лепры он 13 пикселей набором
+       Verdana, а соседи по шапке — ссылки в 13 и счётчики в 12 набором
+       Arial. При равных числах Verdana выглядит крупнее: очко буквы у неё
+       0.545 кегля против 0.519 у Arial, и знаки шире. Двенадцать ставят
+       список между ссылками и счётчиками, одиннадцать — вровень со
+       счётчиками. Заодно короче становится сам список: ширину ему задаёт
+       самый длинный вариант, а он делит строку с полем поиска. */
+    thresholdFont: 12,
+
+    /* НАСТРОЙКА: кегль девиза подлепры («Филиал дурдома…») и нижний
+       предел, до которого его можно ужимать. Девиз стоит по центру и
+       никогда не переносится, поэтому длинный подгоняется по ширине
+       экрана: сначала берётся subsiteTitle, и если строка не влезла —
+       кегль уменьшается шагом в полпункта, но не ниже subsiteTitleMin.
+       Ниже одиннадцати надпись перестаёт читаться, и остаток честнее
+       обрезать многоточием, чем делать вид, что он виден. */
+    subsiteTitle: 19,
+    subsiteTitleMin: 11,
 
     /* НАСТРОЙКА: ширина окна подтверждения покупки («окно Чарли») в
        процентах от ширины экрана. Окно стоит по центру, а картинка с
@@ -288,8 +321,25 @@ body {
    в отличие от .l-i-content_main, которого нет в профиле и подсайтах. */
 .l-wrapper, #js-nonfooter {
   min-width: 0 !important; max-width: 100vw !important;
-  padding-left: 12px !important; padding-right: 12px !important;
+  padding-left: ${CFG.pageEdge}px !important;
+  padding-right: ${CFG.pageEdge}px !important;
   box-sizing: border-box !important; }
+
+/* Кастомное оформление подлепры лежит на .l-content: своя заливка и своя
+   картинка. Поля страницы заданы выше, на .l-wrapper, то есть на два
+   уровня выше по дереву — и по краям экрана оставалась белая рамка вокруг
+   цветного содержимого. На белых подлепрах её не видно, на цветных она
+   читается как ошибка вёрстки.
+   Растягиваем .l-content на всю ширину отрицательными полями и возвращаем
+   те же пиксели внутренним отступом: текст стоит ровно там же, где стоял,
+   а фон доходит до кромки. Признак — класс l-custom_domain на body, лепра
+   ставит его подлепрам со своим оформлением; на основном домене там
+   l-base_domain, и правило не срабатывает. */
+body.l-custom_domain .l-content {
+  margin-left: -${CFG.pageEdge}px !important;
+  margin-right: -${CFG.pageEdge}px !important;
+  padding-left: ${CFG.pageEdge}px !important;
+  padding-right: ${CFG.pageEdge}px !important; }
 
 .l-i-wrapper      { padding-bottom: 20px !important; }
 .l-content        { min-height: 0 !important; }
@@ -577,7 +627,9 @@ body {
    Правило общее, не только для подсайта: на главной поле стоит в такой
    же паре и упирается в тот же предел, просто там пока помещалось. */
 .l-header > .b-posts_threshold select {
-  max-width: 100% !important; box-sizing: border-box !important; }
+  max-width: 100% !important; box-sizing: border-box !important;
+  /* кегль — из CFG.thresholdFont, см. настройки */
+  font-size: ${CFG.thresholdFont}px !important; }
 
 /* Поиск переехал в левую половину строки, а форма у лепры выровнена
    вправо — поле уезжало к середине экрана, слева оставалась дыра.
@@ -1233,14 +1285,49 @@ body.l-profile .l-header { margin-bottom: 1px !important; }
 .b-profile_right_col { padding-bottom: 0 !important; }
 .b-menu__profile .b-menu_list { float: none !important; margin-right: 0 !important; }
 
-/* Серая полоса под фон профиля. Причина по all.css:
-   .b-user_block { padding-top: 46px; background: ... rgb(204,204,204) }
-   Под картинку фона отведено 46px высоты и серая заливка на случай, когда
-   картинки нет. Убираем и то и другое; вкладка смены фона скрыта ниже.
-   Данные пользователя оставляем на белом — это карточка, а не полоса. */
+/* Фон профиля. Держит его .b-user_block — обёртка вокруг всего профиля,
+   от карточки до вкладок и содержимого. У лепры на нём: padding-top 46px
+   под полосу фона, серая заливка rgb(204,204,204) на случай, когда
+   картинки нет, размер cover и attachment: fixed — на десктопе картинка
+   стоит на месте, а карточка в 80% ширины едет по ней.
+   На телефоне карточка занимает всю ширину, и 46 пикселей сверху были
+   просто серой полосой, поэтому раньше фон гасился целиком. Теперь он
+   остаётся тонким обрамлением: полоса сверху и поля по краям.
+
+   Картинку лепра ставит ИНЛАЙНОВЫМ стилем, поэтому background-image
+   здесь не трогаем ни в каком виде: правило с !important перебило бы
+   инлайновый стиль, и вернуть картинку из CSS было бы уже нечем — адрес
+   лежит только в разметке. Гасим только заливку.
+
+   Размер — по ширине, а не cover: элемент высотой в несколько экранов,
+   и cover растянул бы картинку до неузнаваемой мути ради нижнего края.
+   При 100% ширины видна верхушка картинки в натуральных пропорциях, а
+   ниже она повторяется — фоны профилей это обычно узор, а не портрет.
+   Attachment: fixed снимаем — на iOS он ненадёжен, а смысла в нём нет:
+   карточка по фону больше не ездит. */
 .b-user_block {
-  padding-top: 0 !important; background: none !important;
+  padding: 0 !important;
+  background-color: transparent !important;
+  background-attachment: scroll !important;
+  background-size: 100% auto !important;
+  background-position: center top !important;
+  background-repeat: repeat-y !important;
   min-height: 0 !important; height: auto !important; }
+/* Класс ставит markProfileArt, увидев инлайновую картинку: без неё
+   обрамление было бы пустой полосой в цвет страницы.
+   Устройство то же, что у кастомного фона подлепры: растягиваем блок на
+   ширину экрана отрицательными полями и возвращаем те же пиксели
+   внутренним отступом. Картинка занимает дежурные белые поля страницы, а
+   тело профиля остаётся ровно той же ширины, что и без обрамления.
+   max-width снимаем отдельно: общее правило выше держит на этом блоке
+   100%, то есть ширину БЕЗ полей, и растянуться до кромок он бы не смог —
+   вылез бы влево на двенадцать пикселей и не достал справа. */
+.b-user_block.lm-art {
+  max-width: none !important;
+  margin-left: -${CFG.pageEdge}px !important;
+  margin-right: -${CFG.pageEdge}px !important;
+  padding: ${CFG.profileArt}px ${CFG.pageEdge}px
+           ${CFG.pageEdge}px !important; }
 .b-user_data { padding-top: 14px !important; padding-bottom: 20px !important; }
 
 .b-user_note_container {
@@ -1664,10 +1751,23 @@ body.l-profile .l-header { margin-bottom: 1px !important; }
 .l-header_subsite { padding-left: 0 !important; }
 .l-content_aside_subsite { display: none !important; }
 /* Девиз подсайта. Тридцать пикселей десктопа на телефоне давали три
-   строки — при том, что это подпись, а не заголовок страницы. */
+   строки — при том, что это подпись, а не заголовок страницы.
+   Стоит по центру и никогда не переносится: девиз — единая фраза, и
+   разорванный на две-три строки он читается как обрывок ленты, а не как
+   подпись подлепры. Уместить его в строку одним CSS нельзя, кегль
+   подбирает fitSubsiteHeader по замеру; здесь только начальное значение.
+   overflow: hidden — страховка на случай, если подгонка не отработала
+   (кегль ещё не подобран, замер дал ноль, проход упал): без неё nowrap
+   растягивает страницу вбок и ломает всю ленту, а не одну надпись. */
 .b-subsite_header {
-  padding: 4px 0 0 0 !important; margin: 0 0 4px 0 !important;
-  font-size: 19px !important; line-height: 1.2 !important;
+  /* Три пикселя снизу — не отбивка, а место под тень: overflow: hidden
+     режет её вместе с содержимым, и без поля у надписи снизу тень
+     обрывалась. Отбивку на те же три уменьшили, общая высота прежняя. */
+  padding: 4px 0 3px 0 !important; margin: 0 0 1px 0 !important;
+  font-size: ${CFG.subsiteTitle}px !important; line-height: 1.2 !important;
+  text-align: center !important;
+  white-space: nowrap !important;
+  overflow: hidden !important; text-overflow: ellipsis !important;
   /* заголовок часто лежит поверх фотографии */
   text-shadow: 0 1px 2px rgba(255,255,255,.9) !important; }
 .b-subsite_header a { padding: 0 !important; margin-left: 0 !important; }
@@ -1676,10 +1776,15 @@ body.l-profile .l-header { margin-bottom: 1px !important; }
 .l-content__subsite .b-archive_heading { padding-right: 0 !important; }
 .b-new_sublepra { width: auto !important; padding: 12px 0 !important; }
 
-/* правая колонка в 330px оставляла ленте около сорока пикселей */
+/* правая колонка в 330px оставляла ленте около сорока пикселей.
+   Полосы сверху и снизу: свёрнутое пенсне — это одна строка между девизом
+   и лентой, и без верхней черты она читалась началом ленты, а не отдельным
+   блоком. Отбивка сверху в три пикселя — чтобы черта не липла к девизу;
+   вместе с самой чертой подпись пенсне опускается на четыре пикселя. */
 .b-subdomain_aside_right {
   float: none !important; width: auto !important;
-  margin: 0 0 10px !important; padding-bottom: 0 !important;
+  margin: 3px 0 10px !important; padding-bottom: 0 !important;
+  border-top: 1px solid rgb(226, 224, 222) !important;
   border-bottom: 1px solid rgb(226, 224, 222) !important; }
 /* Распорки под снятые обтекания: своей высоты у них нет, но каждая
    рвёт схлопывание полей соседей и добавляет строку пустоты.
@@ -1735,15 +1840,29 @@ body.l-profile .l-header { margin-bottom: 1px !important; }
   text-align: left !important; cursor: pointer !important;
   -webkit-user-select: none !important; user-select: none !important;
   -webkit-tap-highlight-color: transparent !important; }
-.lm-pince_glass { flex: 0 0 auto !important; display: block !important; }
-.lm-pince_label { flex: 0 1 auto !important; }
-/* Шеврон у правого края: между ним и подписью пусто, и строка читается
-   как полоса, а не как обрывок текста. */
+/* Стёкла и шеврон одной ширины — как в навигационной штуке. Подпись
+   растягивается на остаток строки и центруется в нём; поскольку по краям
+   от неё отведено поровну (30 + отбивка с каждой стороны), середина
+   остатка и есть середина строки. Прежде подпись стояла сразу за
+   стёклами, а шеврон уходил вправо полем auto. Ширина 30 — по стеклу:
+   svg нарисован как раз в 30 пикселей. */
+.lm-pince_glass, .lm-pince_arrow { flex: 0 0 30px !important; }
+.lm-pince_glass { display: block !important; }
+.lm-pince_label {
+  flex: 1 1 auto !important; min-width: 0 !important;
+  text-align: center !important; }
+/* Шеврон у правого края строки. */
 .lm-pince_arrow {
-  flex: 0 0 auto !important; margin-left: auto !important;
+  margin-left: 0 !important; text-align: right !important;
   font-size: 10px !important;
   color: rgb(130, 130, 130) !important; }
-.lm-pince__open .lm-pince_arrow { transform: rotate(180deg) !important; }
+/* Развёрнутое состояние — сменой знака, а не поворотом. Поворот идёт
+   вокруг середины коробки шеврона, а сам знак прижат к её правому краю:
+   на 30 пикселях ширины он перепрыгивал бы к левому, и шеврон при
+   каждом развороте гулял по строке. Знак пишем содержимым псевдоэлемента,
+   поэтому в разметке span пустой. */
+.lm-pince_arrow::before { content: '▾' !important; }
+.lm-pince__open .lm-pince_arrow::before { content: '▴' !important; }
 .lm-pince_body { padding: 2px 0 8px !important; }
 
 /* Левая колонка подсайта — управляющий, правление, блоги империи.
@@ -2178,6 +2297,155 @@ body.l-profile .l-header { margin-bottom: 1px !important; }
 img.lm-zoomed {
   width: 100% !important; max-width: 100% !important;
   height: auto !important; cursor: zoom-out !important; }
+
+/* ---- Навигационная штука ----
+   Серую черту под шапкой заменяет строка-переключатель: свёрнутая, она и
+   есть разделитель, развёрнутая — отдаёт то, что на десктопе лежит в левой
+   колонке главной. Устройство то же, что у простого пенсне подлепр, но
+   подпись стоит по центру: этот блок не принадлежит ленте под ним, он
+   разделяет шапку и ленту.
+   Черту у шапки снимаем классом на html, а не безусловным правилом: если
+   блок построить не вышло, разделитель останется прежним. */
+html.lm-navthing_on .l-header {
+  margin-bottom: 0 !important; border-bottom: 0 !important; }
+
+#lm-navthing { margin: 0 0 10px !important; }
+/* На профиле эта отбивка и есть та серая полоса под строкой: сквозь неё
+   виден фон .l-i-wrapper, а он у лепры на профиле rgb(204,204,204). К
+   картинке владельца полоса отношения не имеет — потому и оставалась
+   серой на профилях со своим фоном. Убираем: под строкой начинается
+   обрамление профиля, а на профилях без картинки — сразу карточка. */
+body.l-profile #lm-navthing { margin-bottom: 0 !important; }
+.lm-navthing_row {
+  display: flex !important; align-items: center !important; gap: 6px !important;
+  width: 100% !important; box-sizing: border-box !important;
+  margin: 0 !important; padding: 6px 8px !important;
+  background: rgb(232, 230, 228) !important;
+  border: 0 !important; border-radius: 0 !important;
+  -webkit-appearance: none !important; appearance: none !important;
+  /* Шорткат font: inherit сбрасывает кегль последним значением из
+     наследования — свойства перечисляем по одному, как у пенсне. */
+  font-family: inherit !important; font-weight: normal !important;
+  font-size: 13px !important; line-height: 1.3 !important;
+  color: rgb(70, 70, 70) !important; text-align: center !important;
+  cursor: pointer !important;
+  -webkit-user-select: none !important; user-select: none !important;
+  -webkit-tap-highlight-color: transparent !important; }
+/* Пиктограмма и шеврон одной ширины: иначе подпись между ними встаёт
+   сдвинутой на разницу их размеров, а не по середине строки. */
+.lm-navthing_icon, .lm-navthing_arrow { flex: 0 0 20px !important; }
+.lm-navthing_icon { display: block !important; }
+.lm-navthing_arrow {
+  font-size: 10px !important; text-align: right !important;
+  color: rgb(120, 120, 120) !important; }
+.lm-navthing_label {
+  flex: 1 1 auto !important; min-width: 0 !important;
+  text-align: center !important; }
+/* Развёрнутое состояние — сменой знака, а не поворотом. Поворот идёт
+   вокруг середины коробки шеврона, а знак прижат к её правому краю: на
+   двадцати пикселях ширины он перепрыгивал к левому, и шеврон при каждом
+   развороте уезжал на полтора сантиметра. Знак пишем содержимым
+   псевдоэлемента, поэтому в разметке span пустой — как у пенсне. */
+.lm-navthing_arrow::before { content: '▾' !important; }
+#lm-navthing.lm-navthing__open .lm-navthing_arrow::before {
+  content: '▴' !important; }
+
+.lm-navthing_body {
+  display: none !important;
+  padding: 10px 8px !important;
+  background: rgb(245, 244, 243) !important;
+  font-size: 13px !important; line-height: 1.5 !important; }
+#lm-navthing.lm-navthing__open .lm-navthing_body { display: block !important; }
+
+/* Ссылки слева, гертруда справа: картинка узкая и высокая, рядом с ней
+   как раз остаётся колонка под пять коротких строк. */
+.lm-navthing_top {
+  display: flex !important; align-items: flex-start !important;
+  gap: 10px !important; }
+.lm-navthing_links { flex: 1 1 auto !important; min-width: 0 !important; }
+/* Блоги Империи. У лепры отбивка слева 45 пикселей — под герб, прибитый
+   абсолютно в левый верхний угол, плюс ещё по 20 у заголовка и пунктов
+   списка: там оставлено место под крестик «отписаться». Двадцатки убираем
+   вместе с крестиком (см. ниже), а герб ужимаем до 30, иначе на колонку
+   остаётся полторы сотни пикселей.
+   Ширина 140 и черта снизу приходят от .b-aside_item — того же элемента. */
+.lm-navthing_links .b-aside_imperial_blogs {
+  width: auto !important; min-height: 0 !important;
+  margin: 0 !important; padding: 0 0 0 36px !important;
+  border-bottom: 0 !important; }
+.lm-navthing_links .b-aside_imperial_blogs_bg {
+  width: 30px !important; height: auto !important; }
+.lm-navthing_links .b-aside_imperial_blogs strong {
+  margin-bottom: 4px !important; padding-left: 0 !important;
+  font-size: 14px !important; }
+.lm-navthing_links .b-aside_imperial_blogs ul { margin: 0 !important; }
+.lm-navthing_links .b-aside_imperial_blogs li {
+  padding-left: 0 !important; margin-bottom: 3px !important; }
+.lm-navthing_links .b-aside_imperial_blogs a { font-size: 13px !important; }
+/* Крестик «отписаться» лепра показывает по .b-aside_imperial_blogs
+   li:hover. Я считал, что на телефоне это правило мёртвое, — оказалось
+   нет: Safari после тапа по ссылке оставляет на пункте состояние hover,
+   крестик выезжает и висит до следующего тапа в стороне.
+   Убираем совсем, а не отодвигаем: это действие разрушающее — подлепра
+   уходит из списка — и держать его под тем самым пальцем, которым только
+   что открывали ссылку, не стоит. К тому же в копии, восстановленной из
+   памяти на внутренних страницах, крестика нет вовсе, и список вёл бы
+   себя по-разному в зависимости от страницы.
+   Селектор нарочно с :hover: правило лепры весит три класса и элемент,
+   ровно столько же весило бы моё без него, и спор решался бы порядком
+   объявления — то есть по-разному в браузере и в проверке. */
+.lm-navthing_links .b-aside_imperial_blogs li:hover .b-close_btn,
+.lm-navthing_links .b-aside_imperial_blogs .b-close_btn {
+  display: none !important; }
+.lm-navthing_pic { flex: 0 0 118px !important; max-width: 118px !important; }
+/* Гертруда скрыта общим правилом выше вместе с остальной левой колонкой.
+   Правило заведомо весомее скрывающего (два класса против одного) и стоит
+   ниже по файлу: иначе jsdom и браузер решили бы спор по-разному.
+   min-height:291px и отбивка снизу в 29 у лепры отмерены под десктопную
+   колонку, где картинка стоит в вырезе фоновой подложки. */
+.lm-navthing_pic .b-gertruda {
+  display: block !important; position: static !important;
+  min-height: 0 !important; margin: 0 !important;
+  overflow: visible !important; }
+.lm-navthing_pic img {
+  display: block !important; width: 100% !important; height: auto !important;
+  max-width: 100% !important; margin: 0 !important; }
+
+/* Овощебаза. У лепры это блок в 213px, а подпись отбита слева на 64
+   пикселя под завиток фоновой картинки колонки, которой здесь нет. */
+.lm-navthing_veg { margin-top: 10px !important; }
+.lm-navthing_veg .b-aside_replacements {
+  width: auto !important; margin: 0 !important; }
+.lm-navthing_veg .b-aside_replacements_header {
+  margin: 0 !important; font-size: 13px !important; }
+.lm-navthing_veg .b-aside_replacements_list_items,
+.lm-navthing_veg .b-aside_replacements_list_counter {
+  margin-left: 0 !important; }
+.lm-navthing_veg .b-aside_replacements_list_item { padding-left: 0 !important; }
+.lm-navthing_veg .b-aside_replacements_list_item_rating {
+  position: static !important; }
+
+/* Гвоздик слева от герба. Кнопка своего фона не имеет: закреплено или нет,
+   видно по самому значку — стоит прямо или наклонён и приглушён. Галка,
+   стоявшая тут раньше, отнимала строку и звала взгляд синим пятном, а
+   смотреть в этом блоке надо не на неё. */
+.lm-navthing_pin {
+  flex: 0 0 22px !important; align-self: flex-start !important;
+  width: 22px !important; height: 22px !important;
+  margin: 0 !important; padding: 0 !important;
+  background: none !important; border: 0 !important;
+  -webkit-appearance: none !important; appearance: none !important;
+  color: rgb(90, 90, 90) !important;
+  line-height: 0 !important; cursor: pointer !important;
+  -webkit-tap-highlight-color: transparent !important;
+  touch-action: manipulation !important; }
+.lm-navthing_pin svg {
+  display: block !important; margin: 3px auto 0 !important;
+  transition: transform .15s !important; }
+/* Откреплено: гвоздик вынут и лежит боком. */
+.lm-navthing_pin:not(.lm-on) { opacity: .4 !important; }
+.lm-navthing_pin:not(.lm-on) svg {
+  transform: rotate(-40deg) !important; }
 
 /* ============ ТЁМНАЯ ТЕМА ============ */
 /* Инверсия с поворотом тона. Своей тёмной палитры у лепры нет, а ручная
@@ -2977,7 +3245,8 @@ html.lm-dark [style*="background-image"] {
     btn.className = 'lm-pince';
     btn.innerHTML = PINCE_SVG +
       '<span class="lm-pince_label">Простое пенсне</span>' +
-      '<span class="lm-pince_arrow">\u25BE</span>';
+      /* знак шеврона — в CSS: он меняется по состоянию */
+      '<span class="lm-pince_arrow"></span>';
 
     aside.appendChild(btn);
     aside.appendChild(body);
@@ -2993,6 +3262,72 @@ html.lm-dark [style*="background-image"] {
       btn.setAttribute('aria-expanded', on ? 'true' : 'false');
       try { localStorage.setItem(PINCE_KEY, on ? '1' : '0'); } catch (err) {}
     });
+  }
+
+
+  /* ---- Обрамление профиля ----
+     Картинку фона лепра ставит инлайновым стилем на .b-user_block.
+     Читаем именно инлайновый стиль, а не вычисленный: в вычисленном
+     лежала бы и лепровская заглушка, и отличить «своя картинка» от
+     «ничего» стало бы нельзя. Класс снимаем, если картинки нет, —
+     владелец мог убрать её, а страница обновиться без перезагрузки. */
+  function markProfileArt() {
+    var block = document.querySelector('.b-user_block');
+    if (!block) return;
+    var img = block.style.backgroundImage;
+    block.classList.toggle('lm-art', !!img && img !== 'none');
+  }
+
+
+  /* ---- Девиз подлепры одной строкой ----
+     Выключка по центру и запрет переноса стоят в CSS, но уместить фразу
+     в строку правилами нельзя: длина у девизов любая — от «Йода» до
+     «Филиал дурдома. Научная секция диодов.». Кегль подбираем замером.
+
+     Считать надо каждый раз заново, от начального значения: у Den масштаб
+     страницы меняется прямо на ходу, CSS-ширина гуляет от 462 до 340, и
+     подгонка, наложенная на прежнюю, ушла бы вниз ступенями и обратно
+     уже не поднялась. */
+  var titleWidth = 0;   /* при какой ширине экрана считали в прошлый раз */
+
+  function fitSubsiteHeader() {
+    var h = document.querySelector('.b-subsite_header');
+    if (!h) return;
+    var a = h.querySelector('a') || h;
+
+    /* Вокруг надписи в разметке лежат табуляция и перевод строки. На
+       выключке по левому краю они не видны, а по центру входят в замер:
+       строка считается шире, чем есть, и кегль выходит мельче нужного.
+       Чистим один раз — дальше текст свой. */
+    if (!h.dataset.lmTitle) {
+      h.dataset.lmTitle = '1';
+      var txt = (a.textContent || '').replace(/\s+/g, ' ').trim();
+      if (txt) a.textContent = txt;
+    }
+
+    var W = h.clientWidth;
+    /* Ноль означает «мерить нечем»: страница ещё не оформлена или блок
+       скрыт. Сравнение с нулём прошло бы как «влезает» при любом кегле. */
+    if (!W) return;
+
+    var base = CFG.subsiteTitle, min = CFG.subsiteTitleMin, size = base;
+    h.style.setProperty('font-size', base + 'px', 'important');
+    var w = a.getBoundingClientRect().width;
+
+    if (w > W) {
+      /* Первое приближение — по пропорции: ширина строки растёт вместе с
+         кеглем почти линейно. «Почти» — из-за округления глифов по
+         пикселям, поэтому дальше несколько шагов по полпункта вниз. */
+      size = Math.max(min, Math.floor(base * (W / w) * 2) / 2);
+      h.style.setProperty('font-size', size + 'px', 'important');
+      for (var i = 0; i < 8 && size > min &&
+                      a.getBoundingClientRect().width > W; i++) {
+        size = Math.max(min, size - 0.5);
+        h.style.setProperty('font-size', size + 'px', 'important');
+      }
+    }
+
+    titleWidth = document.documentElement.clientWidth;
   }
 
 
@@ -3660,6 +3995,266 @@ html.lm-dark [style*="background-image"] {
     var aside = document.querySelector('.l-header_aside');
     if (aside && !aside.querySelector('.b-header_counters, .b-header_search'))
       aside.style.setProperty('display', 'none', 'important');
+  }
+
+  /* ============================================================
+     4.1. НАВИГАЦИОННАЯ ШТУКА
+     ============================================================ */
+
+  /* Строка на месте серого разделителя под шапкой. Внутри — то, до чего
+     на телефоне иначе не добраться: ссылки навигационной штуки лепры
+     (сама она нарисована картинкой 642×377 с абсолютно размеченными
+     поверх пустыми <a> — переносить её как есть некуда), гертруда и
+     овощебаза из левой колонки главной.
+
+     Строится ПОСЛЕ relayoutHeader: та переносит в шапку порог постов и
+     счётчики, и вставлять блок за шапку имеет смысл, когда шапка собрана. */
+
+  var NAV_KEY = 'lm-navthing';    /* закреплено ли (открывать сразу) */
+  var GERT_KEY = 'lm-gertruda';   /* последняя увиденная гертруда */
+
+  /* Компас рисуем разметкой, а не картинкой: своего значка у лепры для
+     этого блока нет, а нарисованный currentColor красится вместе с
+     подписью и переворачивается тёмной темой сам, без исключения из
+     инверсии — как стёкла пенсне. */
+  var NAV_SVG =
+    '<svg class="lm-navthing_icon" viewBox="0 0 24 24" width="18" height="18" ' +
+    'aria-hidden="true" focusable="false">' +
+    '<g fill="none" stroke="currentColor" stroke-width="2" ' +
+    'stroke-linejoin="round"><circle cx="12" cy="12" r="9"/>' +
+    '<path d="M16 8l-2.2 5.8L8 16l2.2-5.8z"/></g></svg>';
+
+  /* Гвоздик. Одно и то же начертание для обоих положений: откреплённый —
+     тот же значок, наклонённый и приглушённый правилом. Две разные
+     картинки пришлось бы держать согласованными по толщине линий. */
+  var PIN_SVG =
+    '<svg viewBox="0 0 24 24" width="15" height="15" ' +
+    'aria-hidden="true" focusable="false">' +
+    '<g fill="none" stroke="currentColor" stroke-width="2" ' +
+    'stroke-linecap="round" stroke-linejoin="round">' +
+    '<path d="M9 3h6"/><path d="M10 3v7l-3 3.5V15h10v-1.5L14 10V3"/>' +
+    '<path d="M12 15v6"/></g></svg>';
+
+  var BLOGS_KEY = 'lm-blogs';     /* последний увиденный список подлепр */
+  var BLOGS_URL = 'https://leprosorium.ru/underground/';
+  var VEG_URL = 'https://leprosorium.ru/fraud/replacements/';
+
+  function navAlways() {
+    try { return localStorage.getItem(NAV_KEY) === '1'; } catch (e) { return false; }
+  }
+
+  /* Гертруда лежит только в разметке главной, а блок нужен на всех
+     страницах. Запоминаем последнюю увиденную картинку и на прочих
+     страницах показываем её: она и так меняется от захода к заходу,
+     так что вчерашняя — не ошибка, а просто предыдущая. */
+  function rememberGertruda() {
+    var img = document.querySelector('.b-gertruda img');
+    var src = img && img.getAttribute('src');
+    if (!src || src.slice(0, 5) === 'data:') return;
+    try { localStorage.setItem(GERT_KEY, src); } catch (e) {}
+  }
+
+  function cachedGertruda() {
+    try { return localStorage.getItem(GERT_KEY) || ''; } catch (e) { return ''; }
+  }
+
+  /* «Блоги Империи» — тоже только на главной (и в левой колонке подлепры).
+     Запоминаем не разметку, а разобранные данные: заголовок, герб и пары
+     «адрес — название». Собранная обратно из них копия заведомо не внесёт
+     в страницу ничего, кроме текста и адресов, — в отличие от innerHTML,
+     который вернул бы на страницу произвольную разметку из хранилища.
+
+     Счётчик «0/524» и крестик «отписаться» в запись не идут намеренно:
+     число непрочитанного к следующей странице уже неверно, а крестик без
+     скрипта лепры — просто нерабочий значок. */
+  function readBlogs(el) {
+    var head = el.querySelector('strong a') || el.querySelector('a');
+    if (!head) return null;
+    var pic = el.querySelector('.b-aside_imperial_blogs_bg');
+    var data = {
+      t: (head.textContent || '').trim(),
+      u: head.getAttribute('href') || BLOGS_URL,
+      i: (pic && pic.getAttribute('src')) || '',
+      l: []
+    };
+    sliceOf(el.querySelectorAll('li')).forEach(function (li) {
+      var a = li.querySelector('a:not(.b-close_btn)');
+      var u = a && a.getAttribute('href');
+      if (!a || !u || u.charAt(u.length - 1) === '#') return;
+      data.l.push({ t: (a.textContent || '').trim(), u: u });
+    });
+    return data;
+  }
+
+  function rememberBlogs(el) {
+    var data = readBlogs(el);
+    if (!data) return;
+    try { localStorage.setItem(BLOGS_KEY, JSON.stringify(data)); } catch (e) {}
+  }
+
+  function cachedBlogs() {
+    try {
+      var raw = localStorage.getItem(BLOGS_KEY);
+      var data = raw && JSON.parse(raw);
+      return (data && data.t && data.l) ? data : null;
+    } catch (e) { return null; }
+  }
+
+  /* Классы лепры оставляем: герб, кегли и отступы описаны ими, и правила
+     выше правят обе копии — родную и восстановленную — одинаково.
+     Идентификатор картинки не переносим: на главной он уже занят. */
+  function makeBlogs(data) {
+    var box = document.createElement('div');
+    box.className = 'b-aside_item b-aside_imperial_blogs';
+    if (data.i) {
+      var pic = document.createElement('img');
+      pic.className = 'b-aside_imperial_blogs_bg';
+      pic.setAttribute('src', data.i);
+      pic.setAttribute('alt', '');
+      box.appendChild(pic);
+    }
+    var head = document.createElement('strong');
+    var a = document.createElement('a');
+    a.setAttribute('href', data.u);
+    a.textContent = data.t;
+    head.appendChild(a);
+    box.appendChild(head);
+
+    var ul = document.createElement('ul');
+    data.l.forEach(function (item) {
+      var li = document.createElement('li');
+      var link = document.createElement('a');
+      link.setAttribute('href', item.u);
+      link.textContent = item.t;
+      li.appendChild(link);
+      ul.appendChild(li);
+    });
+    box.appendChild(ul);
+    return box;
+  }
+
+  function buildNavthing() {
+    if (document.getElementById('lm-navthing')) return;
+    var header = document.querySelector('.l-header');
+    if (!header || !header.parentNode) return;
+
+    rememberGertruda();
+
+    var box = document.createElement('div');
+    box.id = 'lm-navthing';
+
+    var btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'lm-navthing_row';
+    btn.innerHTML = NAV_SVG +
+      '<span class="lm-navthing_label">Навигационная штука</span>' +
+      /* знак шеврона — в CSS: он меняется по состоянию */
+      '<span class="lm-navthing_arrow"></span>';
+
+    var body = document.createElement('div');
+    body.className = 'lm-navthing_body';
+
+    var top = document.createElement('div');
+    top.className = 'lm-navthing_top';
+
+    /* Гвоздик — слева от герба «Блогов Империи», первым в верхней строке. */
+    var pin = document.createElement('button');
+    pin.type = 'button';
+    pin.className = 'lm-navthing_pin';
+    pin.innerHTML = PIN_SVG;
+    top.appendChild(pin);
+
+    var links = document.createElement('div');
+    links.className = 'lm-navthing_links';
+    var blogs = document.querySelector('.b-aside_imperial_blogs');
+    if (blogs) {
+      rememberBlogs(blogs);
+      links.appendChild(blogs);
+    } else {
+      var saved = cachedBlogs();
+      if (saved) links.appendChild(makeBlogs(saved));
+      else {
+        /* Ни разметки, ни записи — первый заход не с главной. Оставляем
+           хотя бы вход в общий список, чтобы строка не разворачивалась
+           в одну гертруду. */
+        var only = document.createElement('a');
+        only.setAttribute('href', BLOGS_URL);
+        only.textContent = 'Блоги Империи';
+        links.appendChild(only);
+      }
+    }
+    top.appendChild(links);
+
+    var pic = document.createElement('div');
+    pic.className = 'lm-navthing_pic';
+    var gert = document.querySelector('.b-gertruda');
+    if (gert) {
+      pic.appendChild(gert);
+    } else {
+      var cached = cachedGertruda();
+      if (cached) {
+        var wrap = document.createElement('a');
+        wrap.setAttribute('href', 'https://leprosorium.ru/');
+        var img = document.createElement('img');
+        img.setAttribute('src', cached);
+        img.setAttribute('alt', '');
+        wrap.appendChild(img);
+        pic.appendChild(wrap);
+      }
+    }
+    /* Пустой флекс-элемент забрал бы свои 118 пикселей у колонки ссылок. */
+    if (pic.firstChild) top.appendChild(pic);
+    body.appendChild(top);
+
+    var veg = document.createElement('div');
+    veg.className = 'lm-navthing_veg';
+    var vegBox = document.querySelector('.b-aside_replacements');
+    if (vegBox) {
+      /* Список замен лепра наполняет своим скриптом по id — перенос узла
+         этому не мешает, getElementById найдёт его и на новом месте. */
+      veg.appendChild(vegBox);
+    } else {
+      var vegLink = document.createElement('a');
+      vegLink.className = 'b-aside_replacements_header';
+      vegLink.setAttribute('href', VEG_URL);
+      vegLink.textContent = 'Овощебаза';
+      veg.appendChild(vegLink);
+    }
+    body.appendChild(veg);
+
+    box.appendChild(btn);
+    box.appendChild(body);
+    header.parentNode.insertBefore(box, header.nextSibling);
+    document.documentElement.classList.add('lm-navthing_on');
+
+    /* Гвоздик — про состояние при загрузке страницы, а не про текущий вид:
+       свернуть закреплённый блок пальцем можно, но на следующей странице
+       он снова развернётся. Этим он отличается от пенсне, которое просто
+       помнит последнее положение. */
+    function showPin(on) {
+      pin.classList.toggle('lm-on', on);
+      pin.setAttribute('aria-pressed', on ? 'true' : 'false');
+      pin.setAttribute('title', on ? 'закреплено' : 'откреплено');
+    }
+
+    var pinned = navAlways();
+    showPin(pinned);
+    box.classList.toggle('lm-navthing__open', pinned);
+    btn.setAttribute('aria-expanded', pinned ? 'true' : 'false');
+
+    btn.addEventListener('click', function (e) {
+      e.preventDefault();
+      var on = !box.classList.contains('lm-navthing__open');
+      box.classList.toggle('lm-navthing__open', on);
+      btn.setAttribute('aria-expanded', on ? 'true' : 'false');
+    });
+
+    pin.addEventListener('click', function (e) {
+      e.preventDefault();
+      var on = !pin.classList.contains('lm-on');
+      showPin(on);
+      try { localStorage.setItem(NAV_KEY, on ? '1' : '0'); } catch (e2) {}
+    });
   }
 
   /* ============================================================
@@ -4892,8 +5487,14 @@ html.lm-dark [style*="background-image"] {
     /* класс страницы — до перестройки шапки: она смотрит на него */
     guard('markTabsPage', markTabsPage)();
     guard('relayoutHeader', relayoutHeader)();
+    /* строго после шапки: она собирает шапку, за которой встаёт блок */
+    guard('buildNavthing', buildNavthing)();
     /* строго после шапки: она забирает из правой колонки порог постов */
     guard('buildSubsitePince', buildSubsitePince)();
+    /* после пенсне: оно забирает из-под девиза правую колонку, и до этого
+       ширина у заголовка бывает другой */
+    guard('fitSubsiteHeader', fitSubsiteHeader)();
+    guard('markProfileArt', markProfileArt)();
     guard('fixUserNote', fixUserNote)();
     guard('moveKarmaToName', moveKarmaToName)();
     guard('watchVotesPopup', watchVotesPopup)();
@@ -4956,6 +5557,22 @@ html.lm-dark [style*="background-image"] {
     setTimeout(fullPass, 300); watchDom(); guard('watchTaps', watchTaps)();
   });
   window.addEventListener('orientationchange', function () { setTimeout(fullPass, 300); });
+
+  /* Масштаб страницы Den меняет прямо на ходу, и CSS-ширина скачет от 462
+     до 340 без поворота экрана. Пересчитывать надо только то, что подобрано
+     замером; полный проход сюда вешать нельзя — resize в Safari прилетает
+     и от прячущейся адресной строки, то есть при обычной прокрутке.
+     Поэтому: сверяем ширину и трогаем один заголовок. */
+  var resizeTimer = null;
+
+  window.addEventListener('resize', function () {
+    if (resizeTimer) return;
+    resizeTimer = setTimeout(function () {
+      resizeTimer = null;
+      if (document.documentElement.clientWidth === titleWidth) return;
+      guard('fitSubsiteHeader', fitSubsiteHeader)();
+    }, 300);
+  });
 
   /* Прокрутка сама по себе ничего не запускает: раньше каждые 150 мс шёл
      поиск по всему документу, а лента длиной в сорок тысяч пикселей делает
