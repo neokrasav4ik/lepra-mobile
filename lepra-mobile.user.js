@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Lepra Mobile
 // @namespace    lepra.mobile
-// @version      0.9.119
+// @version      0.9.134
 // @description  Мобильная адаптация leprosorium.ru для iOS Safari
 // @author       neokrasav4ik
 // @homepageURL  https://github.com/neokrasav4ik/lepra-mobile
@@ -44,7 +44,7 @@
      проход по всей странице — это лишняя работа и лишние наблюдатели. */
   if (window.name === 'lm-pyn-frame') return;
 
-  var VERSION = '0.9.119';
+  var VERSION = '0.9.134';
 
   /* ============================================================
      НАСТРОЙКИ
@@ -157,9 +157,13 @@
        Поэтому кегль подбирается замером (fitThreshold): начинается с
        thresholdFont и опускается полупунктами, но не ниже
        thresholdFontMin — там уже нечитаемо, и честнее срезать хвост.
+       Начальные тринадцать взяты не с потолка: столько же у поля поиска
+       и у кнопок над ним, и в узкой колонке всё равно опустится, зато
+       на широком экране (уменьшенный масштаб страницы) все четыре
+       органа окажутся одного кегля.
        Verdana при равных числах выглядит крупнее Arial: очко буквы у неё
        0.545 кегля против 0.519. */
-    thresholdFont: 12,
+    thresholdFont: 13,
     thresholdFontMin: 10,
 
     /* НАСТРОЙКА: кегль девиза подлепры («Филиал дурдома…») и нижний
@@ -232,6 +236,105 @@
     jumpColor: 'rgb(210,211,212)',
     jumpEye: 'rgb(236,34,39)',
     jumpHalo: true,
+
+    /* НАСТРОЙКА: дискобомбулятор — сокращённый просмотр ленты. Длинные
+       посты показываются началом, остальное свёрнуто; разворачивается
+       стыковкой стрелки с гнездом (см. раздел 8.5).
+       disco — доступен ли режим вообще. false убирает и кнопку.
+       discoKeep — доля высоты экрана в процентах, ниже которой пост не
+       трогаем совсем: короткий пост сокращать нечего, а мигание среза
+       на полутора строчках раздражает. Считается ВМЕСТЕ с подписью.
+       discoCut — до какой доли экрана сокращаем длинный пост, тоже с
+       подписью: подпись остаётся целой и непрозрачной, поэтому её
+       высота вычитается из бюджета, а не добавляется к нему. Считается
+       от замороженной высоты окна (см. discoVh), а она берётся с
+       поднятой адресной строкой, — поэтому доля от настоящего экрана
+       выходит немного меньше заданной.
+       discoMin — нижний предел бюджета тела в пикселях. Нужен на случай
+       высокой подписи (она переносится на три строки) и увеличенного
+       масштаба страницы: без предела бюджет мог бы уйти в ноль или
+       минус, и от поста осталась бы одна полоса прозрачности.
+       discoText — сколько процентов бюджета тела отдавать тексту, если
+       после текста в посте есть картинка. Остаток достаётся картинке.
+       Если картинки нет — текст занимает весь бюджет; если пост
+       начинается с картинки — текста нет и делить нечего.
+       discoFade — высота полосы постепенной прозрачности в пикселях.
+       Градиент идёт только сверху вниз, в бока не расходится.
+       discoDots — рисовать ли своё многоточие после обрезанного текста.
+       discoMedia / discoVideo — что делать с первой картинкой и с
+       плеером, когда они не влезают в остаток бюджета:
+         'crop' — показать сверху, низ уходит под срез
+         'fit'  — уменьшить целиком, чтобы влезло
+       У картинки по умолчанию 'crop': уменьшенная вдвое картинка врёт о
+       масштабе, а обрезанная честно говорит «дальше есть ещё». У видео
+       'fit': обрезанный кадр играть неудобно, а вертикальный ролик,
+       уменьшенный по высоте, виден целиком.
+       discoFirst — сколько постов в начале ленты не сокращать. Один:
+       на первом экране стоит шапка, и стыковке там негде происходить.
+       discoGain — сколько процентов высоты экрана пост обязан отдать,
+       чтобы срез вообще имел смысл. Проверка идёт ПОСЛЕ среза, по
+       настоящему замеру «было — стало», и если выгода мала, срез
+       откатывается: полоса прозрачности с гнездом на посте, от которого
+       спрятана пара строк, только мешает. Отбор по discoKeep один с
+       этим не справляется — он смотрит на рост поста, а не на то,
+       сколько удалось спрятать, а это разные вещи: пост из одной
+       высокой картинки длинный, но прятать в нём нечего.
+       Вдвоём числа дают такое правило: режем то, что выше discoKeep И
+       отдаёт не меньше discoGain. При экране 735 это примерно посты
+       выше 480 пикселей, то есть в две трети экрана и длиннее.
+       discoAbove — сокращать ли посты, которые остались ВЫШЕ экрана.
+       Прокрутка при этом возвращается ровно на ту величину, на которую
+       пост укоротился, и видимое остаётся на месте. false оставит
+       нетронутым всё, мимо чего человек успел пролистать. */
+    disco: true,
+    discoKeep: 45,
+    discoCut: 50,
+    discoMin: 120,
+    discoText: 45,
+    discoFade: 56,
+    discoDots: true,
+    discoMedia: 'crop',
+    discoVideo: 'fit',
+    discoFirst: 1,
+    discoGain: 20,
+    discoAbove: true,
+
+    /* НАСТРОЙКА: гнездо под стрелку у полосы прозрачности. Размер и
+       форма — те же, что у стрелки прыгалок (CFG.jumpSize и её
+       треугольник), цвет обратный: стрелка светлая, гнездо тёмное.
+       discoNest — цвет гнезда. Пустая строка означает «взять обратный
+       к jumpColor»: тогда перекраска прыгалок тянет за собой и гнездо,
+       и подбирать пару вручную не приходится.
+       discoGlow — цвет ореола вокруг гнезда. */
+    discoNest: '',
+    discoGlow: 'rgba(255,214,0,.85)',
+
+    /* НАСТРОЙКА: бумбулятор — стыковка прокруткой.
+       Пока полоса прозрачности краткопоста далеко от середины экрана,
+       на экране нет ничего. По мере приближения одновременно проявляются
+       стрелка у левого края и гнездо у полосы; яркость обоих растёт по
+       мере сближения. Совместить их прокруткой и подержать — пост
+       раскрывается.
+       discoZone — с какого расстояния от середины экрана (в пикселях)
+       начинается проявление. Оно же управляет полосой, внутри которой
+       скрипт вообще следит за положением: снаружи не работает ничего,
+       ни обработчиков, ни замеров.
+       discoDock — допуск стыковки в пикселях. Меньше — точнее и
+       труднее попасть, особенно на инерции.
+       discoHold — сколько миллисекунд держать совмещённым.
+       discoArm — требовать ли, чтобы гнездо вошло в допуск ДВИЖЕНИЕМ.
+       Защита от случайного срабатывания: без неё пост раскрывался бы
+       сам, если человек остановился почитать ровно в этом месте.
+       discoSpin — сколько миллисекунд идёт оборот при стыковке.
+       discoTurns — сколько оборотов: 1 — на 360 с паузой на 180,
+       2 — на 720 с паузой на 360. */
+    discoZone: 110,
+    discoCurve: 1.5,
+    discoDock: 22,
+    discoHold: 700,
+    discoArm: true,
+    discoSpin: 600,
+    discoTurns: 1,
 
     /* НАСТРОЙКА: форма ответа в комментариях.
        replyBleed — выводить ли всплывшую форму из лесенки веток. Лепра
@@ -312,7 +415,40 @@
 
     /* Отладочная панель: три тапа по левому верхнему углу или #lmdebug
        в адресе. Перед раздачей скрипта другим людям можно выключить. */
-    debug: true
+    debug: true,
+
+    /* НАСТРОЙКА: какие разделы показывать в отчёте. Разделы копились под
+       задачи, и почти все свои задачи пережили: подписи поста и
+       комментария, шапка, поиск, профиль, фильтры — всё это давно
+       сделано, а места в отчёте занимает столько, что нужное в нём
+       приходится искать. Поэтому не удаляем, а гасим: понадобится —
+       вернуть можно одним словом, и код, который умеет мерить нужное,
+       никуда не делся.
+       Отдельно про «наложения»: раздел честно находит пересечения, но
+       на ленте с сокращёнными постами их десятки, и все ложные —
+       тело поста считается пересекающим свою же подпись и гнездо. До
+       поры, пока не понадобится снова, он только зашумляет отчёт.
+       «Сетевые запросы» гасим по той же причине: они писались под
+       разбор пыни, а показывают в основном яндексовую статистику. Если
+       снова понадобится смотреть, куда и с какой задержкой ходит
+       страница, — включить обратно.
+       Журнал ошибок выключателя не имеет: он и есть первое, ради чего
+       отчёт открывают. */
+    report: {
+      overflow: true,        /* вылезает за экран */
+      network: false,        /* сетевые запросы и перехваченные заголовки */
+      floats: false,         /* плавающие колонки */
+      overlaps: false,       /* наложения */
+      media: true,           /* видео и плееры */
+      disco: true,           /* дискобомбулятор */
+      postFooter: false,     /* подпись поста */
+      commentFooter: false,  /* подпись комментария */
+      header: false,         /* шапка: приветствие */
+      search: false,         /* поиск и динамический список */
+      profile: false,        /* профиль */
+      filters: false,        /* панель фильтров */
+      layers: true           /* слои поверх страницы */
+    }
   };
 
 
@@ -601,6 +737,21 @@
      подпись, и отбивки считаются от неё. */
   var NAV_PAD = Math.max(0,
     Math.round((CFG.navRow - Math.max(CFG.navIcon, 17)) / 2));
+
+  /* Общее скругление органов управления в третьей колонке. Число не своё:
+     это скругление поля поиска у самой лепры (.b-header_search
+     .i-form_text_input, border-radius: 5px). Кнопки, поле выбора порога и
+     поле поиска стоят друг под другом, и разные радиусы в столбике видно
+     сразу — поэтому берётся одно, и берётся у того элемента, который мы
+     не рисовали сами. */
+  var UI_R = 5;
+
+  /* Общий кегль тех же органов. Число тоже лепровское: поле поиска в
+     шапке набрано тринадцатью, и по нему равняются кнопки. У поля выбора
+     порога кегль подбирается замером (fitThreshold) и опускается, когда
+     «NIGHTMARE (все)» не влезает в колонку, — там тринадцать только
+     начальное значение. */
+  var UI_FONT = 13;
 
   var css = `
 /* ============ КАРКАС ============ */
@@ -3196,7 +3347,10 @@ body.l-profile #lm-navthing { margin-bottom: 0 !important; }
   display: flex !important; align-items: center !important; gap: 6px !important;
   width: 100% !important; box-sizing: border-box !important;
   margin: 0 !important; padding: ${NAV_PAD}px 8px !important;
-  background: rgb(232, 230, 228) !important;
+  /* Тот же серый, каким показано нажатое состояние кнопок и выбранный
+     значок переключателя ленты. Раньше здесь был свой оттенок на два
+     тона светлее, и в одном блоке оказывалось три разных серых. */
+  background: rgb(220, 218, 218) !important;
   border: 0 !important; border-radius: 0 !important;
   -webkit-appearance: none !important; appearance: none !important;
   /* Шорткат font: inherit сбрасывает кегль последним значением из
@@ -3360,9 +3514,19 @@ body.l-profile #lm-navthing { margin-bottom: 0 !important; }
   align-items: stretch !important; gap: 8px !important; }
 .lm-navthing_extra .b-index_slider,
 .lm-navthing_extra .b-index_slider .b-slider_scale_icons {
-  justify-content: flex-start !important;
+  justify-content: center !important;
   flex-wrap: wrap !important; gap: 10px !important; }
-.lm-navthing_extra .b-slider_scale_icon { margin: 0 !important; }
+.lm-navthing_extra .b-slider_scale_icon {
+  margin: 0 !important; border-radius: ${UI_R}px !important; }
+/* Выбранный значок лепра красит в rgb(220,218,218) — тот же серый, что
+   у нажатых кнопок, так что перекрашивать нечего. А вот наведение на
+   телефоне вредит: Safari оставляет состояние hover на значке после
+   тапа, и серым горят сразу два — выбранный и последний нажатый.
+   Гасим подсветку у всех, кроме выбранного; селектор тяжелее лепровского
+   и стоит ниже по файлу, так что спор решается одинаково и по весу, и
+   по порядку. */
+.lm-navthing_extra .b-slider_scale_icon:hover:not(.js-feed_type_active) {
+  background-color: transparent !important; }
 
 /* Порог постов. Базовое правило выше даёт ему flex: 1 1 160px — оно
    писалось для строки шапки, где 160 были ОСНОВОЙ ПО ШИРИНЕ. Здесь
@@ -3389,7 +3553,8 @@ body.l-profile #lm-navthing { margin-bottom: 0 !important; }
   box-sizing: border-box !important; margin: 0 !important;
   /* Начальный кегль — из CFG.thresholdFont. Дальше его подбирает
      замером fitThreshold: длинный вариант в треть строки не влезает. */
-  font-size: ${CFG.thresholdFont}px !important; }
+  font-size: ${CFG.thresholdFont}px !important;
+  border-radius: ${UI_R}px !important; }
 
 /* Поиск. Порядок обратный базовому: поле, за ним лупа, связка прижата
    влево — как было в шапке отдельной строкой.
@@ -3409,7 +3574,8 @@ body.l-profile #lm-navthing { margin-bottom: 0 !important; }
 .lm-navthing_extra #js-header_search_form .i-form_text_input {
   order: 1 !important; flex: 1 1 auto !important;
   width: auto !important; min-width: 0 !important;
-  box-sizing: border-box !important; }
+  box-sizing: border-box !important;
+  border-radius: ${UI_R}px !important; }
 .lm-navthing_extra #js-header_search_form .b-icon_button_search {
   order: 2 !important; }
 
@@ -3730,6 +3896,194 @@ html.lm-search_off .b-quick_search_container { display: none !important; }
 html.lm-search_big #js-search .b-search_header {
   margin-left: var(--lm-big-l, 0px) !important;
   margin-right: var(--lm-big-r, 0px) !important; }
+
+/* ============ ДИСКОБОМБУЛЯТОР ============ */
+/* Сокращённый просмотр ленты. Правила лежат ниже всех остальных нарочно:
+   они спорят с общими правилами постов (высота тела, видимость медиа), и
+   спор должен решаться одинаково и по весу селектора, и по порядку —
+   иначе проверка в jsdom разойдётся с браузером.
+
+   Две кнопки друг над другом в третьей колонке, под поиском: «DISCO» —
+   сокращённые посты, «бумбулятор» — микрогеймификация поверх них.
+   Нажимаются по отдельности, подписи не меняются: состояние показывает
+   подложка того же оттенка, каким лепра подсвечивает выбранный значок
+   переключателя типа ленты. Когда нажаты обе, промежуток схлопывается,
+   внутренние углы выпрямляются и общая рамка становится одной — пара
+   читается как одна нажатая область.
+   Кегль 11: «бумбулятор» — одиннадцать знаков, набором Verdana это
+   около 70 пикселей, то есть строка влезает в колонку (111 при экране
+   393) и при увеличенном масштабе, когда колонка ужимается до 93. */
+.lm-navthing_extra .lm-disco_pad {
+  flex: 0 0 auto !important;
+  display: flex !important; flex-direction: column !important;
+  gap: 4px !important; }
+.lm-navthing_extra .lm-disco_pad.lm-both { gap: 0 !important; }
+.lm-navthing_extra .lm-disco_btn {
+  display: block !important; width: 100% !important;
+  box-sizing: border-box !important;
+  margin: 0 !important; padding: 6px 2px !important;
+  -webkit-appearance: none !important; appearance: none !important;
+  border: 1px solid rgb(190, 188, 188) !important;
+  border-radius: ${UI_R}px !important;
+  background: rgb(255, 255, 255) !important;
+  color: inherit !important;
+  /* Свойства шрифта перечисляем по одному. Шорткат font: inherit,
+     стоявший здесь раньше, в Safari сбрасывал кегль обратно к
+     унаследованному, и кнопки набирались тринадцатью вместо заданных
+     одиннадцати — а рядом стоящее поле поиска тринадцатью и набрано,
+     так что расхождение вылезло не на них, а на порогах. Та же грабля
+     уже описана у свёрнутой строки навигационной штуки. */
+  font-family: inherit !important; font-weight: normal !important;
+  font-size: ${UI_FONT}px !important; line-height: 1.25 !important;
+  /* Подпись прижата влево: кнопки стоят первыми в столбике, и левый край
+     у них общий с полем выбора порога и полем поиска под ними. */
+  text-align: left !important; padding-left: 8px !important;
+  white-space: nowrap !important;
+  -webkit-user-select: none !important; user-select: none !important;
+  -webkit-tap-highlight-color: transparent !important;
+  touch-action: manipulation !important;
+  cursor: pointer !important; }
+.lm-navthing_extra .lm-disco_btn.lm-on {
+  background: rgb(220, 218, 218) !important;
+  border-color: rgb(160, 158, 158) !important; }
+.lm-navthing_extra .lm-disco_btn:active {
+  background: rgb(236, 234, 234) !important; }
+/* Бумбулятор без DISCO смысла не имеет: сокращённых постов нет, гнёздам
+   стоять негде. Поэтому кнопка не просто ничего не делает, а выглядит
+   недоступной — приглушена и не ловит нажатия. Своё состояние она при
+   этом помнит: включат DISCO — вернётся нажатой. */
+.lm-navthing_extra .lm-disco_btn[disabled] {
+  opacity: .45 !important;
+  background: rgb(255, 255, 255) !important;
+  cursor: default !important; pointer-events: none !important; }
+/* Стык. Нижнюю рамку у верхней кнопки убираем совсем, а не красим в
+   цвет подложки: прозрачная оставила бы светлую щель на сером. */
+.lm-navthing_extra .lm-disco_pad.lm-both .lm-disco_btn__disco {
+  border-bottom: 0 !important;
+  border-bottom-left-radius: 0 !important;
+  border-bottom-right-radius: 0 !important; }
+.lm-navthing_extra .lm-disco_pad.lm-both .lm-disco_btn__boom {
+  border-top-left-radius: 0 !important;
+  border-top-right-radius: 0 !important; }
+
+/* Сокращённый пост. position: relative — гнездо под стрелку стоит
+   поверх поста и отсчитывается от него: внутрь тела его класть нельзя,
+   тело обрезано и затянуто маской, и гнездо растворилось бы вместе с
+   низом картинки. */
+.lm-disco_post { position: relative !important; }
+
+/* Тело: высоту задаёт скрипт замером (у каждого поста своя подпись),
+   здесь только обрезка и полоса прозрачности. Маска, а не накладка
+   цветом: под постом бывает и белый фон, и тёмная тема с инверсией, и
+   своё оформление подлепры — маске всё равно, какого цвета то, что она
+   проявляет. Задаётся обеими записями: Safari понимает только с
+   приставкой, Firefox — обе. */
+.lm-disco_post .dt {
+  overflow: hidden !important;
+  -webkit-mask-image: linear-gradient(to bottom,
+    #000 calc(100% - ${CFG.discoFade}px), transparent 100%) !important;
+  mask-image: linear-gradient(to bottom,
+    #000 calc(100% - ${CFG.discoFade}px), transparent 100%) !important; }
+
+/* Текст до первой картинки. Высота — целое число строк (её считает
+   скрипт), чтобы срез не приходился на половину буквы. */
+.lm-disco_post .lm-dsc_lead { overflow: hidden !important; }
+/* Многоточие — своё, отдельной строкой под обрезанным текстом: у обрезки
+   по высоте своего знака нет, а троеточие внутри строки пришлось бы
+   врезать в чужой текст. */
+.lm-disco_post .lm-dsc_dots {
+  display: block !important;
+  font-size: 17px !important; line-height: 1.2 !important;
+  letter-spacing: 2px !important;
+  opacity: .65 !important; }
+/* Хвост после первой картинки прячем только тогда, когда он всё равно
+   не попал бы в видимую часть: так браузер не качает картинки, которых
+   не видно. Если же после обрезки текста и картинки до среза осталось
+   место, хвост оставляем в потоке — пусть заполняет бюджет и режется
+   общим потолком. Иначе краткопосты выходили разной высоты: у одного
+   картинка доходила до среза, у другого кончалась на середине, и пост
+   был на треть ниже соседа. */
+.lm-disco_post .lm-dsc_hide { display: none !important; }
+/* Медиа в режиме 'fit' — вписываем целиком в остаток бюджета. Высоту
+   ставит скрипт, здесь только снимаем лепровские жёсткие размеры. */
+.lm-disco_post .lm-dsc_fit {
+  height: auto !important; width: auto !important;
+  max-width: 100% !important; }
+
+/* Метка у полосы прозрачности. Один и тот же узел в двух видах.
+   Без бумбулятора это стрелка вниз — светло-серая, как у прыгалок
+   справа, с белым ореолом (иначе светлый контур теряется в строчках);
+   по ней и разворачивают пост тапом.
+   С бумбулятором она становится гнездом: тот же силуэт, но заливка
+   обратная (тёмная) и вокруг свечение — в него предстоит вводить
+   стрелку прокруткой. */
+.lm-dsc_nest {
+  position: absolute !important; z-index: 4 !important;
+  left: 0 !important;
+  width: ${CFG.jumpSize}px !important; height: ${CFG.jumpSize}px !important;
+  padding: 0 !important; margin: 0 !important;
+  -webkit-appearance: none !important; appearance: none !important;
+  background: none !important; border: 0 !important;
+  -webkit-tap-highlight-color: transparent !important;
+  touch-action: manipulation !important;
+  cursor: pointer !important; }
+.lm-dsc_nest svg {
+  display: block !important; width: 100% !important; height: 100% !important;
+  transform: rotate(180deg) !important;
+  filter: drop-shadow(0 0 1px rgba(255,255,255,.95))
+          drop-shadow(0 0 2px rgba(255,255,255,.8)) !important; }
+/* Заливку задаём правилом, а не атрибутом фигуры: у одного узла два
+   вида, и переключать их классом на <html> проще, чем перерисовывать
+   значок при каждом нажатии кнопки. */
+.lm-dsc_nest svg polygon { fill: ${CFG.jumpColor} !important; }
+.lm-dsc_nest:active { opacity: .55 !important; }
+
+/* Обёртка под оборот. Крутится она, а не значок и не кнопка: у значка
+   свой поворот на 180 (треугольник лепры смотрит вверх), у стрелки —
+   свой сдвиг на половину высоты, и всё это одним свойством transform
+   не уживается — последнее объявление затирает предыдущие. */
+.lm-dsc_spin {
+  display: block !important; width: 100% !important; height: 100% !important; }
+.lm-dock .lm-dsc_spin {
+  animation: lm-dsc_turn ${CFG.discoSpin}ms ease-in-out 1 !important; }
+/* Оборот с микропаузой на половине: доходит до ${180 * CFG.discoTurns}
+   градусов, замирает на десятую долю времени и доворачивает. */
+@keyframes lm-dsc_turn {
+  0%   { transform: rotate(0deg); }
+  45%  { transform: rotate(${180 * CFG.discoTurns}deg); }
+  55%  { transform: rotate(${180 * CFG.discoTurns}deg); }
+  100% { transform: rotate(${360 * CFG.discoTurns}deg); }
+}
+
+/* Бумбулятор: пока полоса прозрачности далеко от середины экрана, на
+   экране нет ничего. Прозрачность обоих ведёт скрипт, поэтому здесь
+   только исходное состояние — и запрет на нажатия: в этом режиме пост
+   разворачивают стыковкой, а не тапом, и невидимая кнопка поверх поста
+   только перехватывала бы касания по видео под нею. */
+html.lm-boom .lm-dsc_nest {
+  opacity: 0 !important; pointer-events: none !important; }
+html.lm-boom .lm-dsc_nest svg polygon {
+  fill: ${CFG.discoNest || 'rgb(45,44,43)'} !important; }
+html.lm-boom .lm-dsc_nest svg {
+  filter: drop-shadow(0 0 2px ${CFG.discoGlow})
+          drop-shadow(0 0 5px ${CFG.discoGlow}) !important; }
+
+/* Стрелка. Одна на всю страницу, стоит у левого края по середине
+   экрана. Светло-серая с белым ореолом — та же, что у прыгалок справа;
+   тап по ней ничего не делает и делать не должен, поэтому касания
+   сквозь неё проходят. */
+#lm-dsc_arrow {
+  position: fixed !important; top: 50% !important; left: 0 !important;
+  width: ${CFG.jumpSize}px !important; height: ${CFG.jumpSize}px !important;
+  margin-top: -${CFG.jumpSize / 2}px !important;
+  z-index: 29 !important;
+  opacity: 0 !important; pointer-events: none !important; }
+#lm-dsc_arrow svg {
+  display: block !important; width: 100% !important; height: 100% !important;
+  transform: rotate(180deg) !important;
+  filter: drop-shadow(0 0 1px rgba(255,255,255,.95))
+          drop-shadow(0 0 2px rgba(255,255,255,.8)) !important; }
+#lm-dsc_arrow svg polygon { fill: ${CFG.jumpColor} !important; }
 
 /* ============ ТЁМНАЯ ТЕМА ============ */
 /* Инверсия с поворотом тона. Своей тёмной палитры у лепры нет, а ручная
@@ -6302,11 +6656,13 @@ html.lm-dark .lm-navthing_gert.lm-opaque img { filter: none !important; }
        нечего. */
     var extra = document.createElement('div');
     extra.className = 'lm-navthing_extra';
-    var slider = document.querySelector('.b-index_slider');
-    if (slider) extra.appendChild(slider);
 
+    /* Переключатель вида вынимаем ПЕРВЫМ, хотя стоять он будет
+       четвёртым: в разметке лепры он лежит ВНУТРИ формы порога, и если
+       сначала перенести форму, он уедет вместе с нею внутрь. Вынули —
+       и дальше кладём в нужном порядке. */
+    var slider = document.querySelector('.b-index_slider');
     var th = document.querySelector('.b-posts_threshold');
-    if (th) extra.appendChild(th);
 
     /* Поиск. Метка lmMoved стоит только там, где его уже пристроила
        шапка, — на страницах с вкладками, в конце строки ссылок. Там он
@@ -6315,7 +6671,19 @@ html.lm-dark .lm-navthing_gert.lm-opaque img { filter: none !important; }
        на месте» честнее признака «страница такая-то», и если перенос в
        шапку почему-то не состоялся, поиск подберёт эта колонка. */
     var srch = document.querySelector('.b-header_search');
-    if (srch && !srch.dataset.lmMoved) extra.appendChild(srch);
+    if (srch && srch.dataset.lmMoved) srch = null;
+
+    /* Порядок сверху вниз: кнопки диско, порог постов, поиск,
+       переключатель вида. Сверху то, что набрано словами и прижато к
+       левому краю, — три прямоугольника одной ширины и одного
+       скругления читаются как столбик; тройка значков внизу, по центру,
+       столбик закрывает и ни с чем не спорит. Задаётся порядок
+       разметкой, а не свойством order: тогда он виден прямо здесь и не
+       требует держать два места согласованными. */
+    if (CFG.disco && discoFeed()) extra.appendChild(discoButtons());
+    if (th) extra.appendChild(th);
+    if (srch) extra.appendChild(srch);
+    if (slider) extra.appendChild(slider);
 
     top.appendChild(extra);
     body.appendChild(top);
@@ -7630,6 +7998,887 @@ html.lm-dark .lm-navthing_gert.lm-opaque img { filter: none !important; }
   }, true);
 
   /* ============================================================
+     8.5. ДИСКОБОМБУЛЯТОР — сокращённый просмотр ленты
+     ============================================================ */
+
+  /* В ленте попадаются посты в несколько экранов, и мимо них приходится
+     долго листать. Режим показывает у длинного поста только начало:
+     немного текста, первую картинку, узкую полосу постепенной
+     прозрачности — и целую подпись, по которой пост и опознаётся.
+
+     Что здесь важно знать про разметку лепры. Тело поста — это
+     .post > .dt > .dti.p_body, и внутри него ПЛОСКИЙ поток: голый текст,
+     <br>, <a>, <b> и картинка, чаще всего одна и в самом конце. Блочных
+     детей у тела нет, поэтому «отмерить текст и оставить картинку»
+     обрезкой по высоте не выходит — обрезка по высоте оставляет только
+     текст, а картинка уходит под срез целиком.
+
+     Отсюда устройство: текст до первой картинки заворачивается в свою
+     коробку (.lm-dsc_lead) и обрезается по числу строк, всё после
+     картинки — в другую (.lm-dsc_tail) и прячется, а тело обрезается по
+     общему бюджету и затягивается маской. Обёртки временные и снимаются
+     при развороте: узлы возвращаются на место в прежнем порядке.
+
+     Бюджет считается от высоты ЭКРАНА, а не от высоты поста: смысл в
+     том, чтобы место под пальцем было предсказуемым, а не в том, чтобы
+     ужать каждый пост на одну и ту же долю. */
+
+  var DISCO_KEY = 'lm-disco';
+  var BOOM_KEY = 'lm-boom';
+  var discoLog = [];        /* решения последнего прохода — для отчёта */
+  /* Высота экрана, по которой считается бюджет. Не берётся заново на
+     каждом проходе нарочно: Safari меняет innerHeight на семьдесят
+     пикселей всякий раз, когда прячет и показывает адресную строку, то
+     есть при обычной прокрутке. Считать по ней — значит пересобирать
+     все краткопосты по десять раз за минуту. Число обновляется только
+     при заметной перемене (поворот экрана, смена масштаба страницы). */
+  var discoVh = 0;
+  /* Сколько постов ждут своей очереди: они прошли отбор по длине, но
+     стоят на экране, и резать их сейчас нельзя. Число нужно, чтобы
+     знать, есть ли смысл пересчитывать после прокрутки. Ноль — и
+     обработчик прокрутки не делает ничего. */
+  var discoPending = 0;
+  var discoCount = 0;       /* сколько постов было в ленте на прошлом проходе */
+  var discoRuns = 0;        /* сколько раз отбор отработал — для отчёта */
+
+  /* Сколько высоты достаётся телу поста. Подпись остаётся целой, поэтому
+     её высота вычитается из бюджета, а не добавляется к нему. Считается
+     в двух местах — при срезе и при проверке, не устарел ли срез, — и
+     обязано давать одно и то же число, иначе посты пересобирались бы
+     без конца. */
+  function discoBodyMax(post) {
+    var dd = post.querySelector('.dd');
+    var budget = Math.round(discoVh * CFG.discoCut / 100);
+    return Math.max(CFG.discoMin, budget - (dd ? dd.offsetHeight : 0));
+  }
+
+  var DISCO_MEDIA = 'img, video, iframe, object, embed, ' +
+                    '.js-media_player, .b-media_player, .b-media_player_preview';
+
+  function discoWanted() {
+    try { return localStorage.getItem(DISCO_KEY) === '1'; } catch (e) { return false; }
+  }
+
+  function discoRemember(on) {
+    try { localStorage.setItem(DISCO_KEY, on ? '1' : '0'); } catch (e) {}
+  }
+
+  /* Только лента главной и подлепр. Признаков два, и оба нужны:
+     контейнер #js-posts_holder встречается и на других страницах, а по
+     одному адресу нельзя отличить ленту от страницы, которая ещё не
+     догрузилась. Страницы тегов, «моих вещей», поиска и сам пост с
+     комментариями сюда не попадают — там своя разметка ленты, и
+     сокращать там нечего.
+     Вторая и дальше страницы ленты у лепры называются /pages/2 — во
+     множественном числе и без косой на конце; форму /page/2/ принимаем
+     заодно, вдруг где-то встретится. */
+  function discoFeed() {
+    var h = document.getElementById('js-posts_holder');
+    if (!h) return null;
+    if (document.getElementById('js-comments')) return null;
+    if (!/^\/(pages?\/\d+\/?)?$/.test(location.pathname)) return null;
+    return h;
+  }
+
+  /* Посты ленты. Раньше брались прямые дети #js-posts_holder — и это
+     оказалось неверно: то, что лепра догружает кнопкой «Ещё? Ещё!»,
+     в этот контейнер не попадает. В отчёте было видно по номерам: после
+     догрузки скрипт по-прежнему видел ровно сорок два поста, а на
+     экране их было под сотню. Куда именно кладутся догруженные, знать
+     не обязательно — на странице ленты всякий .post и есть пост ленты,
+     а страницы, где это не так (пост с комментариями, «мои вещи»),
+     отсеяны раньше, в discoFeed. Порядок querySelectorAll — порядок
+     разметки, то есть тот же, что на экране. */
+  function discoPosts() {
+    return sliceOf((root() || document).querySelectorAll('.post'));
+  }
+
+  /* Цвет гнезда — обратный к цвету стрелки, если в настройках пусто.
+     Так перекраска прыгалок тянет за собой и гнездо: пара «светлая
+     стрелка — тёмное гнездо» держится сама. */
+  function discoNestColor() {
+    if (CFG.discoNest) return CFG.discoNest;
+    var m = /(\d+)\D+(\d+)\D+(\d+)/.exec(CFG.jumpColor || '');
+    if (!m) return 'rgb(45,44,43)';
+    return 'rgb(' + (255 - +m[1]) + ',' + (255 - +m[2]) + ',' + (255 - +m[3]) + ')';
+  }
+
+  /* Первый узел тела, который сам является медиа или содержит его.
+     Возвращается именно ребёнок тела, а не сама картинка: она бывает
+     завёрнута в ссылку, и резать надо по границе ребёнка. */
+  function discoFirstMedia(body) {
+    var kids = sliceOf(body.childNodes);
+    for (var i = 0; i < kids.length; i++) {
+      var n = kids[i];
+      if (n.nodeType !== 1) continue;
+      if ((n.matches && n.matches(DISCO_MEDIA)) || n.querySelector(DISCO_MEDIA))
+        return n;
+    }
+    return null;
+  }
+
+  function discoWrap(nodes, cls) {
+    if (!nodes.length) return null;
+    var box = document.createElement('div');
+    box.className = cls;
+    nodes[0].parentNode.insertBefore(box, nodes[0]);
+    nodes.forEach(function (n) { box.appendChild(n); });
+    return box;
+  }
+
+  function discoUnwrap(box) {
+    if (!box || !box.parentNode) return;
+    while (box.firstChild) box.parentNode.insertBefore(box.firstChild, box);
+    box.parentNode.removeChild(box);
+  }
+
+  /* Значимое ли содержимое: пустые текстовые узлы и одинокие переводы
+     строки заворачивать незачем. */
+  function discoMeaty(nodes) {
+    return nodes.some(function (n) {
+      if (n.nodeType === 1) return true;
+      return n.nodeType === 3 && n.nodeValue && n.nodeValue.trim();
+    });
+  }
+
+  /* Гнездо. Пока оно же — временная кнопка разворота: стыковка стрелки
+     появится следующей правкой, а проверять срез чем-то надо уже сейчас.
+     Кнопка, а не накладка на весь пост, нарочно: у поста с одним видео
+     всё видимое место занимает плеер, и тап по нему обязан оставаться
+     запуском воспроизведения. */
+  function discoNest(post, dt) {
+    var nest = post.querySelector('.lm-dsc_nest');
+    if (!nest) {
+      nest = document.createElement('button');
+      nest.type = 'button';
+      nest.className = 'lm-dsc_nest';
+      nest.setAttribute('title', 'развернуть');
+      var svg = svgNode('svg', {
+        viewBox: '0 0 40 40', width: '40', height: '40',
+        xmlns: SVG_NS, 'aria-hidden': 'true'
+      });
+      svg.appendChild(svgNode('polygon', {
+        fill: discoNestColor(), points: JUMP_TRIANGLE
+      }));
+      /* Значок лежит в отдельной коробке: крутиться при стыковке будет
+         она, а поворот на 180 остаётся на самом значке. */
+      var spin = document.createElement('span');
+      spin.className = 'lm-dsc_spin';
+      spin.appendChild(svg);
+      nest.appendChild(spin);
+      nest.addEventListener('click', function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+        discoOpenPost(post);
+      });
+      post.appendChild(nest);
+    }
+    /* Середина гнезда — на середине полосы прозрачности. Отсчёт от
+       низа тела, а не от бюджета: тело после обрезки текста бывает
+       ниже бюджета, и полоса идёт по его настоящему краю. */
+    var y = dt.offsetTop + dt.offsetHeight - CFG.discoFade / 2 - CFG.jumpSize / 2;
+    nest.style.top = Math.round(y) + 'px';
+    return nest;
+  }
+
+  function discoCutPost(post, was) {
+    var dt = post.querySelector('.dt');
+    var body = post.querySelector('.p_body');
+    var dd = post.querySelector('.dd');
+    if (!dt || !body) return false;
+
+    if (!discoVh) return false;
+    var bodyMax = discoBodyMax(post);
+
+    var media = discoFirstMedia(body);
+    var kids = sliceOf(body.childNodes);
+    var at = media ? kids.indexOf(media) : kids.length;
+    var lead = kids.slice(0, at);
+    var tail = media ? kids.slice(at + 1) : [];
+
+    /* Хвост после первой картинки заворачиваем и прячем — пока прячем:
+       иначе высота текста считалась бы вместе с ним. Ниже, когда станет
+       видно, добирает ли остальное до среза, часть хвоста вернётся. */
+    var tailBox = discoMeaty(tail) ? discoWrap(tail, 'lm-dsc_tail lm-dsc_hide')
+                                   : null;
+
+    var leadBox = null;
+    if (media && discoMeaty(lead)) {
+      leadBox = discoWrap(lead, 'lm-dsc_lead');
+      /* Межстрочное расстояние. Браузер отдаёт его в пикселях, но не
+         всегда: при line-height: normal возвращается слово, а в наших
+         же правилах оно задано множителем — и вычисленное значение
+         иногда приходит множителем же. Число меньше четырёх пикселями
+         быть не может, поэтому такое умножаем на кегль. */
+      var cs = getComputedStyle(leadBox);
+      var lh = parseFloat(cs.lineHeight);
+      if (lh && lh < 4) lh = lh * (parseFloat(cs.fontSize) || 17);
+      if (!lh || lh !== lh) lh = 25;                 /* normal — считать нечем */
+      var textMax = Math.round(bodyMax * CFG.discoText / 100);
+      if (leadBox.offsetHeight > textMax) {
+        var rows = Math.max(1, Math.floor(textMax / lh));
+        discoCap(leadBox, rows * lh);
+        if (CFG.discoDots) {
+          var dots = document.createElement('span');
+          dots.className = 'lm-dsc_dots';
+          dots.textContent = '\u2026';
+          if (leadBox.nextSibling)
+            leadBox.parentNode.insertBefore(dots, leadBox.nextSibling);
+          else leadBox.parentNode.appendChild(dots);
+        }
+      }
+    }
+
+    /* Медиа: остаток бюджета за вычетом того, что уже занял текст.
+       'crop' не делает ничего — низ уйдёт под общий срез тела. */
+    if (media) {
+      var used = leadBox ? leadBox.offsetHeight : 0;
+      var dotsEl = post.querySelector('.lm-dsc_dots');
+      if (dotsEl) used += dotsEl.offsetHeight;
+      var rest = Math.max(60, bodyMax - used);
+      var kind = (media.matches && media.matches('img')) || media.querySelector('img')
+        ? CFG.discoMedia : CFG.discoVideo;
+      if (kind === 'fit') {
+        media.classList.add('lm-dsc_fit');
+        discoCap(media, rest);
+        /* У картинки лепра прописывает размеры прямо в style, и предел
+           по высоте без снятия ширины её не ужмёт. */
+        var inner = (media.matches && media.matches('img')) ? media
+                                                            : media.querySelector('img, video, iframe');
+        if (inner && inner !== media) {
+          inner.classList.add('lm-dsc_fit');
+          discoCap(inner, rest);
+        }
+      }
+    }
+
+    discoCap(dt, bodyMax);
+    post.classList.add('lm-disco_post');
+
+    /* Единая высота краткопостов. Текст с картинкой не всегда добирают
+       до среза: картинка бывает низкая, и пост выходил на треть ниже
+       соседа — при том, что дальше в нём спрятано ещё полтора экрана.
+       Если до потолка осталось место, возвращаем хвост в поток: он его
+       и займёт, а лишнее срежет тот же потолок. Прячем хвост только
+       тогда, когда он всё равно не попал бы в видимую часть — ради
+       того и пряталось, чтобы не качать невидимые картинки. */
+    if (tailBox && dt.offsetHeight < bodyMax - 8)
+      tailBox.classList.remove('lm-dsc_hide');
+
+    post.__lmBudget = bodyMax;   /* по какому потолку собран этот срез */
+
+    /* Замер «было — стало». Считать выгоду заранее нечем: сколько
+       уйдёт в хвост и сколько отрежется у текста, видно только после
+       того, как это сделано. Поэтому режем, меряем и при малой выгоде
+       откатываем — лишний пересчёт раскладки на пост дешевле, чем
+       полоса прозрачности с гнездом на посте, где прятать нечего. */
+    var after = post.getBoundingClientRect().height;
+    var gain = (was || 0) - after;
+    post.__lmWas = Math.round(was || 0);
+    post.__lmGain = Math.round(gain);
+    if (was && gain < Math.round(discoVh * CFG.discoGain / 100)) {
+      discoOpenPost(post, 'lm-disco_keep');
+      return false;
+    }
+
+    discoNest(post, dt);
+    return true;
+  }
+
+  /* Предел высоты ставим с оглядкой на то, что там стояло раньше.
+     На видео скрипт кладёт свой max-height: 80vh !important (см.
+     fixMediaSizes), и простое присваивание его затирало: при развороте
+     ролик оставался без потолка, а вернуть его было некому — метка
+     seen.media стоит, второй раз проход к этому элементу не подойдёт.
+     Прежнее значение вместе с признаком !important прячем в свойство
+     узла, а не в data-атрибут: атрибут виден в разметке, а она после
+     разворота обязана совпадать с исходной знак в знак. */
+  function discoCap(el, px) {
+    if (!el) return;
+    if (el.__lmCap === undefined)
+      el.__lmCap = el.style.getPropertyValue('max-height') +
+        (el.style.getPropertyPriority('max-height') === 'important' ? '!' : '');
+    el.style.setProperty('max-height', Math.round(px) + 'px', 'important');
+  }
+
+  /* Снять предел и вместе с ним опустевший style. Пустой атрибут сам по
+     себе безвреден, но он остаётся следом на чужом узле. */
+  function discoUncap(el) {
+    if (!el) return;
+    el.style.removeProperty('max-height');
+    var kept = el.__lmCap;
+    if (kept) {
+      var imp = kept.slice(-1) === '!';
+      el.style.setProperty('max-height', imp ? kept.slice(0, -1) : kept,
+                           imp ? 'important' : '');
+    }
+    if (el.__lmCap !== undefined) delete el.__lmCap;
+    if (!el.getAttribute('style')) el.removeAttribute('style');
+  }
+
+  function discoOpenPost(post, mark) {
+    discoUncap(post.querySelector('.dt'));
+
+    var dots = post.querySelector('.lm-dsc_dots');
+    if (dots && dots.parentNode) dots.parentNode.removeChild(dots);
+
+    var leadBox = post.querySelector('.lm-dsc_lead');
+    if (leadBox) { discoUncap(leadBox); discoUnwrap(leadBox); }
+    discoUnwrap(post.querySelector('.lm-dsc_tail'));
+
+    sliceOf(post.querySelectorAll('.lm-dsc_fit')).forEach(function (m) {
+      m.classList.remove('lm-dsc_fit');
+      discoUncap(m);
+      if (!m.getAttribute('class')) m.removeAttribute('class');
+    });
+
+    var nest = post.querySelector('.lm-dsc_nest');
+    if (nest && nest.parentNode) nest.parentNode.removeChild(nest);
+
+    post.classList.remove('lm-disco_post');
+    /* Раскрытый обратно не сворачиваем — ни сейчас, ни следующим
+       проходом. Метки две, и они не про одно и то же: lm-disco_done —
+       «человек развернул сам», lm-disco_keep — «срез не окупился».
+       Разными их держим ради отчёта: иначе непонятно, что произошло с
+       постом. Явный false означает «разобрать молча»: так пост
+       раскладывают перед пересборкой под новый потолок, и никакая
+       метка ему не нужна. */
+    if (mark !== false) post.classList.add(mark || 'lm-disco_done');
+  }
+
+  function discoScan() {
+    if (!CFG.disco) return;
+    if (!document.documentElement.classList.contains('lm-disco')) return;
+    var h = discoFeed();
+    if (!h) return;
+
+    var vhNow = window.innerHeight || 0;
+    if (!vhNow) return;                  /* нулевая высота окна — не считаем */
+
+    /* Пока не применился наш метатег viewport, Safari меряет страницу в
+       виртуальном окне шириной 980, и высота окна выходит вдвое-втрое
+       больше настоящей. Срез, посчитанный по такой высоте, оставляет от
+       поста в полторы тысячи пикселей тысячу — то есть не делает
+       ничего, зато навсегда получает отметку «не окупился».
+       Признак неготовности — ширина окна заметно больше физической.
+       Полуторный запас оставлен под уменьшенный масштаб страницы: при
+       нём CSS-ширина бывает 462 при экране 393, и это ещё норма. */
+    if (vhNow && window.innerWidth > screenWidth() * 1.6) {
+      discoLog = ['окно ещё десктопное (' + window.innerWidth + ' при экране ' +
+                  screenWidth() + ') — ждём viewport'];
+      return;
+    }
+
+    if (!discoVh || Math.abs(vhNow - discoVh) > discoVh * 0.2) discoVh = vhNow;
+    discoRuns++;
+
+    var least = Math.round(discoVh * CFG.discoGain / 100);
+    var budget = Math.round(discoVh * CFG.discoCut / 100);
+    /* Нижняя граница длины. Считается по двум числам сразу, и берётся
+       большее. Доля discoKeep — то, что задано настройкой; но пост,
+       который короче бюджета плюс требуемой выгоды, всё равно не пройдёт
+       проверку «сколько отдал» — его резали, мерили и раскладывали
+       обратно, чтобы отказать. При discoCut 50 и discoGain 20 первая
+       граница (45%) оказалась ниже второй, и полтора десятка постов
+       каждый раз проходили этот бессмысленный круг, а в отчёте стояли
+       как «срез не окупился», хотя дело было в длине. */
+    var keep = Math.max(discoVh * CFG.discoKeep / 100, budget + least);
+
+    /* Журнал решений последнего прохода — для отладочной панели. Пишем в
+       массив, а не в data-атрибуты постов: числа нужны только отчёту, и
+       засорять ими чужую разметку незачем. */
+    var list = discoPosts(), lines = [];
+
+    discoLog = ['экран: ' + vhNow + ' (в расчёте ' + discoVh + ')' +
+                ' | бюджет: ' + budget +
+                ' | предел выгоды: ' + least +
+                ' | порог длины: ' + Math.round(keep) +
+                ' (по доле ' + Math.round(discoVh * CFG.discoKeep / 100) +
+                ', по выгоде ' + (budget + least) + ')',
+                'постов в ленте: ' + list.length + ' | проходов отбора: ' + discoRuns];
+
+    /* Обход СНИЗУ ВВЕРХ. Срез поста поднимает всё, что под ним, на
+       несколько сотен пикселей, и при обходе сверху вниз соседи снизу
+       успевали въехать в экран до того, как до них доходила очередь:
+       проверка «ниже экрана» их отбрасывала, и они оставались нетронутыми
+       навсегда. Снизу вверх этого не случается — сокращение нижнего
+       поста верхние с места не сдвигает. */
+    discoPending = 0;
+    discoCount = list.length;
+    for (var k = list.length - 1; k >= 0; k--) look(list[k], k);
+    discoLog = discoLog.concat(lines.reverse());
+
+    /* Гнёзда могли появиться или исчезнуть — наблюдателю за полосой у
+       середины экрана надо об этом знать. */
+    guard('boomSync', boomSync)();
+
+    function look(post, i) {
+      var say = function (what) {
+        if (lines.length < 60) lines.push('  ' + i + ' ' + post.id + ' ' + what);
+      };
+      if (i < CFG.discoFirst) return say('первый — не трогаем');
+      if (post.classList.contains('lm-disco_done')) return say('раскрыт вручную');
+
+      var r = post.getBoundingClientRect();
+      var want = discoBodyMax(post);
+      var stale = Math.abs(want - (post.__lmBudget || 0)) > 16;
+
+      /* Уже сокращённый пост может оказаться собран по устаревшему
+         потолку: по неверной высоте окна из первого прохода, по подписи,
+         которая тогда была на строку выше, или просто до поворота
+         экрана. Тогда пересобираем — иначе краткопосты стоят в ленте
+         разной высоты, а разнобой тут виден сразу. */
+      if (post.classList.contains('lm-disco_post')) {
+        if (!stale)
+          return say('сокращён (было ' + post.__lmWas +
+                     ', выгода ' + post.__lmGain + ')');
+        var y0 = scrollTopNow(), h0 = r.height;
+        discoOpenPost(post, false);
+        guard('discoCutPost', discoCutPost)(post, post.__lmWas);
+        var h1 = post.getBoundingClientRect().height;
+        if (r.bottom <= 0 && h1 !== h0) scrollTopSet(y0 + (h1 - h0));
+        return say('пересобран под потолок ' + want +
+                   ' (был ' + Math.round(h0) + ', стал ' + Math.round(h1) + ')');
+      }
+
+      /* Отказ «срез не окупился» — не приговор навсегда. Размеры видео
+         лепра узнаёт от сервера с запозданием, и пост, который в первом
+         проходе был в двести пикселей, через несколько секунд бывает в
+         семьсот; а если отказ вынесен по неверному потолку, то он и
+         вовсе ни о чём. Поэтому отказ помнит и высоту поста, и потолок,
+         и снимается, как только изменилось то или другое. Порог в 15% —
+         чтобы не пересчитывать одно и то же от дрожания на пиксель. */
+      if (post.classList.contains('lm-disco_keep')) {
+        if (!stale && (!(post.__lmWas > 0) || r.height <= post.__lmWas * 1.15))
+          return say('срез не окупился (было ' + post.__lmWas +
+                     ', выгода ' + post.__lmGain + ')');
+        post.classList.remove('lm-disco_keep');
+      }
+
+      if (!r.height || r.height < keep)
+        return say('h=' + Math.round(r.height) + ' короткий');
+
+      /* Пост под пальцем не трогаем: срез утащил бы страницу прямо во
+         время чтения. Ниже экрана режем свободно — там ничего не
+         сдвинется. Выше экрана тоже режем, но с возвратом прокрутки на
+         ту же величину: пост целиком за верхней кромкой, и насколько он
+         укоротился, ровно настолько надо подкрутить страницу назад,
+         чтобы видимое осталось на месте. Без этого посты, мимо которых
+         человек успел пролистать, оставались длинными навсегда — а это
+         как раз те, к которым он вернётся. */
+      var below = r.top >= vhNow;
+      var above = r.bottom <= 0;
+      if (!below && !above) {
+        discoPending++;
+        return say('h=' + Math.round(r.height) + ' top=' + Math.round(r.top) +
+                   ' на экране — ждём');
+      }
+      if (above && !CFG.discoAbove)
+        return say('h=' + Math.round(r.height) + ' выше экрана — не трогаем');
+
+      var y0 = scrollTopNow();
+      var done = guard('discoCutPost', discoCutPost)(post, r.height);
+      if (done && above && post.__lmGain > 0) scrollTopSet(y0 - post.__lmGain);
+      say('h=' + Math.round(r.height) + (above ? ' (выше экрана)' : '') +
+          (done ? ' → срезан, выгода ' + post.__lmGain
+                : ' → не окупился, выгода ' + post.__lmGain));
+    }
+  }
+
+  /* Размеры видео приходят от сервера с запозданием, картинки грузятся
+     кто когда — и пост, который в первом проходе был коротким, через
+     секунду оказывается в три экрана. Наблюдатель за узлами этого не
+     ловит: узлов не добавляется, меняется только размер уже стоящего.
+     Поэтому слушаем сами события загрузки и назначаем пересчёт. Обе
+     ловушки в фазе перехвата: ни load у картинки, ни loadedmetadata у
+     видео не всплывают. */
+  var discoTimer = null;
+
+  function discoLater() {
+    if (discoTimer) return;
+    discoTimer = setTimeout(function () {
+      discoTimer = null;
+      guard('discoScan', discoScan)();
+    }, 400);
+  }
+
+  /* Пересчёт после прокрутки. Общее правило скрипта — прокрутка не
+     запускает обходов DOM, и оно остаётся в силе: обработчик сначала
+     смотрит на счётчик ожидающих и при нуле выходит, не трогая ничего.
+     Ждущие берутся только оттуда, где без прокрутки не обойтись: пост
+     прошёл отбор, но стоит на экране, и резать его под пальцем нельзя.
+     Раньше такой пост так и оставался длинным навсегда — это и было
+     видно после «Ещё? Ещё!»: догруженные посты появляются ровно на
+     экране, единственный проход по ним приходится на этот момент, а
+     потом человек листает дальше, и пересчитывать некому.
+     Задержка в 300 мс отмеряется от ПОСЛЕДНЕГО события: Safari шлёт их
+     и во время инерции, так что к сроку страница уже стоит.
+     Обработчик пассивный: он ничего не отменяет, и браузеру не нужно
+     ждать его, чтобы продолжить прокрутку. */
+  var discoScrollTimer = null;
+
+  function discoWatchScroll() {
+    if (!CFG.disco || discoWatchScroll.on) return;
+    discoWatchScroll.on = true;
+    window.addEventListener('scroll', function () {
+      if (discoScrollTimer) clearTimeout(discoScrollTimer);
+      discoScrollTimer = setTimeout(function () {
+        discoScrollTimer = null;
+        /* Две причины пересчитать: кто-то ждал ухода с экрана, или в
+           ленте прибавилось постов — например, их догрузили туда, где
+           наблюдатель их не видит. Проверка дешёвая и делается раз на
+           остановку прокрутки, а не на каждое событие. */
+        if (!document.documentElement.classList.contains('lm-disco')) return;
+        var now = document.querySelectorAll('.post').length;
+        if (!discoPending && now === discoCount) return;
+        discoCount = now;
+        guard('discoScan', discoScan)();
+      }, 300);
+    }, { passive: true });
+  }
+
+  /* Наблюдатель за лентой. Общий (watchDom) смотрит за
+     #js-posts_holder, а догруженное кнопкой «Ещё? Ещё!» ложится мимо
+     него — значит и добавления узлов он не видит, и пересчёта не
+     назначает.
+     Смотрим за самим контейнером и за его родителем, и только за
+     СПИСКОМ ДЕТЕЙ, без поддерева. Поддерево здесь вредно вдвойне: в
+     него попадает всё, что делают и лепра, и мы сами (срез — это тоже
+     добавление узлов), и на каждую такую мелочь назначался бы пересчёт
+     с замерами раскладки. Пока лепра вставляет полсотни постов с
+     картинками, это превращается в постоянную драку за главный поток.
+     Посты кладут либо в контейнер, либо рядом с ним, — оба места
+     покрыты; а если лепра однажды спрячет их глубже, есть запасной
+     путь: пересчёт после остановки прокрутки, который сверяет число
+     постов. */
+  function discoWatchFeed() {
+    if (!CFG.disco || discoWatchFeed.on) return;
+    if (!('MutationObserver' in window)) return;
+    var h = document.getElementById('js-posts_holder');
+    if (!h) return;
+    discoWatchFeed.on = true;
+    var seeIt = new MutationObserver(function (records) {
+      for (var i = 0; i < records.length; i++)
+        if (records[i].addedNodes && records[i].addedNodes.length) return discoLater();
+    });
+    seeIt.observe(h, { childList: true });
+    if (h.parentNode) seeIt.observe(h.parentNode, { childList: true });
+  }
+
+  function discoWatchMedia() {
+    if (!CFG.disco || discoWatchMedia.on) return;
+    discoWatchMedia.on = true;
+    ['loadedmetadata', 'load'].forEach(function (ev) {
+      document.addEventListener(ev, function (e) {
+        var t = e.target;
+        if (!t || !t.tagName) return;
+        if (t.tagName !== 'IMG' && t.tagName !== 'VIDEO' && t.tagName !== 'IFRAME') return;
+        if (!document.documentElement.classList.contains('lm-disco')) return;
+        discoLater();
+      }, true);
+    });
+  }
+
+  function discoRestore() {
+    sliceOf(document.querySelectorAll('.lm-disco_post')).forEach(function (p) {
+      discoOpenPost(p);
+    });
+    discoVh = 0;
+    sliceOf(document.querySelectorAll('.lm-disco_done, .lm-disco_keep'))
+      .forEach(function (p) {
+        p.classList.remove('lm-disco_done');
+        p.classList.remove('lm-disco_keep');
+      });
+  }
+
+  /* ============================================================
+     8.6. БУМБУЛЯТОР — стыковка прокруткой
+     ============================================================ */
+
+  /* Как это устроено. Гнёзда на краткопостах в этом режиме невидимы.
+     Наблюдатель видимости следит за узкой полосой вокруг середины
+     экрана — её ширина задана в пикселях (discoZone), а не долей, чтобы
+     не зависеть от того, поднята ли адресная строка. Пока в полосе
+     пусто, не работает ничего: ни обработчиков прокрутки, ни замеров.
+     Как только гнездо в неё входит, запускается покадровый цикл, и он
+     читает ОДИН прямоугольник — того гнезда, что ближе к середине.
+     Из расстояния до середины получается прозрачность (обоим сразу) и
+     решение о стыковке.
+
+     Почему не обработчик прокрутки: он срабатывает и там, где ничего не
+     происходит, а полоса вокруг середины — это меньше пятой части
+     ленты. Покадровый цикл дороже, но живёт он только внутри полосы. */
+
+  var boomObs = null;        /* наблюдатель за полосой у середины */
+  var boomBand = -1;         /* отступ полосы, по которому он собран */
+  var boomGen = 0;           /* поколение наблюдателя: метки на гнёздах */
+  var boomLive = [];         /* гнёзда, сейчас находящиеся в полосе */
+  var boomFrame = 0;         /* заявка на кадр */
+  var boomBusy = false;      /* идёт оборот — не мешать */
+  var boomTarget = null;     /* гнездо, к которому сейчас примеряемся */
+  var boomSince = 0;         /* когда оно вошло в допуск */
+  var boomShown = null;      /* кому последний раз задавали прозрачность */
+  var boomSeen = { dist: 0, near: 0, held: 0 };   /* для отчёта */
+
+  /* Прозрачность и положение задаём с весом !important. Кажется лишним —
+     это же инлайн, — но нет: в нашей же таблице стилей стоит правило
+     `html.lm-boom .lm-dsc_nest { opacity: 0 !important }`, и обычное
+     инлайновое объявление ему проигрывает. Именно на этом первая сборка
+     и попалась: посты раскрывались стыковкой, а ни стрелки, ни гнезда,
+     ни оборота видно не было — прозрачность считалась и записывалась
+     исправно, только браузер её не применял. То же и с левым краем
+     стрелки: в правиле стоит left: 0 !important.
+     Проверять такое надо по вычисленному стилю, а не по .style — в
+     .style значение лежит как ни в чём не бывало. */
+  function boomPut(el, prop, value) {
+    if (el) el.style.setProperty(prop, value, 'important');
+  }
+
+  function boomDrop(el, prop) {
+    if (el) el.style.removeProperty(prop);
+  }
+
+  function boomOn() {
+    return CFG.disco && document.documentElement.classList.contains('lm-boom');
+  }
+
+  function boomArrow() {
+    var a = document.getElementById('lm-dsc_arrow');
+    if (a) return a;
+    a = document.createElement('div');
+    a.id = 'lm-dsc_arrow';
+    a.setAttribute('aria-hidden', 'true');
+    var svg = svgNode('svg', {
+      viewBox: '0 0 40 40', width: '40', height: '40',
+      xmlns: SVG_NS, 'aria-hidden': 'true'
+    });
+    svg.appendChild(svgNode('polygon', {
+      fill: CFG.jumpColor, points: JUMP_TRIANGLE
+    }));
+    var spin = document.createElement('span');
+    spin.className = 'lm-dsc_spin';
+    spin.appendChild(svg);
+    a.appendChild(spin);
+    (document.body || document.documentElement).appendChild(a);
+    return a;
+  }
+
+  /* Собрать (или пересобрать) наблюдателя и раздать его новым гнёздам.
+     Вызывается после каждого отбора: гнёзда появляются вместе со
+     срезами, а полоса зависит от высоты экрана. */
+  function boomSync() {
+    if (!boomOn()) return boomStop();
+    if (!('IntersectionObserver' in window)) return;
+    var vh = window.innerHeight || 0;
+    if (!vh) return;
+
+    var band = Math.max(0, Math.round(vh / 2 - CFG.discoZone));
+    if (!boomObs || band !== boomBand) {
+      if (boomObs) boomObs.disconnect();
+      boomBand = band;
+      boomGen++;
+      boomLive = [];
+      boomObs = new IntersectionObserver(function (entries) {
+        entries.forEach(function (en) {
+          var at = boomLive.indexOf(en.target);
+          if (en.isIntersecting) { if (at < 0) boomLive.push(en.target); }
+          else if (at >= 0) boomLive.splice(at, 1);
+        });
+        if (boomLive.length) boomWake();
+        else boomHide();
+      }, { rootMargin: -band + 'px 0px ' + -band + 'px 0px' });
+    }
+
+    sliceOf(document.querySelectorAll('.lm-dsc_nest')).forEach(function (n) {
+      if (n.__lmGen === boomGen) return;
+      n.__lmGen = boomGen;
+      boomObs.observe(n);
+    });
+  }
+
+  function boomWake() {
+    if (!boomFrame) boomFrame = requestAnimationFrame(boomTick);
+  }
+
+  /* Погасить и остановиться. Прозрачность снимаем только с того гнезда,
+     которому её задавали: чужие трогать незачем, а перебирать все —
+     работа на ровном месте. */
+  function boomHide() {
+    if (boomFrame) { cancelAnimationFrame(boomFrame); boomFrame = 0; }
+    if (boomShown) { boomDrop(boomShown, 'opacity'); boomShown = null; }
+    boomDrop(document.getElementById('lm-dsc_arrow'), 'opacity');
+    boomTarget = null;
+    boomSince = 0;
+    boomSeen = { dist: 0, near: 0, held: 0 };
+  }
+
+  function boomStop() {
+    boomHide();
+    if (boomObs) { boomObs.disconnect(); boomObs = null; boomBand = -1; }
+    boomLive = [];
+    var a = document.getElementById('lm-dsc_arrow');
+    if (a && a.parentNode) a.parentNode.removeChild(a);
+  }
+
+  function boomTick() {
+    boomFrame = 0;
+    if (!boomOn() || boomBusy) return;
+    var vh = window.innerHeight || 0;
+    if (!vh || !boomLive.length) return boomHide();
+
+    var mid = vh / 2, best = null, bd = 0, i, n, r, d;
+    for (i = 0; i < boomLive.length; i++) {
+      n = boomLive[i];
+      if (!n.parentNode) continue;
+      r = n.getBoundingClientRect();
+      d = (r.top + r.height / 2) - mid;
+      if (!best || Math.abs(d) < Math.abs(bd)) { best = n; bd = d; }
+    }
+    if (!best) return boomHide();
+
+    /* Смена цели — выдержку начинаем заново. */
+    if (best !== boomTarget) {
+      if (boomShown && boomShown !== best) boomDrop(boomShown, 'opacity');
+      boomTarget = best;
+      boomSince = 0;
+      /* Пока не увидим цель ВНЕ допуска, стыковка не взводится: иначе
+         пост, оказавшийся у середины сам по себе (соседа развернули,
+         страницу восстановили после перезагрузки), раскрывался бы без
+         участия человека. */
+      best.__lmArmed = !CFG.discoArm;
+    }
+
+    var away = Math.abs(bd);
+    var near = Math.pow(Math.max(0, 1 - away / CFG.discoZone), CFG.discoCurve);
+    var arrow = boomArrow();
+    boomPut(best, 'opacity', near);
+    boomPut(arrow, 'opacity', near);
+    /* Стрелку ставим по горизонтали ровно на гнездо: гнездо стоит у
+       левого края поста, а поля страницы бывают разные. */
+    r = best.getBoundingClientRect();
+    boomPut(arrow, 'left', Math.round(r.left) + 'px');
+    boomShown = best;
+
+    if (away > CFG.discoDock) {
+      best.__lmArmed = true;
+      boomSince = 0;
+    } else if (best.__lmArmed) {
+      if (!boomSince) boomSince = Date.now();
+      else if (Date.now() - boomSince >= CFG.discoHold) return boomDock(best);
+    }
+
+    boomSeen = {
+      dist: Math.round(bd),
+      near: Math.round(near * 100),
+      held: boomSince ? Date.now() - boomSince : 0
+    };
+    boomFrame = requestAnimationFrame(boomTick);
+  }
+
+  function boomDock(nest) {
+    var post = nest.parentNode;
+    while (post && !(post.classList && post.classList.contains('post')))
+      post = post.parentNode;
+    if (!post) return boomHide();
+
+    boomBusy = true;
+    boomSince = 0;
+    var arrow = boomArrow();
+    /* Прозрачность на время оборота — полная у обоих: они уже сошлись,
+       и мигание от расстояния только мешало бы смотреть. */
+    boomPut(nest, 'opacity', '1');
+    boomPut(arrow, 'opacity', '1');
+    nest.classList.add('lm-dock');
+    arrow.classList.add('lm-dock');
+
+    setTimeout(function () {
+      arrow.classList.remove('lm-dock');
+      nest.classList.remove('lm-dock');
+      boomBusy = false;
+      /* Разворот идёт вниз: верх поста стоит на месте, всё остальное
+         уезжает за нижнюю кромку. Подкручивать ничего не надо. */
+      guard('discoOpenPost', discoOpenPost)(post);
+      boomHide();
+      guard('boomSync', boomSync)();
+    }, CFG.discoSpin);
+  }
+
+  /* Класс на <html> — единственный признак включённого режима для CSS.
+     Ставится только на ленте: на прочих страницах кнопок нет, и метка
+     там означала бы включённое, но неработающее.
+     lm-boom без lm-disco не бывает: сокращать нечего, и стыковать не с
+     чем. Кнопка при этом остаётся нажатой — состояние помнится, и как
+     только включат DISCO, микрогеймификация окажется на месте. */
+  function discoSync() {
+    if (!CFG.disco) return;
+    var on = discoWanted() && !!discoFeed();
+    document.documentElement.classList.toggle('lm-disco', on);
+    document.documentElement.classList.toggle('lm-boom', on && boomWanted());
+  }
+
+  function boomWanted() {
+    try { return localStorage.getItem(BOOM_KEY) === '1'; } catch (e) { return false; }
+  }
+
+  function boomRemember(on) {
+    try { localStorage.setItem(BOOM_KEY, on ? '1' : '0'); } catch (e) {}
+  }
+
+  /* Пара кнопок. Подписи постоянные, состояние — подложкой; при обеих
+     нажатых пара сливается в одну область (класс на обёртке). */
+  function discoButtons() {
+    var pad = document.createElement('div');
+    pad.className = 'lm-disco_pad';
+
+    var disco = document.createElement('button');
+    disco.type = 'button';
+    disco.className = 'lm-disco_btn lm-disco_btn__disco';
+    disco.textContent = 'disco';
+
+    var boom = document.createElement('button');
+    boom.type = 'button';
+    boom.className = 'lm-disco_btn lm-disco_btn__boom';
+    boom.textContent = 'bombulator';
+
+    function show() {
+      var d = discoWanted(), b = boomWanted();
+      disco.classList.toggle('lm-on', d);
+      /* Нажатым бумбулятор показываем только вместе с DISCO: без него он
+         ничего не делает, и нажатая кнопка врала бы о происходящем.
+         В памяти состояние при этом остаётся. */
+      boom.classList.toggle('lm-on', d && b);
+      boom.disabled = !d;
+      disco.setAttribute('aria-pressed', d ? 'true' : 'false');
+      boom.setAttribute('aria-pressed', (d && b) ? 'true' : 'false');
+      pad.classList.toggle('lm-both', d && b);
+    }
+
+    disco.addEventListener('click', function (e) {
+      e.preventDefault();
+      var on = !discoWanted();
+      discoRemember(on);
+      show();
+      guard('discoSync', discoSync)();
+      if (on) guard('discoScan', discoScan)();
+      else guard('discoRestore', discoRestore)();
+      guard('boomSync', boomSync)();
+    });
+
+    boom.addEventListener('click', function (e) {
+      e.preventDefault();
+      boomRemember(!boomWanted());
+      show();
+      guard('discoSync', discoSync)();
+      guard('boomSync', boomSync)();
+    });
+
+    show();
+    pad.appendChild(disco);
+    pad.appendChild(boom);
+    return pad;
+  }
+
+  /* ============================================================
      9. ДИАГНОСТИКА
      Три тапа по левому верхнему углу или #lmdebug в адресе.
      Выключается через CFG.debug.
@@ -7965,6 +9214,66 @@ html.lm-dark .lm-navthing_gert.lm-opaque img { filter: none !important; }
     }
   }
 
+  /* Дискобомбулятор. Показывает три вещи, которые иначе приходится
+     угадывать по скриншоту: какой бюджет получился на этом экране, кого
+     отбор счёл длинным, и что вышло у сокращённых постов по частям —
+     сколько занял текст, сколько осталось картинке, где встало гнездо. */
+  function reportDisco(L) {
+    L.push('', '--- дискобомбулятор ---');
+    if (!CFG.disco) { L.push('выключен настройкой'); return; }
+    L.push('режим: DISCO ' + (discoWanted() ? 'включён' : 'выключен') +
+           ', бумбулятор ' + (boomWanted() ? 'включён' : 'выключен') +
+           ' | лента: ' + (discoFeed() ? 'да' : 'нет') +
+           ' | метки: ' +
+           (document.documentElement.classList.contains('lm-disco') ? 'lm-disco ' : '') +
+           (document.documentElement.classList.contains('lm-boom') ? 'lm-boom' : '') );
+    if (!discoLog.length) L.push('(проход не отработал)');
+    else discoLog.forEach(function (s) { L.push(s); });
+
+    var cut = sliceOf(document.querySelectorAll('.lm-disco_post'));
+    var keep = sliceOf(document.querySelectorAll('.lm-disco_keep'));
+
+    if (boomOn()) {
+      L.push('бумбулятор: полоса ±' + CFG.discoZone +
+             ' | допуск ' + CFG.discoDock +
+             ' | выдержка ' + CFG.discoHold +
+             ' | оборот ' + CFG.discoSpin + 'мс на ' + (360 * CFG.discoTurns) +
+             '°');
+      L.push('  гнёзд в полосе: ' + boomLive.length +
+             ' | цель: ' + (boomTarget ? 'есть' : 'нет') +
+             ' | до середины: ' + boomSeen.dist +
+             ' | яркость: ' + boomSeen.near + '%' +
+             ' | держим: ' + boomSeen.held + 'мс' +
+             ' | цикл: ' + (boomFrame ? 'идёт' : 'спит'));
+    }
+    L.push('сокращено сейчас: ' + cut.length +
+           ' | ждут ухода с экрана: ' + discoPending +
+           ' | срез не окупился: ' + keep.length +
+           ' | нижний предел выгоды: ' + Math.round(discoVh * CFG.discoGain / 100));
+    cut.slice(0, 12).forEach(function (post) {
+      var dt = post.querySelector('.dt');
+      var dd = post.querySelector('.dd');
+      var lead = post.querySelector('.lm-dsc_lead');
+      var nest = post.querySelector('.lm-dsc_nest');
+      var fit = post.querySelector('.lm-dsc_fit');
+      L.push('  ' + post.id +
+             ' было=' + (post.__lmWas === undefined ? '?' : post.__lmWas) +
+             ' стало=' + Math.round(post.getBoundingClientRect().height) +
+             ' выгода=' + (post.__lmGain === undefined ? '?' : post.__lmGain) +
+             ' тело=' + (dt ? Math.round(dt.offsetHeight) : '-') +
+             '/' + (dt ? (dt.style.maxHeight || '-') : '-') +
+             ' потолок=' + post.__lmBudget + '/' + discoBodyMax(post) +
+             ' подпись=' + (dd ? Math.round(dd.offsetHeight) : '-') +
+             ' текст=' + (lead ? Math.round(lead.offsetHeight) +
+                                 (lead.style.maxHeight ? ' (обрезан)' : '') : 'нет') +
+             ' многоточие=' + (post.querySelector('.lm-dsc_dots') ? 'да' : 'нет') +
+             ' хвост=' + (post.querySelector('.lm-dsc_hide') ? 'спрятан'
+                          : post.querySelector('.lm-dsc_tail') ? 'в потоке' : 'нет') +
+             ' вписано=' + (fit ? fit.style.maxHeight : 'нет') +
+             ' гнездо=' + (nest ? nest.style.top : 'нет'));
+    });
+  }
+
   /* Профиль. Без таблицы стилей лепры под рукой ширины и отступы здесь
      приходится угадывать, а угадывание стабильно стоит трёх лишних кругов.
      Отчёт отвечает на три вопроса сразу: чем нарисована серая полоса, кто
@@ -8047,14 +9356,17 @@ html.lm-dark .lm-navthing_gert.lm-opaque img { filter: none !important; }
                ' | CSS-ширина: ' + document.documentElement.clientWidth,
              'ширина документа: ' + document.documentElement.scrollWidth,
              ''];
-    reportOverflow(L);
-    reportNetwork(L);
-    reportFloats(L);
-    reportOverlaps(L);
-    reportMedia(L);
+    var R = CFG.report || {};
+    if (R.overflow) reportOverflow(L);
+    if (R.network) reportNetwork(L);
+    if (R.floats) reportFloats(L);
+    if (R.overlaps) reportOverlaps(L);
+    if (R.media) reportMedia(L);
+    if (R.disco) reportDisco(L);
 
     /* Разметка подписи поста и шапки: чтобы не гадать, чем именно
        прячутся значки и что двигает приветствие. */
+    if (R.postFooter) {
     L.push('', '--- подпись поста ---');
     var ddi = document.querySelector('.dd .ddi');
     if (!ddi) L.push('(нет)');
@@ -8073,6 +9385,9 @@ html.lm-dark .lm-navthing_gert.lm-opaque img { filter: none !important; }
         });
     }
 
+    }
+
+    if (R.commentFooter) {
     L.push('', '--- подпись комментария ---');
     var cf = document.querySelector('#js-comments .comment .c_footer');
     if (!cf) L.push('(нет)');
@@ -8098,6 +9413,9 @@ html.lm-dark .lm-navthing_gert.lm-opaque img { filter: none !important; }
       });
     }
 
+    }
+
+    if (R.header) {
     L.push('', '--- шапка: приветствие ---');
     var tg = document.querySelector('.l-header_tagline');
     if (!tg) L.push('(нет)');
@@ -8121,6 +9439,9 @@ html.lm-dark .lm-navthing_gert.lm-opaque img { filter: none !important; }
        с переездом поиска в навигационную штуку он перестал что-либо
        находить и несколько версий печатал «(нет)». Ищем форму там,
        где она есть. */
+    }
+
+    if (R.search) {
     L.push('', '--- поиск ---');
     var sf = document.querySelector('.b-header_search form');
     if (!sf) L.push('(нет)');
@@ -8181,18 +9502,31 @@ html.lm-dark .lm-navthing_gert.lm-opaque img { filter: none !important; }
                ' h=' + Math.round(vv2.height) + ' scale=' + vv2.scale);
     }
 
-    L.push('', '--- профиль ---');
-    reportProfile(L);
+    }
 
-    L.push('', '--- панель фильтров ---');
-    reportFilters(L);
+    if (R.profile) {
+      L.push('', '--- профиль ---');
+      reportProfile(L);
+    }
 
-    L.push('', '--- слои поверх страницы ---');
-    reportOverlays(L);
+    if (R.filters) {
+      L.push('', '--- панель фильтров ---');
+      reportFilters(L);
+    }
+
+    if (R.layers) {
+      L.push('', '--- слои поверх страницы ---');
+      reportOverlays(L);
+    }
 
     L.push('', '--- журнал скрипта ---');
     if (!LOG.length) L.push('(пусто — ошибок не было)');
     else LOG.forEach(function (m) { L.push(m); });
+
+    /* Список погашенных — чтобы про них не забыть. Раздел, о котором
+       не помнишь, всё равно что удалённый. */
+    var off = Object.keys(R).filter(function (k) { return !R[k]; });
+    if (off.length) L.push('', 'выключены разделы (CFG.report): ' + off.join(', '));
 
     return L.join('\n');
   }
@@ -8420,6 +9754,14 @@ html.lm-dark .lm-navthing_gert.lm-opaque img { filter: none !important; }
     guard('registerMedia', registerMedia)();
     guard('fixMediaSizes', fixMediaSizes)();
     guard('fixOverflow', fixOverflow)();
+    /* Сокращение — последним: бюджет считается по высотам, а высоты
+       медиа выставляет проход выше. У поста с видео до этого высота
+       нулевая, и он не прошёл бы отбор по длине. */
+    guard('discoSync', discoSync)();
+    guard('discoWatchMedia', discoWatchMedia)();
+    guard('discoWatchScroll', discoWatchScroll)();
+    guard('discoWatchFeed', discoWatchFeed)();
+    guard('discoScan', discoScan)();
   }
 
   /* Лёгкий проход при прокрутке: только поиск по конкретным селекторам.
@@ -8445,6 +9787,9 @@ html.lm-dark .lm-navthing_gert.lm-opaque img { filter: none !important; }
     /* результаты поиска приходят ответом сервера, строку счёта лепра
        переписывает заново */
     guard('shortenSearchStats', shortenSearchStats)();
+    /* лента догружается «Ещё? Ещё!», а у постов с видео высота
+       появляется только после подгрузки заголовка ролика */
+    guard('discoScan', discoScan)();
   }
 
   function start() {
