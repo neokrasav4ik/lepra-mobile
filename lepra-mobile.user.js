@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Lepra Mobile
 // @namespace    lepra.mobile
-// @version      0.9.142
+// @version      0.9.157
 // @description  Мобильная адаптация leprosorium.ru для iOS Safari
 // @author       neokrasav4ik
 // @homepageURL  https://github.com/neokrasav4ik/lepra-mobile
@@ -40,11 +40,32 @@
   'use strict';
 
   /* Внутри скрытого окна, которым грузится лента уведомлений (см. раздел
-     4.2), скрипт не нужен: там ничего не показывают человеку, а второй
-     проход по всей странице — это лишняя работа и лишние наблюдатели. */
-  if (window.name === 'lm-pyn-frame') return;
+     4.2), перестраивать страницу не надо: человеку её не показывают, а
+     второй проход по всему документу — лишняя работа и лишние наблюдатели.
 
-  var VERSION = '0.9.142';
+     Но одно полезное дело там есть. Ленту в этом окне собирает скрипт
+     лепры — своими запросами к своему API. Из главного окна их не видно:
+     у окна собственное окружение и собственный fetch, и наш перехват
+     туда не достаёт. Поэтому здесь ставится маленький самостоятельный
+     писец: он ничего не меняет, только записывает метод, адрес и
+     заголовки и складывает строки в массив главного окна — источник тот
+     же, доступ прямой. Это и есть ответ на вопрос, чем звать API,
+     ради которого иначе пришлось бы вручную снимать отчёт на странице
+     уведомлений. */
+  if (window.name === 'lm-pyn-frame') {
+    /* Отметка ставится ДО писца и до всяких проверок: она отвечает на
+       отдельный вопрос — запускается ли скрипт внутри окна вообще.
+       Менеджеры юзерскриптов нередко внедряют только в верхний фрейм,
+       и тогда пустой список вызовов означает не «лепра ничего не
+       запрашивала», а «записывать было некому». */
+    try {
+      window.parent.lmPynRan = (window.parent.lmPynRan || 0) + 1;
+    } catch (e) {}
+    try { recordInFrame(); } catch (e) {}
+    return;
+  }
+
+  var VERSION = '0.9.157';
 
   /* ============================================================
      НАСТРОЙКИ
@@ -405,6 +426,38 @@
     pynHeight: 78,
     pynFresh: 60,
     pynWait: 12,
+
+    /* НАСТРОЙКА: слежение за пынями. Пока вкладка открыта и на переднем
+       плане, скрипт спрашивает у лепры число непрочитанных и показывает
+       плашку внизу, когда оно выросло. Спрашивается только счётчик:
+       он ничего не отмечает прочитанным, в отличие от самой ленты, и
+       весит несколько десятков байт.
+       Работает только в открытой вкладке — фоновую вкладку телефон
+       усыпляет, и уведомлений на экран блокировки отсюда не будет.
+       pynWatch: false выключает слежение целиком.
+       pynEvery — как часто спрашивать, секунд.
+       pynToast — сколько секунд плашка висит, если её не трогать. */
+    pynWatch: true,
+    pynEvery: 60,
+    pynToast: 9,
+    /* На сколько пикселей поднять плашку над низом экрана: внизу у Safari
+       своя панель, и плашка вплотную к краю попадает под неё. */
+    pynToastUp: 34,
+    /* Предельная ширина плашки. Во всю ширину экрана она выглядит полосой
+       поперёк страницы, а не всплывшим сообщением. */
+    pynToastWide: 344,
+    /* Писать в плашке, кто и в каком посте ответил. Для этого нужен ещё
+       один запрос — за одним последним уведомлением, около четырёх с
+       половиной килобайт. Скрипт один раз проверит, не гасит ли этот
+       запрос счётчик, и если гасит — сам перейдёт на короткий текст. */
+    pynText: true,
+    /* Отмечать прочитанным то, что показано: уведомления в открытом окне
+       пыни и на странице «все уведомления». Лепра сама этого не делает —
+       у неё для этого отдельная кнопка, — но показанное сообщение по сути
+       уже прочитано. Отмечаются только видимые, поимённо: в окне их
+       двадцать последних, а непрочитанных бывает больше, и гасить то,
+       чего человек не видел, мы не вправе. */
+    pynAutoRead: true,
     pynShade: 60,
 
     /* НАСТРОЙКА: красить панели Safari — адресную строку сверху и полосу
@@ -445,7 +498,7 @@
        отчёт открывают. */
     report: {
       overflow: true,        /* вылезает за экран */
-      network: false,        /* сетевые запросы и перехваченные заголовки */
+      network: true,         /* сетевые запросы и перехваченные заголовки */
       floats: false,         /* плавающие колонки */
       overlaps: false,       /* наложения */
       media: true,           /* видео и плееры */
@@ -537,9 +590,36 @@
 
   var NET = [];
 
-  function netLog(line) {
+  /* Шаблоны из /static/views/ и счётчики Яндекса лепра дёргает десятками,
+     и они уже видны в хронологии ресурсов. Тут нужна суть — обращения к
+     её API: чем именно она их зовёт и что при этом гасит счётчик. */
+  function netSkip(url) {
+    var u = String(url || '');
+    return u.indexOf('/static/') >= 0 ||
+           u.indexOf('mc.yandex') >= 0 ||
+           u.indexOf('google') >= 0;
+  }
+
+  var NET_SEEN = 0;      /* сколько запросов прошло через хук вообще */
+  var NET_NOISE = 0;     /* сколько из них отсеяно как шум */
+
+  function netLog(url, line) {
+    NET_SEEN++;
+    if (netSkip(url)) { NET_NOISE++; return; }
     if (NET.length > 60) return;
     NET.push(line);
+  }
+
+  /* Тело запроса нужно целиком: если счётчик гасит POST, важно не только
+     то, куда он идёт, но и что в нём. */
+  function netBody(b) {
+    try {
+      if (!b) return '';
+      if (typeof b === 'string') return b.slice(0, 200);
+      if (typeof URLSearchParams !== 'undefined' && b instanceof URLSearchParams)
+        return b.toString().slice(0, 200);
+      return '[' + (b.constructor && b.constructor.name || 'тело') + ']';
+    } catch (e) { return ''; }
   }
 
   function headerList(h) {
@@ -573,12 +653,17 @@
           if (this.lmH) this.lmH.push(k + ': ' + v);
           return setH.apply(this, arguments);
         };
-        X.prototype.send = function () {
+        X.prototype.send = function (data) {
           var self = this;
+          var body = netBody(data);
+          catchCsrf(self.lmU, body);
           self.addEventListener('load', function () {
-            netLog('XHR ' + self.lmM + ' ' + String(self.lmU).slice(0, 100) +
+            netLog(self.lmU,
+                   'XHR ' + self.lmM + ' ' + String(self.lmU).slice(0, 110) +
                    '  → ' + self.status +
-                   (self.lmH && self.lmH.length ? '\n     ' + self.lmH.join('\n     ') : ''));
+                   ' ' + Math.round((self.responseText || '').length / 1024) + 'КБ' +
+                   (self.lmH && self.lmH.length ? '\n     ' + self.lmH.join('\n     ') : '') +
+                   (body ? '\n     тело: ' + body : ''));
           });
           return send.apply(this, arguments);
         };
@@ -594,9 +679,14 @@
                   (typeof input !== 'string' && input && input.method) || 'GET';
           var h = headerList((init && init.headers) ||
                              (typeof input !== 'string' && input && input.headers));
+          var body = netBody((init && init.body) ||
+                             (typeof input !== 'string' && input && input.body));
+          catchCsrf(u, body);
           return f.apply(this, arguments).then(function (r) {
-            netLog('fetch ' + m + ' ' + String(u).slice(0, 100) + '  → ' + r.status +
-                   (h.length ? '\n     ' + h.join('\n     ') : ''));
+            netLog(u,
+                   'fetch ' + m + ' ' + String(u).slice(0, 110) + '  → ' + r.status +
+                   (h.length ? '\n     ' + h.join('\n     ') : '') +
+                   (body ? '\n     тело: ' + body : ''));
             return r;
           });
         };
@@ -607,6 +697,88 @@
   }
 
   watchNet();
+
+  /* Писец для скрытого окна пыни — см. блок в самом начале. Отдельно от
+     watchNet потому, что тот завязан на CFG и общий журнал, а здесь нужно
+     нечто самостоятельное и заведомо безобидное: окно грузится ради ленты,
+     и ломать его диагностикой нельзя. */
+  function recordInFrame() {
+    var box;
+    try {
+      box = window.parent.lmPynNet || (window.parent.lmPynNet = []);
+    } catch (e) { return; }     /* другое окружение — записывать некуда */
+
+    var put = function (line) { if (box.length < 40) box.push(line); };
+
+    /* Заодно вытаскиваем csrf-токен. В скрытом окне работает скрипт
+       лепры, и он шлёт mark_seen со своим токеном — а в главном окне
+       взять его негде: в разметке его нет, а её скрипт туда не ходит. */
+    var grabCsrf = function (body) {
+      try {
+        if (window.parent.lmCsrf || !body) return;
+        var j = JSON.parse(body);
+        if (j && typeof j.csrf_token === 'string' && j.csrf_token)
+          window.parent.lmCsrf = j.csrf_token;
+      } catch (e) {}
+    };
+
+    try {
+      var X = window.XMLHttpRequest;
+      if (X && X.prototype && !X.prototype.lmHooked) {
+        X.prototype.lmHooked = true;
+        var open = X.prototype.open,
+            send = X.prototype.send,
+            setH = X.prototype.setRequestHeader;
+
+        X.prototype.open = function (m, u) {
+          this.lmM = m; this.lmU = u; this.lmH = [];
+          return open.apply(this, arguments);
+        };
+        X.prototype.setRequestHeader = function (k, v) {
+          if (this.lmH) this.lmH.push(k + ': ' + v);
+          return setH.apply(this, arguments);
+        };
+        X.prototype.send = function (data) {
+          var self = this, body = netBody(data);
+          grabCsrf(body);
+          self.addEventListener('load', function () {
+            if (netSkip(self.lmU)) return;
+            put('XHR ' + self.lmM + ' ' + String(self.lmU).slice(0, 110) +
+                '  → ' + self.status +
+                ' ' + Math.round((self.responseText || '').length / 1024) + 'КБ' +
+                (self.lmH && self.lmH.length ? '\n     ' + self.lmH.join('\n     ') : '') +
+                (body ? '\n     тело: ' + body : ''));
+          });
+          return send.apply(this, arguments);
+        };
+      }
+    } catch (e) {}
+
+    try {
+      var f = window.fetch;
+      if (f && !f.lmHooked) {
+        var wrapped = function (input, init) {
+          var u = (typeof input === 'string') ? input : (input && input.url);
+          var m = (init && init.method) ||
+                  (typeof input !== 'string' && input && input.method) || 'GET';
+          var h = headerList((init && init.headers) ||
+                             (typeof input !== 'string' && input && input.headers));
+          var body = netBody((init && init.body) ||
+                             (typeof input !== 'string' && input && input.body));
+          grabCsrf(body);
+          return f.apply(this, arguments).then(function (r) {
+            if (!netSkip(u))
+              put('fetch ' + m + ' ' + String(u).slice(0, 110) + '  → ' + r.status +
+                  (h.length ? '\n     ' + h.join('\n     ') : '') +
+                  (body ? '\n     тело: ' + body : ''));
+            return r;
+          });
+        };
+        wrapped.lmHooked = true;
+        window.fetch = wrapped;
+      }
+    } catch (e) {}
+  }
 
   /* Метки «уже обработано» держим в WeakSet, а не в data-атрибутах:
      атрибут на каждом из десятков тысяч элементов — это лишняя память
@@ -3249,20 +3421,71 @@ html.lm-pyn_on .b-notification-feed_layout_popup { display: none !important; }
 .lm-pyn_note {
   padding: 20px 12px !important; text-align: center !important;
   color: #777 !important; font: 13px/1.4 Arial, sans-serif !important; }
-.lm-pyn_foot {
+.lm-pyn_bar {
   flex: 0 0 auto !important; display: flex !important;
   align-items: center !important; justify-content: space-between !important;
-  height: 42px !important; padding: 0 20px !important;
+  gap: 10px !important;
+  height: 42px !important; padding: 0 14px !important;
   box-sizing: border-box !important;
   background: #e0e0e2 !important; }
+/* Верхняя отделена снизу, нижняя сверху — иначе на белой ленте панель
+   и первое уведомление сливаются в одну полосу. */
+.lm-pyn_bar__head { border-bottom: 1px solid #d7d7d7 !important; }
+.lm-pyn_bar__foot { border-top: 1px solid #d7d7d7 !important; }
 /* Кнопка закрытия — на месте лепровского «Отметить всё как прочитанное»
    (та без её скрипта не работает, а закрывать окно на телефоне чем-то
    надо: строки заголовка у лепры нет). */
-.lm-pyn_foot a, .lm-pyn_close {
+.lm-pyn_bar a, .lm-pyn_close {
+  flex: 0 0 auto !important;
   font: 12px/42px Arial, sans-serif !important; color: #252525 !important;
-  text-decoration: none !important;
-  background: none !important; border: 0 !important; padding: 0 !important; }
+  text-decoration: none !important; white-space: nowrap !important;
+  background: none !important; border: 0 !important; padding: 0 !important;
+  cursor: pointer !important;
+  -webkit-tap-highlight-color: rgba(85, 110, 140, .2) !important; }
 #lm-pyn .b-notification-item { font-size: 13px !important; }
+
+/* Плашка о новых пынях. Внизу, а не вверху: сверху шапка и навигационная
+   штука, а внизу палец ближе. Оформление — как у окна пыни, чтобы это
+   читалось одним семейством, а не двумя разными затеями. */
+#lm-pyntoast {
+  position: fixed !important;
+  left: 6px !important; right: 6px !important;
+  bottom: calc(${CFG.pynToastUp}px + env(safe-area-inset-bottom, 0px)) !important;
+  /* Не во всю ширину: строка в 393 пикселя выглядит полосой поперёк
+     экрана, а не всплывшим сообщением. Поля слева и справа оставлены,
+     чтобы на узком экране плашка всё же не упиралась в края. */
+  max-width: ${CFG.pynToastWide}px !important;
+  margin: 0 auto !important;
+  z-index: 2147482000 !important;
+  box-sizing: border-box !important;
+  /* Цвет — тот же, что у подвала окна пыни, чтобы всё это читалось
+     одним семейством: rgb(224,224,226) с рамкой rgb(215,215,215). */
+  background: #e0e0e2 !important;
+  border: 1px solid #d7d7d7 !important;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, .25) !important; }
+/* Текст переносится, но не больше трёх строк: дальше плашка начинает
+   спорить с окном, ради которого её и жмут. */
+.lm-pyntoast_text {
+  display: -webkit-box !important;
+  -webkit-line-clamp: 3 !important;
+  -webkit-box-orient: vertical !important;
+  overflow: hidden !important;
+  width: 100% !important; box-sizing: border-box !important;
+  background: none !important; border: 0 !important;
+  margin: 0 !important; padding: 9px 32px 9px 12px !important;
+  text-align: left !important;
+  font: 13px/17px Arial, sans-serif !important;
+  color: rgb(37, 37, 37) !important;
+  cursor: pointer !important;
+  -webkit-tap-highlight-color: rgba(85, 110, 140, .2) !important; }
+/* Крестик уведён в угол: будь он рядом в строке, текст пришлось бы
+   держать в одну строку — а он теперь в три. */
+.lm-pyntoast_close {
+  position: absolute !important; top: 0 !important; right: 0 !important;
+  background: none !important; border: 0 !important;
+  color: #8a8a8a !important;
+  font: 15px/1 Arial, sans-serif !important;
+  padding: 8px 10px !important; }
 #lm-pyn .b-notification-item_footer { padding-bottom: 0 !important; }
 
 /* Ссылки внутри ленты лепра красит правилом .b-notification-feed a —
@@ -3305,10 +3528,15 @@ html.lm-pyn_on .b-notification-feed_layout_popup { display: none !important; }
    годится: цитата внутри такого пункта слилась бы с ним. Берём чуть
    темнее и нейтральнее — заметно и на белом прочитанном, и на тёплом
    непрочитанном. Поля по кругу, иначе заливка липнет к тексту. */
+/* Серых здесь два, и они не должны спорить. Непрочитанное уведомление
+   лепра красит в rgb(244,244,242) — тёплый и очень бледный. Цитата
+   заметно темнее и чуть холоднее: восемнадцать ступеней разницы плюс
+   другой оттенок, чтобы на непрочитанном пункте она читалась отдельным
+   блоком, а не пятном той же природы. */
 .b-notification-item_parent_comment .comment {
   margin: 6px 0 2px !important; padding: 6px 10px !important;
-  background: rgb(237, 237, 237) !important;
-  border-left: 2px solid #c9c9c9 !important; }
+  background: rgb(226, 226, 230) !important;
+  border-left: 2px solid #b9b9c0 !important; }
 .b-notification-item_parent_comment .c_body {
   font-family: verdana, sans-serif !important;
   font-size: ${CFG.pynQuoteFont}px !important;
@@ -6886,6 +7114,7 @@ html.lm-dark .lm-navthing_gert.lm-opaque img { filter: none !important; }
   var pynAt = 0;            /* когда он загружен */
   var pynBusy = false;
   var pynFrame = null;
+  var pynFrames = 0;        /* сколько раз создавалось скрытое окно */
 
   function onEventsPage() {
     return /^\/my\/events(\/|$)/.test(location.pathname);
@@ -7018,6 +7247,7 @@ html.lm-dark .lm-navthing_gert.lm-opaque img { filter: none !important; }
     };
 
     var fr = document.createElement('iframe');
+    pynFrames++;
     pynFrame = fr;
     fr.setAttribute('name', PYN_FRAME);
     fr.setAttribute('aria-hidden', 'true');
@@ -7087,12 +7317,85 @@ html.lm-dark .lm-navthing_gert.lm-opaque img { filter: none !important; }
       return true;
     }
     body.appendChild(main);
+    guard('autoRead', autoRead)(main);
     return true;
+  }
+
+  /* Показанное считаем прочитанным. Класс снимаем сразу, не дожидаясь
+     ответа сервера: иначе подсветка непрочитанного гасла бы через
+     секунду после открытия и мигала бы на глазах. */
+  /* Пока подсветку снимали, повторов быть не могло: второй проход просто
+     не находил непрочитанных. Теперь класс остаётся на месте — а полный
+     проход отрабатывает пять раз за загрузку, и на странице уведомлений
+     одно и то же уведомление отмечалось трижды подряд. Держим список
+     уже отправленных. */
+  var markedIds = {};
+
+  function autoRead(root) {
+    if (!CFG.pynAutoRead) return;
+    var ids = unreadIds(root).filter(function (id) { return !markedIds[id]; });
+    if (!ids.length) return;
+    ids.forEach(function (id) { markedIds[id] = true; });
+    if (!csrfToken()) return note('нечем отметить прочитанным: нет токена');
+    /* Подсветку непрочитанного не снимаем: ради неё окно и открывают —
+       видно, что именно пришло нового. Гасить её незачем и не нужно:
+       на сервере уведомления теперь прочитаны, и в следующий раз лента
+       придёт уже без этого класса. */
+    markRead(ids, function (okCount) {
+      if (okCount < ids.length) {
+        note('отмечено прочитанным ' + okCount + ' из ' + ids.length);
+        /* Не вышло — забываем, чтобы следующий проход попробовал снова. */
+        ids.forEach(function (id) { delete markedIds[id]; });
+      }
+      headerMuted = true;
+      setHeaderCount(0);
+      pynCount(function (res) { if (res) setSeen(res.total); });
+    });
+  }
+
+  /* Обе панели одинаковые, поэтому собираются одной функцией: разойдись
+     они хоть надписью, хоть порядком кнопок — это читалось бы как две
+     разные панели, а не одна и та же сверху и снизу. */
+  function pynBar(kind) {
+    var bar = document.createElement('div');
+    bar.className = 'lm-pyn_bar lm-pyn_bar__' + kind;
+
+    var close = document.createElement('button');
+    close.type = 'button';
+    close.className = 'lm-pyn_close';
+    close.textContent = 'Закрыть';
+    close.addEventListener('click', pynClose);
+    bar.appendChild(close);
+
+    /* Кнопки «Всё прочитано» здесь нет намеренно: показанное окно и так
+       отмечает свои уведомления прочитанными, поимённо. Кнопка была бы
+       либо тем же самым второй раз, либо отметкой того, чего человек не
+       видел, — а это уже не его решение, а наше. */
+
+    var all = document.createElement('a');
+    all.setAttribute('href', pynHref());
+    all.textContent = 'Все уведомления';
+    bar.appendChild(all);
+
+    return bar;
   }
 
   function pynOpen() {
     if (document.getElementById('lm-pyn')) { pynClose(); return; }
     if (!document.body) return;
+
+    /* Открыл окно — значит увидел всё, что в нём есть. Без этого плашка
+       сообщила бы о тех же пынях ещё раз при следующем опросе. */
+    /* Лепра, показав свою ленту, опустошает счётчик, хотя прочитанными
+       уведомления не отмечает: перезагрузка возвращает цифру. Делаем то
+       же — иначе после нашего окна цифра висела бы, а после лепровской
+       страницы нет, и было бы непонятно, кто из них врёт. Отметить
+       по-настоящему можно кнопкой в подвале окна (см. ниже). */
+    headerMuted = true;
+    guard('pynSeenNow', function () {
+      setHeaderCount(0);
+      pynCount(function (res) { if (res) setSeen(res.total); });
+    })();
 
     var wrap = document.createElement('div');
     wrap.id = 'lm-pyn';
@@ -7130,24 +7433,13 @@ html.lm-dark .lm-navthing_gert.lm-opaque img { filter: none !important; }
     note.textContent = 'Загружаю…';
     body.appendChild(note);
 
-    /* Строки заголовка у лепровского окна уведомлений нет вовсе, поэтому
-       и у нас её нет: закрытие ушло в подвал, слева, на место её
-       «Отметить всё как прочитанное». */
-    var foot = document.createElement('div');
-    foot.className = 'lm-pyn_foot';
-    var close = document.createElement('button');
-    close.type = 'button';
-    close.className = 'lm-pyn_close';
-    close.textContent = 'Закрыть';
-    close.addEventListener('click', pynClose);
-    var all = document.createElement('a');
-    all.setAttribute('href', pynHref());
-    all.textContent = 'Все уведомления';
-    foot.appendChild(close);
-    foot.appendChild(all);
-
+    /* Панель управления и сверху, и снизу. Причина не в красоте: при
+       несжатом виде Safari нижняя панель окна нередко оказывается за
+       краем и не сразу доступна, а ужимать окно по высоте — значит
+       оставить на ленту совсем мало места. Верхняя всегда под рукой. */
+    box.appendChild(pynBar('head'));
     box.appendChild(body);
-    box.appendChild(foot);
+    box.appendChild(pynBar('foot'));
     wrap.appendChild(shade);
     wrap.appendChild(box);
     document.body.appendChild(wrap);
@@ -7198,6 +7490,7 @@ html.lm-dark .lm-navthing_gert.lm-opaque img { filter: none !important; }
        пунктов ещё нет. Повторный вызов безвреден — addNoteIcon выходит,
        если значок уже стоит. */
     addNoteIcons(feed);
+    guard('autoRead', autoRead)(feed);
   }
 
 
@@ -7389,6 +7682,447 @@ html.lm-dark .lm-navthing_gert.lm-opaque img { filter: none !important; }
     var old = sliceOf(f.childNodes);
     f.appendChild(np);
     for (var k = 0; k < old.length; k++) f.removeChild(old[k]);
+  }
+
+  /* ============================================================
+     4.3. СЛЕЖЕНИЕ ЗА ПЫНЯМИ
+     ============================================================ */
+
+  /* Счётчик в шапке лепра ставит один раз при загрузке и больше не
+     трогает — то есть узнать о новом пыне, не перезагружая страницу,
+     нельзя. Здесь скрипт спрашивает сам.
+
+     Спрашивается ровно один адрес — счётчик непрочитанных по типам. Это
+     важно не только из-за веса (десятки байт против ста тридцати семи
+     килобайт у ленты): у каждого уведомления в ленте есть свой адрес
+     mark_read, и лепра, показывая ленту, их отмечает. Опрашивай мы
+     ленту — слежение молча гасило бы то, о чём собиралось сообщить.
+
+     Заголовки авторизации — те же, что шлёт сама лепра: пара
+     X-Futuware-UID и X-Futuware-SID лежит в обычных куках. Без них
+     весь /api/ отвечает 404. */
+
+  var API_BASE = '/api/my/notifications/';
+  var PYN_SEEN = 'lm-pyn-seen';   /* сколько непрочитанных человек уже видел */
+
+  var apiAuthCache = null;
+
+  function apiAuth() {
+    if (apiAuthCache) return apiAuthCache;
+    var f = findAuth(authSources());
+    if (!f.uid || !f.sid) return null;
+    apiAuthCache = {
+      'X-Futuware-UID': f.uid.value,
+      'X-Futuware-SID': f.sid.value,
+      'X-Requested-With': 'XMLHttpRequest',
+      'Accept': 'application/json, text/javascript, */*; q=0.01'
+    };
+    return apiAuthCache;
+  }
+
+  /* Отметка о прочтении. Из перехвата на странице уведомлений:
+       POST /api/my/notifications/mark_read/          — всё разом
+       POST /api/my/notifications/<id>/mark_read/     — по одному (из _links)
+       POST /api/my/notifications/mark_seen           — «увидено», гасит
+                                                        только цифру
+     У всех троих тело — {"csrf_token": "…"}, и это единственное, чего
+     в отчёте не было видно откуда. Токен оказался base64 от шестидесяти
+     четырёх шестнадцатеричных знаков, так что искать его можно по виду:
+     либо готовая строка base64, либо сам hex, который надо закодировать.
+     Перебирать имена бессмысленно — лепра могла назвать как угодно. */
+  var HEX64 = /^[0-9a-f]{64}$/i;
+  var B64_64 = /^[A-Za-z0-9+/]{86}==$/;
+
+  function findCsrf() {
+    var all = authSources();
+    for (var i = 0; i < all.length; i++) {
+      var v = String(all[i].value || '');
+      if (B64_64.test(v)) {
+        try {
+          if (HEX64.test(atob(v)))
+            return { where: all[i].where, name: all[i].name, token: v };
+        } catch (e) {}
+      }
+      if (HEX64.test(v)) {
+        try {
+          return { where: all[i].where, name: all[i].name, token: btoa(v) };
+        } catch (e) {}
+      }
+    }
+    /* Запасные пути, по убыванию свежести: подсмотренный в этой вкладке,
+       подсмотренный в скрытом окне пыни (там лепра шлёт mark_seen со
+       своим токеном) и сохранённый с прошлого раза. */
+    var seen = csrfSeen;
+    if (!seen) { try { seen = window.lmCsrf || null; } catch (e) {} }
+    if (!seen) {
+      try { seen = localStorage.getItem(CSRF_KEY) || null; } catch (e) {}
+      if (seen) return { where: 'память', name: 'с прошлого раза',
+                         token: seen };
+    }
+    return seen ? { where: 'перехват', name: 'запрос лепры', token: seen }
+                : null;
+  }
+
+  var CSRF_KEY = 'lm-pyn-csrf';
+  var csrfSeen = null;
+
+  /* Вызывается из перехвата: тело POST-запроса лепры к её API. */
+  function catchCsrf(url, body) {
+    if (csrfSeen || !body || String(url || '').indexOf('/api/') < 0) return;
+    try {
+      var j = JSON.parse(body);
+      if (j && typeof j.csrf_token === 'string' && j.csrf_token) {
+        csrfSeen = j.csrf_token;
+        csrfCache = null;      /* пересобрать при следующем обращении */
+        /* Кладём рядом с прочим своим: без этого кнопка отметки была бы
+           доступна только на той странице, где лепра успела что-то
+           отправить, а на остальных отсутствовала бы без объяснений. */
+        try { localStorage.setItem(CSRF_KEY, csrfSeen); } catch (e) {}
+      }
+    } catch (e) {}
+  }
+
+  var csrfCache = null;
+
+  function csrfToken() {
+    if (!csrfCache) csrfCache = findCsrf();
+    return csrfCache ? csrfCache.token : null;
+  }
+
+  /* Один POST к API лепры с её же телом. */
+  function apiPost(path, cb) {
+    var h = apiAuth(), tok = csrfToken();
+    if (!h || !tok) return cb && cb(false);
+    var headers = {};
+    Object.keys(h).forEach(function (k) { headers[k] = h[k]; });
+    headers['Content-Type'] = 'application/json';
+    try {
+      fetch(location.protocol + '//' + location.host + path,
+            { method: 'POST', credentials: 'same-origin', headers: headers,
+              body: JSON.stringify({ csrf_token: tok }) })
+        .then(function (r) {
+          /* Токен мог протухнуть вместе с сессией — пусть следующий заход
+             ищет заново. */
+          if (!r.ok) {
+            csrfCache = null;
+            csrfSeen = null;
+            try { localStorage.removeItem(CSRF_KEY); } catch (e) {}
+          }
+          cb && cb(r.ok);
+        })
+        .catch(function () { cb && cb(false); });
+    } catch (e) { cb && cb(false); }
+  }
+
+  /* Отмечаем поимённо, а не «всё разом»: в окне видно двадцать последних,
+     а непрочитанных может быть больше. Гасить то, чего человек не видел,
+     мы не вправе — для этого есть отдельная кнопка. */
+  function markRead(ids, cb) {
+    var left = ids.length;
+    if (!left) return cb && cb(0);
+    var okCount = 0;
+    ids.forEach(function (id) {
+      apiPost(API_BASE + id + '/mark_read/', function (ok) {
+        if (ok) okCount++;
+        if (--left === 0) cb && cb(okCount);
+      });
+    });
+  }
+
+  /* Идентификаторы непрочитанных уведомлений внутри узла. Лепра держит
+     их в data-notification, а непрочитанность — классом. */
+  function unreadIds(root) {
+    return sliceOf(root.querySelectorAll(
+             '.b-notification-item__unread[data-notification]'))
+           .map(function (el) { return el.getAttribute('data-notification'); })
+           .filter(Boolean);
+  }
+
+  function pynCount(cb) {
+    var h = apiAuth();
+    if (!h) return cb(null);
+    try {
+      fetch(location.protocol + '//' + location.host +
+            API_BASE + 'unread/count_by_type/',
+            { credentials: 'same-origin', headers: h })
+        .then(function (r) {
+          if (!r.ok) throw new Error('HTTP ' + r.status);
+          return r.json();
+        })
+        .then(function (j) {
+          var by = (j && j.count) || {};
+          var total = 0;
+          Object.keys(by).forEach(function (k) { total += (+by[k] || 0); });
+          cb({ total: total, by: by });
+        })
+        .catch(function () {
+          /* Чаще всего это протухшая сессия: человек перелогинился, и в
+             куках теперь другой ключ. Сбрасываем разбор, следующий заход
+             прочитает куки заново. */
+          apiAuthCache = null;
+          cb(null);
+        });
+    } catch (e) { cb(null); }
+  }
+
+  /* Счётчик у колокольчика лепра ставит один раз при загрузке и больше
+     не трогает. Раз мы всё равно спрашиваем число, обновляем и его —
+     иначе выходит нелепость: плашка про новые пыни есть, а рядом в шапке
+     старая цифра. Пустая строка вместо нуля: у лепры счётчик пуст, когда
+     непрочитанных нет, и рисовать «0» значит выдумывать свой вид. */
+  var headerMuted = false;   /* окно пыни открывали — цифру прячем */
+
+  function setHeaderCount(n) {
+    /* На самой странице уведомлений счётчиком распоряжается лепра: после
+       отрисовки ленты она его опустошает, хотя на сервере уведомления
+       остаются непрочитанными (перезагрузка это показывает). Спорить с
+       ней там незачем — цифра прыгала бы туда-сюда каждый опрос. */
+    if (onEventsPage()) return;
+    var want = (headerMuted || n <= 0) ? '' : String(n);
+    sliceOf(document.querySelectorAll('.js-events-counter'))
+      .forEach(function (el) {
+        if (el.textContent !== want) el.textContent = want;
+      });
+  }
+
+  function seenCount() {
+    try {
+      var v = parseInt(localStorage.getItem(PYN_SEEN), 10);
+      return isNaN(v) ? null : v;
+    } catch (e) { return null; }
+  }
+
+  function setSeen(n) {
+    try { localStorage.setItem(PYN_SEEN, String(n)); } catch (e) {}
+  }
+
+  /* Русский счёт: одна пынь, две пыни, пять пыней. */
+  function pynWord(n) {
+    var t = n % 100, o = n % 10;
+    if (t > 10 && t < 20) return 'пыней';
+    if (o === 1) return 'пынь';
+    if (o >= 2 && o <= 4) return 'пыни';
+    return 'пыней';
+  }
+
+  function pynNewWord(n) {
+    var t = n % 100, o = n % 10;
+    if (t > 10 && t < 20) return 'новых';
+    if (o === 1) return 'новая';
+    if (o >= 2 && o <= 4) return 'новые';
+    return 'новых';
+  }
+
+  /* Пара форм на тип: при «2 новые пыни» подпись «ответ на комментарий»
+     в единственном числе спорит с числом слева. Пока известен один тип
+     из ответа лепры (comment_answer), остальные добавятся, когда
+     встретятся — выдумывать названия для незнакомых незачем. */
+  var PYN_TYPES = {
+    comment_answer: ['ответ на комментарий', 'ответы на комментарии'],
+    mention: ['упоминание', 'упоминания']
+  };
+
+  function pynToastText(n, by) {
+    var head = n + ' ' + pynNewWord(n) + ' ' + pynWord(n);
+    var kinds = Object.keys(by || {}).filter(function (k) { return +by[k] > 0; });
+    if (kinds.length === 1 && PYN_TYPES[kinds[0]])
+      head += ' — ' + PYN_TYPES[kinds[0]][n === 1 ? 0 : 1];
+    return head;
+  }
+
+  var toastTimer = null;
+
+  var PYN_TEXTOK = 'lm-pyn-textok';   /* '1' — лента не гасит счётчик, '0' — гасит */
+
+  /* Глаголы по типу уведомления. Названий для незнакомых типов не
+     выдумываем: лучше короткий текст про число, чем уверенная неправда. */
+  var PYN_VERB = {
+    comment_answer: 'ответил на ваш комментарий',
+    mention: 'упомянул вас'
+  };
+
+  /* Строение ответа лепры (сокращённо):
+     notifications[0].type
+     notifications[0].data.comment.body
+     notifications[0].data.comment.post.title
+     notifications[0].data.comment.user.login   — предположительно
+     Логин ищем по нескольким путям: до него отчёт не дотянулся, а
+     промахнуться на одном имени поля значит потерять весь текст. */
+  function digLogin(o, depth) {
+    if (!o || typeof o !== 'object' || (depth || 0) > 3) return '';
+    if (typeof o.login === 'string' && o.login) return o.login;
+    var keys = ['data', 'comment', 'mention', 'user', 'author', 'from', 'sender'];
+    for (var i = 0; i < keys.length; i++) {
+      var v = digLogin(o[keys[i]], (depth || 0) + 1);
+      if (v) return v;
+    }
+    return '';
+  }
+
+  function noteBrief(item) {
+    if (!item) return '';
+    var d = item.data || {};
+    var c = d.comment || d.mention || {};
+    var who = digLogin(item);
+    var title = (c.post && c.post.title) || (d.post && d.post.title) || '';
+    var verb = PYN_VERB[item.type] || '';
+
+    var parts = [];
+    if (who) parts.push(who);
+    if (verb) parts.push(verb);
+    if (!parts.length) return '';
+    var text = parts.join(' ');
+    if (title) text += ' в посте «' + String(title).slice(0, 60) + '»';
+    return text;
+  }
+
+  function pynLatest(cb) {
+    var h = apiAuth();
+    if (!h) return cb(null);
+    try {
+      fetch(location.protocol + '//' + location.host + API_BASE + '?per_page=1&page=1',
+            { credentials: 'same-origin', headers: h })
+        .then(function (r) {
+          if (!r.ok) throw new Error('HTTP ' + r.status);
+          return r.json();
+        })
+        .then(function (j) {
+          cb((j && j.notifications && j.notifications[0]) || null);
+        })
+        .catch(function () { cb(null); });
+    } catch (e) { cb(null); }
+  }
+
+  function textMode() {
+    try { return localStorage.getItem(PYN_TEXTOK); } catch (e) { return null; }
+  }
+
+  /* У каждого уведомления в ленте есть свой адрес mark_read, и это
+     говорит, что простой GET ничего отмечать не должен. «Должен» — не
+     «проверено», поэтому первый же раз сверяем счётчик до и после. Если
+     он просел, текст выключается навсегда, и слежение остаётся на одном
+     счётчике. */
+  function verifyText(before) {
+    pynCount(function (r) {
+      if (!r) return;
+      var ok = r.total >= before;
+      try { localStorage.setItem(PYN_TEXTOK, ok ? '1' : '0'); } catch (e) {}
+      if (!ok) note('лента гасит счётчик — текст в плашке выключен');
+    });
+  }
+
+  function hideToast() {
+    if (toastTimer) { clearTimeout(toastTimer); toastTimer = null; }
+    var t = document.getElementById('lm-pyntoast');
+    if (t) t.remove();
+  }
+
+  function showToast(text) {
+    hideToast();
+    if (!document.body) return;
+
+    var box = document.createElement('div');
+    box.id = 'lm-pyntoast';
+
+    /* Кнопка, а не div с обработчиком. Safari на iOS доставляет тап
+       обычным блокам ненадёжно: первое касание уходит вхолостую, и
+       открыть окно получалось со второго-третьего раза. Настоящий
+       интерактивный элемент такого не требует. */
+    var label = document.createElement('button');
+    label.type = 'button';
+    label.className = 'lm-pyntoast_text';
+    label.textContent = text;
+
+    var close = document.createElement('button');
+    close.type = 'button';
+    close.className = 'lm-pyntoast_close';
+    close.textContent = '✕';
+    close.addEventListener('click', function (e) {
+      e.stopPropagation();
+      hideToast();
+    });
+
+    /* Читать прямо в плашке нечего: одна строка не вместит ни ответа, ни
+       ветки. Поэтому тап открывает наше окно пыни — оно уже умеет всё,
+       включая разворот исходного комментария, и закрывается на то же
+       место страницы, где человек читал. */
+    label.addEventListener('click', function () {
+      hideToast();
+      guard('pynOpen', pynOpen)();
+    });
+
+    box.appendChild(label);
+    box.appendChild(close);
+    document.body.appendChild(box);
+
+    toastTimer = setTimeout(hideToast, CFG.pynToast * 1000);
+  }
+
+  var watchTimer = null;
+  var lastAsk = 0;
+
+  function askPyn() {
+    lastAsk = Date.now();
+    pynCount(function (res) {
+      if (!res) return;
+      var seen = seenCount();
+      /* Появилось новое — цифру снова показываем, даже если окно уже
+         открывали: это уже другие пыни. */
+      if (seen !== null && res.total > seen) headerMuted = false;
+      guard('setHeaderCount', setHeaderCount)(res.total);
+      /* Первый ответ после загрузки страницы запоминаем молча: эти
+         непрочитанные не новость — они уже стоят числом в шапке. */
+      if (seen === null) return setSeen(res.total);
+      if (res.total <= seen) {
+        /* Меньше стало — человек прочитал их в другой вкладке или в
+           другом браузере. Опускаем отметку, иначе следующая пынь
+           окажется «не новее виденного» и промолчит. */
+        if (res.total < seen) setSeen(res.total);
+        return;
+      }
+      setSeen(res.total);
+
+      var n = res.total - seen;
+      var short = pynToastText(n, res.by);
+      var mode = textMode();
+
+      if (!CFG.pynText || mode === '0') return showToast(short);
+
+      /* Текст берём по последнему уведомлению. Если запрос не удался или
+         разобрать нечего — показываем короткий вариант, а не молчим. */
+      pynLatest(function (item) {
+        var brief = noteBrief(item);
+        /* Строка одна и узкая. При нескольких новых показываем последний
+           пынь целиком и хвост «и ещё N» — это короче и понятнее, чем
+           число с типом и тем же текстом следом. */
+        showToast(!brief ? short
+                         : (n === 1 ? brief : brief + ' + ещё ' + (n - 1)));
+        if (mode === null) verifyText(res.total);
+      });
+    });
+  }
+
+  function watchPyn() {
+    if (!CFG.pynWatch || watchTimer) return;
+    if (!apiAuth()) return;      /* ключа нет — спрашивать нечем */
+
+    var tick = function () {
+      if (document.visibilityState === 'hidden') return;
+      askPyn();
+    };
+
+    watchTimer = setInterval(guard('askPyn', tick), CFG.pynEvery * 1000);
+
+    /* Возврат к вкладке — самый частый случай, когда новое уже накопилось.
+       Спрашиваем сразу, но не чаще обычного шага, чтобы переключение
+       туда-сюда не превращалось в поток запросов. */
+    document.addEventListener('visibilitychange', function () {
+      if (document.visibilityState !== 'visible') return;
+      if (Date.now() - lastAsk < CFG.pynEvery * 1000) return;
+      guard('askPyn', askPyn)();
+    });
+
+    guard('askPyn', askPyn)();
   }
 
   /* ============================================================
@@ -9288,10 +10022,38 @@ html.lm-dark .lm-navthing_gert.lm-opaque img { filter: none !important; }
     if (!n) L.push('(запросов не было)');
 
     L.push('', '--- перехвачено (метод и заголовки) ---');
+    /* Раньше на пустом списке тут стояло «скрипт живёт в отдельном
+       окружении». Это враньё: чаще всего список пуст потому, что на
+       странице все запросы шумовые и отсеяны, либо потому, что нужный
+       ушёл раньше, чем встал хук (так уходит /api/replacements/).
+       Поэтому теперь показываем сами числа, а выводы делаем по ним. */
+    L.push('хук на fetch: ' +
+             (window.fetch && window.fetch.lmHooked ? 'стоит' : 'НЕТ') +
+           ' | прошло через хук: ' + NET_SEEN +
+           ' | отсеяно как шум: ' + NET_NOISE);
     if (!NET.length)
-      L.push('(ничего — либо запросов не было, либо скрипт живёт',
-             ' в отдельном окружении и до вызовов лепры не достаёт)');
-    NET.slice(0, 30).forEach(function (s) { L.push(s); });
+      L.push('(ничего по существу — к своему API лепра ходит на странице',
+             ' уведомлений, а из окна пыни запросы видны разделом ниже)');
+    NET.slice(0, 40).forEach(function (s) { L.push(s); });
+
+    /* Окно пыни — отдельное окружение, наш перехват в главном окне его
+       вызовов не видит. Внутри работает свой писец, складывающий строки
+       сюда. Ради этого раздела всё и затевалось: он показывает, чем
+       лепра зовёт своё API и что при этом отмечает прочитанным. */
+    L.push('', '--- перехвачено в окне пыни ---');
+    var fr = [], ran = 0;
+    try { fr = window.lmPynNet || []; } catch (e) {}
+    try { ran = window.lmPynRan || 0; } catch (e) {}
+    L.push('окно создавалось: ' + pynFrames +
+           ' | скрипт внутри запускался: ' + ran +
+           ' | записано строк: ' + fr.length);
+    if (!fr.length && pynFrames && !ran)
+      L.push('окно открывали, а скрипт в нём не запускался — значит',
+             'менеджер юзерскриптов внедряет только в верхний фрейм.',
+             'Проверить у него настройку про фреймы.');
+    if (!fr.length && !pynFrames)
+      L.push('(окно пыни в этой вкладке ещё не открывали)');
+    fr.slice(0, 40).forEach(function (s) { L.push(s); });
   }
 
   function reportFloats(L) {
@@ -9875,43 +10637,171 @@ html.lm-dark .lm-navthing_gert.lm-opaque img { filter: none !important; }
      заголовке, параметрах или правах. Гадать по одному варианту в круг
      дорого, поэтому проба перебирает их сразу и показывает ответ на
      каждый. */
+  /* Ключ к API лепры. Перехват в окне пыни показал, чем она авторизует
+     свои запросы: не куками, а парой заголовков X-Futuware-UID и
+     X-Futuware-SID (плюс обычный X-Requested-With). Без них весь /api/
+     отвечает 404 — отсюда и брались все прошлые загадки.
+
+     Значения её собственный скрипт откуда-то читает, и читать их он может
+     только из доступного JS: из куки, из глобальной переменной или из
+     разметки. Ищем по всем трём местам. */
+
+  var API_UID_KEYS = ['uid', 'futuware_uid', 'user_id', 'userid'];
+  var API_SID_KEYS = ['sid', 'futuware_sid', 'session_id', 'sessionid'];
+  var HEX32 = /^[0-9a-f]{32}$/i;
+
+  /* Все места, где скрипт лепры может держать пару, — и все они доступны
+     нам: куки без HttpOnly, оба хранилища и глобальные переменные.
+     Возвращаем плоский список «источник → имя → значение», чтобы искать
+     дальше не по одному месту, а сразу везде. */
+  function authSources() {
+    var all = [];
+
+    try {
+      String(document.cookie || '').split(';').forEach(function (part) {
+        var i = part.indexOf('=');
+        if (i < 0) return;
+        all.push({ where: 'кука', name: part.slice(0, i).trim(),
+                   value: part.slice(i + 1).trim() });
+      });
+    } catch (e) {}
+
+    [['localStorage', window.localStorage],
+     ['sessionStorage', window.sessionStorage]].forEach(function (pair) {
+      try {
+        var st = pair[1];
+        if (!st) return;
+        for (var i = 0; i < st.length && i < 100; i++) {
+          var k = st.key(i);
+          all.push({ where: pair[0], name: k, value: String(st.getItem(k) || '') });
+        }
+      } catch (e) {}
+    });
+
+    /* Глобальные переменные перебираем целиком, а не по списку имён:
+       csrf-токен лепра держит где-то в своём скрипте, и как он там
+       называется, мы не знаем. Заглядываем и на уровень внутрь простых
+       объектов — настройки сайта обычно лежат одним таким. */
+    try {
+      var keys = Object.keys(window).slice(0, 400);
+      keys.forEach(function (k) {
+        var v;
+        try { v = window[k]; } catch (e) { return; }
+        if (v && (typeof v === 'string' || typeof v === 'number')) {
+          all.push({ where: 'window', name: k, value: String(v) });
+          return;
+        }
+        if (!v || typeof v !== 'object' || v.nodeType) return;
+        var inner;
+        try { inner = Object.keys(v).slice(0, 40); } catch (e) { return; }
+        inner.forEach(function (k2) {
+          var v2;
+          try { v2 = v[k2]; } catch (e) { return; }
+          if (v2 && typeof v2 === 'string')
+            all.push({ where: 'window.' + k, name: k2, value: v2 });
+        });
+      });
+    } catch (e) {}
+
+    return all;
+  }
+
+  /* Искать по именам ненадёжно: лепра могла назвать их как угодно.
+     Поэтому сначала по имени, а если не вышло — по виду значения.
+     SID — тридцать два шестнадцатеричных знака; UID — то же число,
+     что стоит в data-user_id у любого своего комментария. */
+  function findAuth(all) {
+    var byName = function (names) {
+      for (var i = 0; i < names.length; i++)
+        for (var j = 0; j < all.length; j++)
+          if (all[j].name === names[i] && all[j].value) return all[j];
+      return null;
+    };
+
+    var mine = document.querySelector('[data-user_id]');
+    var myId = mine && mine.getAttribute('data-user_id');
+
+    var uid = byName(API_UID_KEYS);
+    if (!uid && myId) {
+      for (var i = 0; i < all.length; i++)
+        if (all[i].value === myId) { uid = all[i]; break; }
+      if (!uid) uid = { where: 'разметка', name: 'data-user_id', value: myId };
+    }
+
+    var sid = byName(API_SID_KEYS);
+    if (!sid) {
+      for (var k = 0; k < all.length; k++)
+        if (HEX32.test(all[k].value)) { sid = all[k]; break; }
+    }
+
+    return { uid: uid, sid: sid };
+  }
+
   function pynProbe() {
     var base = location.protocol + '//' + location.host;
-    var API = '/api/my/notifications/?per_page=20&page=1';
-    var tries = [
-      ['GET, как у лепры', API, 'GET', {}],
-      ['GET + X-Requested-With', API, 'GET',
-       { 'X-Requested-With': 'XMLHttpRequest' }],
-      ['POST', API, 'POST', {}],
-      ['POST + X-Requested-With', API, 'POST',
-       { 'X-Requested-With': 'XMLHttpRequest' }],
-      ['GET замены (контроль)', '/api/replacements/', 'GET', {}],
-      ['POST замены (контроль)', '/api/replacements/', 'POST', {}],
-      ['GET страница пыни (контроль)', '/my/events/', 'GET', {}]
-    ];
+    var all = authSources();
+    var found = findAuth(all);
+    var uid = found.uid, sid = found.sid;
 
+    /* Значений не показываем: отчёт уходит в переписку, а SID — это ключ
+       от сессии. Только где нашли, как называется и сколько знаков. */
+    var hide = function (x) {
+      return x ? x.where + ' ' + x.name + ' (' + String(x.value).length + ' знаков)'
+               : 'НЕ НАЙДЕН';
+    };
+
+    var csrf = findCsrf();
     var out = ['Проба API пыни',
                'источник: ' + base,
-               'куки видны скрипту: ' +
-                 (document.cookie ? document.cookie.length + ' знаков' : 'НЕТ'),
+               'CSRF: ' + (csrf ? csrf.where + ' ' + csrf.name : 'НЕ НАЙДЕН'),
+               'просмотрено мест: ' + all.length +
+                 ' (' + all.map(function (x) { return x.where + ':' + x.name; })
+                          .slice(0, 25).join(', ') + ')',
+               'UID: ' + hide(uid),
+               'SID: ' + hide(sid),
                ''];
+
+    if (!uid || !sid) {
+      out.push('Без пары UID+SID пробовать нечего: лепра авторизует запросы',
+               'к /api/ именно ими. Значит её скрипт держит их не там, где',
+               'мы ищем, — надо смотреть дальше.');
+      return showPanel(out.join('\n'));
+    }
+
+    var auth = {
+      'X-Futuware-UID': uid.value,
+      'X-Futuware-SID': sid.value,
+      'X-Requested-With': 'XMLHttpRequest',
+      'Accept': 'application/json, text/javascript, */*; q=0.01'
+    };
+
+    /* Счётчик — первым: он и нужен для слежения за пынями, и, в отличие
+       от ленты, ничего не отмечает прочитанным. Ленту пробуем следом,
+       чтобы знать, годится ли она для мгновенного открытия окна. */
+    var tries = [
+      ['счётчик непрочитанных', '/api/my/notifications/unread/count_by_type/', auth, 400],
+      ['счётчик без заголовков', '/api/my/notifications/unread/count_by_type/', {}, 200],
+      /* одна штука и подлиннее: по ней будем разбирать поля для текста
+         в плашке, а двадцать в отчёт всё равно не влезут */
+      ['лента (одна штука)', '/api/my/notifications/?per_page=1&page=1', auth, 1800]
+    ];
+
     showPanel(out.join('\n') + '\nжду ответов…');
 
     var i = 0;
     var next = function () {
       if (i >= tries.length) return showPanel(out.join('\n'));
       var t = tries[i++];
-      var say = function (s, body, ct) {
-        out.push(t[0] + '  →  ' + s + (ct ? '  [' + ct + ']' : ''));
-        out.push('   ' + t[2] + ' ' + t[1]);
-        if (body) out.push('   ' + body.slice(0, 240).replace(/\s+/g, ' '));
+      var say = function (s, body) {
+        out.push(t[0] + '  →  ' + s);
+        out.push('   ' + t[1]);
+        if (body) out.push('   ' + body.slice(0, t[3] || 300).replace(/\s+/g, ' '));
         out.push('');
       };
-      fetch(base + t[1], { method: t[2], credentials: 'same-origin', headers: t[3] })
+      fetch(base + t[1], { method: 'GET', credentials: 'same-origin', headers: t[2] })
         .then(function (r) {
-          var ct = r.headers.get('content-type') || '';
           return r.text().then(function (x) {
-            say('HTTP ' + r.status + '  ' + x.length + ' знаков', x, ct.slice(0, 30));
+            say('HTTP ' + r.status + '  ' + x.length + ' знаков', x);
           });
         })
         .catch(function (e) { say('ошибка: ' + ((e && e.message) || e)); })
@@ -10008,6 +10898,7 @@ html.lm-dark .lm-navthing_gert.lm-opaque img { filter: none !important; }
     /* строго после шапки: она собирает шапку, за которой встаёт блок */
     guard('buildNavthing', buildNavthing)();
     guard('fixEventsPage', fixEventsPage)();
+    guard('watchPyn', watchPyn)();
     guard('fixNewPost', fixNewPost)();
     guard('fixRanks', fixRanks)();
     guard('syncVeg', syncVeg)();
