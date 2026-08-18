@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Lepra Mobile
 // @namespace    lepra.mobile
-// @version      0.9.134
+// @version      0.9.142
 // @description  Мобильная адаптация leprosorium.ru для iOS Safari
 // @author       neokrasav4ik
 // @homepageURL  https://github.com/neokrasav4ik/lepra-mobile
@@ -44,7 +44,7 @@
      проход по всей странице — это лишняя работа и лишние наблюдатели. */
   if (window.name === 'lm-pyn-frame') return;
 
-  var VERSION = '0.9.134';
+  var VERSION = '0.9.142';
 
   /* ============================================================
      НАСТРОЙКИ
@@ -269,8 +269,12 @@
        масштабе, а обрезанная честно говорит «дальше есть ещё». У видео
        'fit': обрезанный кадр играть неудобно, а вертикальный ролик,
        уменьшенный по высоте, виден целиком.
-       discoFirst — сколько постов в начале ленты не сокращать. Один:
-       на первом экране стоит шапка, и стыковке там негде происходить.
+       discoFirst — сколько постов в начале ленты не сокращать. Ноль:
+       поначалу первый пост оставляли целым, чтобы стыковка не
+       приходилась на экран с шапкой, — но на устройстве вышло иначе.
+       Целый пост в начале сбивает ритм ленты и заставляет листать ровно
+       там, где человек только начал смотреть; а стыковаться на первом
+       экране ничто не мешает.
        discoGain — сколько процентов высоты экрана пост обязан отдать,
        чтобы срез вообще имел смысл. Проверка идёт ПОСЛЕ среза, по
        настоящему замеру «было — стало», и если выгода мала, срез
@@ -295,7 +299,7 @@
     discoDots: true,
     discoMedia: 'crop',
     discoVideo: 'fit',
-    discoFirst: 1,
+    discoFirst: 0,
     discoGain: 20,
     discoAbove: true,
 
@@ -393,6 +397,11 @@
        торчит страница. Ноль уберёт затемнение совсем — закрывать тапом
        мимо окна это не мешает. */
     pynPopup: true,
+    /* pynQuoteFont — кегль исходного комментария, раскрываемого шевроном.
+       Шрифт у него Verdana, как у текста ответа рядом; при равном кегле
+       Verdana рисуется крупнее Arial, поэтому число здесь и число в
+       соседних правилах на Arial напрямую не сравниваются. */
+    pynQuoteFont: 14,
     pynHeight: 78,
     pynFresh: 60,
     pynWait: 12,
@@ -3138,8 +3147,6 @@ html.lm-fraud .b-tabs_content, html.lm-fraud .b-inner_container {
 .b-notification-feed_layout_popup .b-notification-item {
   padding-left: 12px !important; padding-right: 10px !important; }
 .b-notification { margin: 2px 8px !important; }
-.b-notification-item_header, .b-notification-item_footer {
-  margin-left: 0 !important; }
 
 /* Страница уведомлений. Лента лежит последним потомком body и прибита
    абсолютно: top ей считает скрипт лепры от высоты своей шапки (вышло
@@ -3155,9 +3162,11 @@ html.lm-fraud .b-tabs_content, html.lm-fraud .b-inner_container {
 /* Внутри пункта было четыре отбивки по 5–10 пикселей: под шапкой со
    значком, под строкой «кто ответил», над подписью и под ней. На экране
    в 393 это давало полтора пункта на высоту одного. */
-.b-notification-item_header { margin-bottom: 0 !important; }
+.b-notification-item_header {
+  margin-left: 0 !important; margin-bottom: 0 !important; }
 .b-notification-item_message { margin-bottom: 4px !important; }
 .b-notification-item_footer {
+  margin-left: 0 !important;
   margin-top: 4px !important; padding-bottom: 0 !important; }
 .b-notification-item_mention_comment_text { word-break: break-word !important; }
 /* Три раздела шли строкой по 30 пикселей высотой, с отбивками под
@@ -3255,6 +3264,85 @@ html.lm-pyn_on .b-notification-feed_layout_popup { display: none !important; }
   background: none !important; border: 0 !important; padding: 0 !important; }
 #lm-pyn .b-notification-item { font-size: 13px !important; }
 #lm-pyn .b-notification-item_footer { padding-bottom: 0 !important; }
+
+/* Ссылки внутри ленты лепра красит правилом .b-notification-feed a —
+   а этого предка у нас нет: в окно переносится только внутренний узел
+   ленты (#js-notification-feed-main). Из-за этого все ссылки в окне
+   падали на общесайтовый тёмно-оливковый a { color: rgb(51,51,0) }.
+   Повторяем её цвет. */
+#lm-pyn a { color: rgb(85, 110, 140) !important; }
+/* Название поста лепра выводит без подчёркивания (.b-notification-item__post
+   { text-decoration: none }), и рядом с обычным текстом того же кегля оно
+   ссылкой не читается — в отличие от логина и «N комментариев» в той же
+   строке, которые подчёркнуты. Цвет у него был правильный с самого
+   начала; не хватало именно подчёркивания. */
+.b-notification-item__post { text-decoration: underline !important; }
+
+/* Раскрытие исходного комментария по шеврону. Сам комментарий лежит в
+   разметке всегда; лепра держит его свёрнутым инлайновой высотой и
+   раскрывает своим скриптом. На странице уведомлений её скрипт на месте
+   и делает это сам — поэтому переключение классом только для окна, где
+   его нет: правило height: auto на странице развернуло бы разом все. */
+#lm-pyn .b-notification-item_parent_comment {
+  display: none !important; height: auto !important; }
+#lm-pyn .b-notification-item_parent_comment.lm-open {
+  display: block !important; }
+.lm-pyn_roll { cursor: pointer !important; }
+/* Поворот, а не подмена значка: у лепры для этого шеврона уже объявлены
+   и inline-block, и transform-origin: 50% 50%, и переход — квадратный
+   значок крутится на месте и никуда не прыгает. */
+#lm-pyn .lm-pyn_roll.lm-open .b-roll_parent_comment {
+  transform: rotate(180deg) !important; }
+
+/* Вид самого исходного комментария — одинаковый в окне и на странице:
+   приходит он с разметкой треда, где кегль крупнее окружающего.
+   Шрифт — Verdana, как у текста ответа под ним (лепра задаёт его
+   в .b-notification-item_mention_comment_text). Это существеннее, чем
+   кажется: Verdana при равном кегле рисуется заметно крупнее Arial,
+   и цитата в 13px Arial выглядела мельче ответа в 13px Verdana,
+   хотя числа совпадали. */
+/* Фон светлее непрочитанного уведомления (у лепры rgb(244,244,242)) не
+   годится: цитата внутри такого пункта слилась бы с ним. Берём чуть
+   темнее и нейтральнее — заметно и на белом прочитанном, и на тёплом
+   непрочитанном. Поля по кругу, иначе заливка липнет к тексту. */
+.b-notification-item_parent_comment .comment {
+  margin: 6px 0 2px !important; padding: 6px 10px !important;
+  background: rgb(237, 237, 237) !important;
+  border-left: 2px solid #c9c9c9 !important; }
+.b-notification-item_parent_comment .c_body {
+  font-family: verdana, sans-serif !important;
+  font-size: ${CFG.pynQuoteFont}px !important;
+  line-height: 1.45 !important; }
+.b-notification-item_parent_comment .c_footer,
+.b-notification-item_parent_comment .ddi {
+  font-size: 12px !important; line-height: 18px !important; }
+.b-notification-item_parent_comment .c_body img,
+.b-notification-item_parent_comment .c_body video,
+.b-notification-item_parent_comment .c_body iframe {
+  max-width: 100% !important; height: auto !important; }
+/* Голосование, «ответить», «поделиться» и сворачивание ветки лепра
+   внутри исходного комментария прячет — работать им там нечем. Но её
+   правило без !important, а наши общие правила для комментариев (вернуть
+   голосовалку в поток, кнопки под палец) с !important, и они это скрытие
+   перебивали: появлялись кнопки, которые ничего не делают. */
+.b-notification-item_parent_comment .vote,
+.b-notification-item_parent_comment .c_answer,
+.b-notification-item_parent_comment .c_show_user,
+.b-notification-item_parent_comment .b-button,
+.b-notification-item_parent_comment .b-comment_thread_collapse {
+  display: none !important; }
+
+/* Значок-страничка в конце подписи уведомления — ссылка на сам ответ.
+   Значок берём леприн, тот же .c_icon с post-icon.gif, что стоит перед
+   «Написал» в комментариях: своей картинки заводить незачем, а вид
+   получается ровно как на странице поста. По умолчанию лепра его
+   прячет (display: none), в комментариях его открывает наше общее
+   правило для ссылок подписи — здесь открываем отдельно. */
+.b-notification-item_footer .lm-note_go {
+  display: inline-block !important;
+  width: 20px !important; height: 18px !important;
+  margin: 0 0 0 2px !important;
+  vertical-align: middle !important; }
 
 /* ============ СКРЫТОЕ ============ */
 .b-navthing_holder, .b-chat, .b-chat_open,
@@ -6679,8 +6767,9 @@ html.lm-dark .lm-navthing_gert.lm-opaque img { filter: none !important; }
        скругления читаются как столбик; тройка значков внизу, по центру,
        столбик закрывает и ни с чем не спорит. Задаётся порядок
        разметкой, а не свойством order: тогда он виден прямо здесь и не
-       требует держать два места согласованными. */
-    if (CFG.disco && discoFeed()) extra.appendChild(discoButtons());
+       требует держать два места согласованными.
+       Кнопки диско сюда не кладём: их вешает отдельный проход, и первым
+       ребёнком — см. discoMountButtons и причину там же. */
     if (th) extra.appendChild(th);
     if (srch) extra.appendChild(srch);
     if (slider) extra.appendChild(slider);
@@ -6825,14 +6914,44 @@ html.lm-dark .lm-navthing_gert.lm-opaque img { filter: none !important; }
     if (dot(last)) last.remove();
   }
 
+  /* Ссылка на сам ответ. У лепры она уже есть в первой строке — название
+     поста ведёт прямо на якорь этого комментария; берём её же, чтобы не
+     собирать адрес из кусков. Запасной вариант — ссылка «N комментариев»
+     плюс идентификатор из подписи: он и есть номер ответа. */
+  function noteGoHref(item) {
+    var post = item.querySelector('.b-notification-item__post');
+    if (post && post.getAttribute('href')) return post.getAttribute('href');
+    var link = item.querySelector('.b-notification-item_comments-link');
+    if (!link || !link.getAttribute('href')) return null;
+    var base = link.getAttribute('href').replace(/#.*$/, '');
+    var foot = item.querySelector('.b-notification-item_footer');
+    return foot && foot.id ? base + '#' + foot.id : base;
+  }
+
+  /* Значок вешаем до снятия идентификаторов: номер ответа лежит именно
+     в id подписи, и после чистки собрать запасной адрес будет нечем. */
+  function addNoteIcon(item) {
+    var foot = item.querySelector('.b-notification-item_footer');
+    if (!foot || foot.querySelector('.lm-note_go')) return;
+    var href = noteGoHref(item);
+    if (!href) return;
+    var a = document.createElement('a');
+    a.className = 'c_icon lm-note_go';
+    a.setAttribute('href', href);
+    a.setAttribute('title', 'Перейти к этому комментарию');
+    foot.appendChild(a);
+  }
+
+  function addNoteIcons(root) {
+    sliceOf(root.querySelectorAll('.b-notification-item')).forEach(addNoteIcon);
+  }
+
   function pynClean(box) {
     sliceOf(box.querySelectorAll(
-      '.b-notification-item_parent_comment,' +   /* разворот родительского */
       '.b-notification-item_unsubscribe-menu,' + /* отписки */
       '.b-notification-item_mark-read,' +        /* отметка о прочтении */
       '.b-notification-item_answer-message,' +   /* «Отправлено» */
       '.b-notification-item_footer_answer,' +    /* «ответить» */
-      '.b-roll_parent_comment,' +
       '.js-roll_action'                          /* «развернуть» / «свернуть» */
     )).forEach(function (el) { el.remove(); });
 
@@ -6846,13 +6965,35 @@ html.lm-dark .lm-navthing_gert.lm-opaque img { filter: none !important; }
     sliceOf(box.querySelectorAll('.b-notification-item_footer'))
       .forEach(dropStrayDots);
 
-    /* Слово «комментарий» было ручкой разворота: у лепры .b-roll_down —
-       это пунктирное подчёркивание и палец под курсором. Разворачивать
-       больше нечего, а вид обещает нажатие. */
+    /* Раскрытие исходного комментария — как в десктопном окне лепры:
+       шеврон слева от слова «комментарий», по нажатию под первой строкой
+       разворачивается тот комментарий, на который ответили. Сам он в
+       разметке уже есть, свёрнут инлайновой высотой.
+
+       Лепровские классы js-… снимаем, а свой ставим: её обработчики
+       живут на той же странице, куда мы вставляем окно, и делегированный
+       обработчик подхватил бы наши узлы — с чужим data-notification и без
+       её внутреннего состояния. Пунктирное подчёркивание .b-roll_down
+       оставляем: теперь нажатие снова что-то делает. */
     sliceOf(box.querySelectorAll('.js-roll_parent_comment'))
       .forEach(function (el) {
-        el.classList.remove('b-roll_down', 'js-roll_parent_comment');
+        el.classList.remove('js-roll_parent_comment',
+                            'js-roll_parent_comment__up');
+        el.classList.add('lm-pyn_roll');
       });
+    sliceOf(box.querySelectorAll('.b-notification-item_parent_comment'))
+      .forEach(function (el) {
+        el.classList.remove('js-notification-item_parent_comment');
+        /* Свёрнутость лепра держит двумя способами: на странице классом
+           hidden, в своём окне — инлайновой высотой. Снимаем оба и
+           управляем видимостью сами, чтобы не зависеть от того, какой
+           из них достанется. */
+        el.classList.remove('hidden');
+        el.removeAttribute('style');
+        el.removeAttribute('data-height');
+      });
+
+    addNoteIcons(box);
 
     /* Совпадение id с настоящими комментариями страницы сломало бы и
        якоря, и поиск по id в скрипте лепры: у уведомлений id родительских
@@ -6899,7 +7040,14 @@ html.lm-dark .lm-navthing_gert.lm-opaque img { filter: none !important; }
            пропадает, и узлы, оставленные там, станут непригодны. */
         var mine = document.importNode(main, true);
         pynClean(mine);
-        var sp = d.querySelector('.b-notification-svg-font');
+        /* Набор значков лежит рядом с лентой, а не внутри неё, и на
+           обычной странице есть свой блок с тем же классом — но в нём
+           только три значка шапки (icon_inbox и соседи). Поэтому берём
+           набор строго из ленты и проверяем не класс, а нужный символ:
+           раньше проверка по классу находила шапочный набор, импорт
+           пропускался, и в окне не рисовались ни значки уведомлений,
+           ни шеврон разворота. */
+        var sp = d.querySelector('#js-notification-feed .b-notification-svg-font');
         pynData = { main: mine,
                     sprite: sp ? document.importNode(sp, true) : null };
         pynAt = Date.now();
@@ -6923,8 +7071,10 @@ html.lm-dark .lm-navthing_gert.lm-opaque img { filter: none !important; }
 
     /* Значки уведомлений нарисованы через <use xlink:href="#notification_…">,
        а сами svg лежат в отдельном наборе — на прочих страницах его нет,
-       и без него в ленте были бы пустые места. */
-    if (data.sprite && !document.querySelector('.b-notification-svg-font'))
+       и без него в ленте были бы пустые места. Ищем по конкретному
+       символу: блок с тем же классом на странице есть всегда, но с
+       другим содержимым. */
+    if (data.sprite && !document.getElementById('notification_answers'))
       document.body.appendChild(document.importNode(data.sprite, true));
 
     body.textContent = '';
@@ -6962,6 +7112,19 @@ html.lm-dark .lm-navthing_gert.lm-opaque img { filter: none !important; }
 
     var body = document.createElement('div');
     body.className = 'lm-pyn_body';
+    /* Обработчик — на самой ленте, а не на каждом шевроне: список
+       наполняется позже, а при повторном открытии — заново. */
+    body.addEventListener('click', guard('pynRoll', function (e) {
+      var t = e.target;
+      if (!t || !t.closest) return;
+      var roll = t.closest('.lm-pyn_roll');
+      if (!roll) return;
+      e.preventDefault();
+      var item = roll.closest('.b-notification-item');
+      var pc = item && item.querySelector('.b-notification-item_parent_comment');
+      if (!pc) return;
+      roll.classList.toggle('lm-open', pc.classList.toggle('lm-open'));
+    }));
     var note = document.createElement('div');
     note.className = 'lm-pyn_note';
     note.textContent = 'Загружаю…';
@@ -7030,6 +7193,11 @@ html.lm-dark .lm-navthing_gert.lm-opaque img { filter: none !important; }
     var main = document.querySelector('.l-i-content_main');
     if (main && feed.parentNode !== main) main.appendChild(feed);
     feed.style.removeProperty('top');
+    /* Ленту собирает скрипт лепры уже после загрузки, поэтому значки
+       довешиваем и здесь, и в лёгком проходе: к первому полному проходу
+       пунктов ещё нет. Повторный вызов безвреден — addNoteIcon выходит,
+       если значок уже стоит. */
+    addNoteIcons(feed);
   }
 
 
@@ -8063,20 +8231,37 @@ html.lm-dark .lm-navthing_gert.lm-opaque img { filter: none !important; }
     try { localStorage.setItem(DISCO_KEY, on ? '1' : '0'); } catch (e) {}
   }
 
-  /* Только лента главной и подлепр. Признаков два, и оба нужны:
-     контейнер #js-posts_holder встречается и на других страницах, а по
-     одному адресу нельзя отличить ленту от страницы, которая ещё не
-     догрузилась. Страницы тегов, «моих вещей», поиска и сам пост с
-     комментариями сюда не попадают — там своя разметка ленты, и
-     сокращать там нечего.
-     Вторая и дальше страницы ленты у лепры называются /pages/2 — во
-     множественном числе и без косой на конце; форму /page/2/ принимаем
-     заодно, вдруг где-то встретится. */
+  /* Адреса, на которых лента есть. Разметка поста везде одна и та же
+     (.post > .dt > .p_body плюс .dd), поэтому сокращение работает без
+     единой правки — отличаются только адреса и обвязка вокруг ленты.
+     Список закрытый, а не «всё, где есть посты»: под тем же классом
+     .post лепра показывает и одиночный пост с комментариями, и выдачу
+     поиска, а там сокращать нечего.
+     Формы с pages/N — вторая и дальше страницы; у лепры они во
+     множественном числе и без косой на конце, но одиночную и косую
+     принимаем заодно, вдруг где-то встретится.
+     Косая на конце везде необязательна, и это не придирка: на страницу
+     постов профиля лепра ссылается и как /posts/, и как /posts — обе
+     ссылки живут на одной и той же странице, и по второй кнопки не
+     появлялись. */
+  var FEED_PATH = new RegExp(
+    '^/(pages?/\d+/?)?$' +                          /* главная и подлепры */
+    '|^/my(/pages?/\d+)?/?$' +                      /* мои вещи */
+    '|^/my/favourites(/pages?/\d+)?/?$' +           /* избранное */
+    '|^/users/[^/]+/posts(/pages?/\d+)?/?$' +      /* посты профиля */
+    '|^/users/[^/]+/favs(/pages?/\d+)?/?$'         /* избранное профиля */
+  );
+
+  /* Лента, а не страница поста. Признаков два, и оба нужны: контейнер
+     #js-posts_holder встречается и на других страницах, а по одному
+     адресу нельзя отличить ленту от страницы, которая ещё не
+     догрузилась. Прочие разделы «моих вещей» — входящие, комментарии,
+     Чарли — под образец не подходят и сюда не попадают. */
   function discoFeed() {
     var h = document.getElementById('js-posts_holder');
     if (!h) return null;
     if (document.getElementById('js-comments')) return null;
-    if (!/^\/(pages?\/\d+\/?)?$/.test(location.pathname)) return null;
+    if (!FEED_PATH.test(location.pathname)) return null;
     return h;
   }
 
@@ -8465,10 +8650,16 @@ html.lm-dark .lm-navthing_gert.lm-opaque img { filter: none !important; }
          укоротился, ровно настолько надо подкрутить страницу назад,
          чтобы видимое осталось на месте. Без этого посты, мимо которых
          человек успел пролистать, оставались длинными навсегда — а это
-         как раз те, к которым он вернётся. */
+         как раз те, к которым он вернётся.
+         Третий случай — страница стоит в самом верху. Там срез
+         безопасен даже для поста на виду: над ним ничего нет, верх его
+         остаётся на месте, а поднимается только то, до чего человек
+         ещё не добрался. Без этого послабления первый пост ленты
+         оставался бы целым до тех пор, пока его не пролистают. */
       var below = r.top >= vhNow;
       var above = r.bottom <= 0;
-      if (!below && !above) {
+      var atTop = scrollTopNow() <= 4;
+      if (!below && !above && !atTop) {
         discoPending++;
         return say('h=' + Math.round(r.height) + ' top=' + Math.round(r.top) +
                    ' на экране — ждём');
@@ -8498,8 +8689,42 @@ html.lm-dark .lm-navthing_gert.lm-opaque img { filter: none !important; }
     if (discoTimer) return;
     discoTimer = setTimeout(function () {
       discoTimer = null;
-      guard('discoScan', discoScan)();
+      discoRefresh();
     }, 400);
+  }
+
+  /* Погоня за содержимым после смены адреса. Адрес меняется сразу, а
+     лента приезжает ответом сервера — когда, неизвестно. Наблюдать за
+     её появлением нечем: пока вкладка «посты» не открыта, контейнера
+     ленты на странице нет, а вешать наблюдателя на всю страницу мы уже
+     пробовали — этим захлебнулась догрузка «Ещё? Ещё!».
+     Поэтому не наблюдение, а несколько попыток по расписанию: полсекунды,
+     полторы, три. Стоит это трёх дешёвых проверок, зато не зависит ни от
+     скорости сети, ни от того, чем лепра вставляет содержимое. */
+  function discoChase() {
+    if (!CFG.disco) return;
+    discoRefresh();
+    [500, 1500, 3000].forEach(function (ms) {
+      setTimeout(function () { discoRefresh(); }, ms);
+    });
+  }
+
+  /* Полный пересмотр состояния диско: где мы, нужны ли кнопки, что резать.
+     Три действия всегда идут вместе и всегда в этом порядке — метка на
+     <html> нужна отбору, а кнопки нужны человеку независимо от того,
+     нашлось ли что резать.
+     Вызывается отовсюду, где страница могла измениться, и в том числе по
+     смене адреса без перезагрузки: вкладки профиля лепра переключает
+     своим скриптом, адрес меняет через историю, а страницу не
+     перезагружает. Отсюда и картина «тап по вкладке — кнопок нет, а
+     после обновления есть»: полный обход к тому времени давно отработал
+     и больше не повторялся. */
+  function discoRefresh() {
+    if (!CFG.disco) return;
+    guard('discoSync', discoSync)();
+    guard('discoMountButtons', discoMountButtons)();
+    guard('discoWatchFeed', discoWatchFeed)();
+    guard('discoScan', discoScan)();
   }
 
   /* Пересчёт после прокрутки. Общее правило скрипта — прокрутка не
@@ -8552,17 +8777,47 @@ html.lm-dark .lm-navthing_gert.lm-opaque img { filter: none !important; }
      путь: пересчёт после остановки прокрутки, который сверяет число
      постов. */
   function discoWatchFeed() {
-    if (!CFG.disco || discoWatchFeed.on) return;
-    if (!('MutationObserver' in window)) return;
+    if (!CFG.disco || !('MutationObserver' in window)) return;
+
+    /* Смена адреса без перезагрузки. Вешается один раз и живёт до конца
+       страницы: вкладки профиля переключаются скриптом лепры, а адрес
+       меняется через историю — кнопка «назад» и наши переходы приходят
+       сюда. */
+    if (!discoWatchFeed.route) {
+      discoWatchFeed.route = true;
+      window.addEventListener('popstate', discoChase);
+      window.addEventListener('hashchange', discoChase);
+      /* history.pushState события не порождает — ни одного, никакого.
+         А вкладки профиля лепра переключает именно им: адрес меняется,
+         содержимое подгружается, и узнать об этом снаружи нельзя. Поэтому
+         оборачиваем оба метода истории: свой вызов делаем ПОСЛЕ родного,
+         чтобы поведение страницы не менялось ни на йоту. */
+      ['pushState', 'replaceState'].forEach(function (name) {
+        var orig = history[name];
+        if (typeof orig !== 'function') return;
+        history[name] = function () {
+          var out = orig.apply(this, arguments);
+          discoChase();
+          return out;
+        };
+      });
+    }
+
     var h = document.getElementById('js-posts_holder');
-    if (!h) return;
-    discoWatchFeed.on = true;
-    var seeIt = new MutationObserver(function (records) {
+    if (!h || h === discoWatchFeed.at) return;
+
+    /* Контейнер ленты бывает заменён целиком — при переключении вкладок
+       лепра вставляет на его место новый. Наблюдатель, повешенный на
+       старый узел, при этом остаётся смотреть в никуда, поэтому держим
+       ссылку на тот, за которым следим, и при подмене вешаем заново. */
+    if (discoWatchFeed.obs) discoWatchFeed.obs.disconnect();
+    discoWatchFeed.at = h;
+    discoWatchFeed.obs = new MutationObserver(function (records) {
       for (var i = 0; i < records.length; i++)
         if (records[i].addedNodes && records[i].addedNodes.length) return discoLater();
     });
-    seeIt.observe(h, { childList: true });
-    if (h.parentNode) seeIt.observe(h.parentNode, { childList: true });
+    discoWatchFeed.obs.observe(h, { childList: true });
+    if (h.parentNode) discoWatchFeed.obs.observe(h.parentNode, { childList: true });
   }
 
   function discoWatchMedia() {
@@ -8801,6 +9056,45 @@ html.lm-dark .lm-navthing_gert.lm-opaque img { filter: none !important; }
       boomHide();
       guard('boomSync', boomSync)();
     }, CFG.discoSpin);
+  }
+
+  /* Навесить пару кнопок в третью колонку. Отдельным проходом, а не при
+     сборке навигационной штуки, и вот почему. Сборка идёт в первом же
+     проходе, а он случается сразу, не дожидаясь конца разбора страницы:
+     шапка к этому времени уже разобрана, а контейнер ленты — он лежит
+     заметно ниже — ещё нет. Признак «это лента» тогда даёт ложное нет,
+     кнопки не появляются, и второго шанса у них не было: навигационная
+     штука собирается один раз.
+     Ловилось это плохо: на стенде страница разобрана целиком до запуска
+     скрипта, и гонки там не бывает вовсе — только на устройстве, и не
+     на всякой странице, а на той, где разметка до ленты длиннее.
+     Проход идёт при каждом полном обходе и сам чинит обе стороны: на
+     ленте кнопки появятся, как только контейнер разобран, а на прочих
+     страницах уберутся, если успели встать. */
+  /* Где кнопкам место. Не там же, где работает сокращение, и нарочно:
+     профиль — это одна страница с вкладками, которые лепра переключает
+     своим скриптом, не перезагружая её. Ловить момент появления ленты
+     мы, конечно, ловим, но полагаться на одну эту ловлю оказалось
+     ненадёжно: пока не открыта вкладка «посты», ленты нет вовсе, и
+     наблюдать не за чем. Поэтому на всех вкладках профиля кнопки стоят
+     сразу — нажать их можно и до открытия ленты, состояние всё равно
+     общее на весь сайт, и на вкладке «посты» режим окажется уже
+     включённым. */
+  function discoButtonsFit() {
+    return !!discoFeed() || /^\/users\/[^\/]+(\/|$)/.test(location.pathname);
+  }
+
+  function discoMountButtons() {
+    if (!CFG.disco) return;
+    var extra = document.querySelector('.lm-navthing_extra');
+    if (!extra) return;
+    var pad = extra.querySelector('.lm-disco_pad');
+    if (!discoButtonsFit()) {
+      if (pad && pad.parentNode) pad.parentNode.removeChild(pad);
+      return;
+    }
+    if (pad) return;
+    extra.insertBefore(discoButtons(), extra.firstChild);
   }
 
   /* Класс на <html> — единственный признак включённого режима для CSS.
@@ -9757,11 +10051,9 @@ html.lm-dark .lm-navthing_gert.lm-opaque img { filter: none !important; }
     /* Сокращение — последним: бюджет считается по высотам, а высоты
        медиа выставляет проход выше. У поста с видео до этого высота
        нулевая, и он не прошёл бы отбор по длине. */
-    guard('discoSync', discoSync)();
     guard('discoWatchMedia', discoWatchMedia)();
     guard('discoWatchScroll', discoWatchScroll)();
-    guard('discoWatchFeed', discoWatchFeed)();
-    guard('discoScan', discoScan)();
+    discoRefresh();
   }
 
   /* Лёгкий проход при прокрутке: только поиск по конкретным селекторам.
@@ -9781,15 +10073,20 @@ html.lm-dark .lm-navthing_gert.lm-opaque img { filter: none !important; }
     guard('compactThreadToggles', compactThreadToggles)();
     guard('compactPostFooters', compactPostFooters)();
     guard('compactCommentDates', compactCommentDates)();
+    /* лента уведомлений собирается скриптом лепры после загрузки, а
+       дальше дописывается прокруткой — значков к первому проходу нет */
+    guard('fixEventsPage', fixEventsPage)();
     /* список граждан догружается кнопкой «Загрузить ещё» */
     guard('fixUsersList', fixUsersList)();
     guard('buildUsersRows', buildUsersRows)();
     /* результаты поиска приходят ответом сервера, строку счёта лепра
        переписывает заново */
     guard('shortenSearchStats', shortenSearchStats)();
-    /* лента догружается «Ещё? Ещё!», а у постов с видео высота
-       появляется только после подгрузки заголовка ролика */
-    guard('discoScan', discoScan)();
+    /* лента догружается «Ещё? Ещё!», у постов с видео высота появляется
+       только после подгрузки заголовка ролика, а вкладки профиля лепра
+       переключает вовсе без перезагрузки — во всех трёх случаях меняется
+       и то, что резать, и то, нужны ли кнопки */
+    discoRefresh();
   }
 
   function start() {
