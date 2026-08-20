@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Lepra Mobile
 // @namespace    lepra.mobile
-// @version      0.9.157
+// @version      0.9.158
 // @description  Мобильная адаптация leprosorium.ru для iOS Safari
 // @author       neokrasav4ik
 // @homepageURL  https://github.com/neokrasav4ik/lepra-mobile
@@ -65,7 +65,7 @@
     return;
   }
 
-  var VERSION = '0.9.157';
+  var VERSION = '0.9.158';
 
   /* ============================================================
      НАСТРОЙКИ
@@ -312,12 +312,12 @@
        пост укоротился, и видимое остаётся на месте. false оставит
        нетронутым всё, мимо чего человек успел пролистать. */
     disco: true,
-    discoKeep: 45,
-    discoCut: 50,
+    discoKeep: 50,
+    discoCut: 55,
     discoMin: 120,
     discoText: 45,
-    discoFade: 56,
-    discoDots: true,
+    discoFade: 55,
+    discoDots: true, /*по возможности сделать чтобы многоточие ставилось БЕЗ переноса его на новую строку*/
     discoMedia: 'crop',
     discoVideo: 'fit',
     discoFirst: 0,
@@ -355,7 +355,7 @@
        2 — на 720 с паузой на 360. */
     discoZone: 110,
     discoCurve: 1.5,
-    discoDock: 22,
+    discoDock: 17,
     discoHold: 700,
     discoArm: true,
     discoSpin: 600,
@@ -376,7 +376,7 @@
        replyTop — на сколько пикселей ниже кромки ставить форму. */
     replyBleed: true,
     replyScroll: true,
-    replyTop: 6,
+    replyTop: 36,
 
     /* НАСТРОЙКА: гертруда в развёрнутой штуке — ширина картинки в
        пикселях. Больше трети ширины блока она всё равно не займёт:
