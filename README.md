@@ -32,7 +32,7 @@ https://raw.githubusercontent.com/neokrasav4ik/lepra-mobile/main/lepra-mobile.us
 
 ### Обновление
 
-1. Откройте Firefox → Меню → Расширения → Tampermonkey → Настройки → вкладка "Установленные скрипты" → надпись "Lepra Mobile" → Тап справа от строки "Обновлён:"
+1. Откройте Firefox → Меню → Расширения → Tampermonkey → Настройки → вкладка "Установленные скрипты" → надпись "Lepra Mobile" → Тап справа от надписи "Обновлён:"
 
 
 ## Персонализация
