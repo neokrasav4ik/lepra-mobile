@@ -1,6 +1,6 @@
 # Lepra Mobile
 
-Пользовательский скрипт, который делает [leprosorium.ru](https://leprosorium.ru) пригодным для чтения с телефона.
+Пользовательский скрипт, который делает [leprosorium.ru](https://leprosorium.ru) чуть более пригодным для чтения с телефона.
 
 ## Установка (iOS Safari)
 
