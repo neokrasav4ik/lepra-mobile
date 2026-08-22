@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Lepra Mobile
 // @namespace    lepra.mobile
-// @version      1.0.0
+// @version      1.0.01
 // @description  Мобильная адаптация leprosorium.ru для iOS Safari
 // @author       neokrasav4ik
 // @homepageURL  https://github.com/neokrasav4ik/lepra-mobile
@@ -118,7 +118,7 @@
     return;
   }
 
-  var VERSION = '1.0.0';
+  var VERSION = '1.0.01';
 
   /* ============================================================
      НАСТРОЙКИ
@@ -1449,6 +1449,29 @@
   var UI_FONT = 13;
 
   var css = `
+/* ============ НЕВИДИМОЕ ОСТАЁТСЯ НЕВИДИМЫМ ============ */
+/* У <script>, <style>, <template> и <noscript> невидимость держится не
+   на чём-то особенном, а на обычном display: none из встроенной
+   таблицы браузера. Любое наше правило вида «display: … !important» на
+   ГРУППУ детей перебивает её — и содержимое скрипта вываливается на
+   страницу текстом.
+   Именно так и случилось: лепра дописывает после сильно заминусованных
+   комментариев маленький <script> с вызовом initCommentCollapse, а у
+   нас на детей .c_footer стоит display: inline-block !important. На
+   обычных комментариях скрипта нет, поэтому вылезало «периодически» —
+   ровно на тех, где минусов набралось на сворачивание.
+   Это страховка, а не единственная защита: при равном !important
+   побеждает более весомый селектор, и групповое правило с тремя
+   классами это перебьёт. Поэтому в самих групповых правилах невидимые
+   теги исключены отдельно (см. .comment .c_footer > *). Здесь же —
+   сеть на будущее: групповых правил с display у нас десятки, и
+   следующее такое место найдётся само. */
+script, style, template, noscript,
+.comment script, .comment style,
+.post script, .post style,
+.c_footer script, .ddi script, .dd script {
+  display: none !important; }
+
 /* ============ КАРКАС ============ */
 /* overflow-x держим только на body: на html он отдаёт прокрутку body,
    и тогда window.pageYOffset всегда ноль, а documentElement.scrollHeight
@@ -1934,9 +1957,19 @@ ${indentRules()}
 /* .ddi исключён: он должен остаться display:contents, иначе становится
    единственным блочным ребёнком флекса и всё содержимое подписи
    выстраивается обычным потоком в столбик. */
+/* :not(script):not(style) обязательны, и это не перестраховка.
+   Лепра дописывает после сильно заминусованных комментариев маленький
+   <script> с вызовом initCommentCollapse — прямо в подпись. Невидимость
+   у <script> держится на обычном display: none из встроенной таблицы
+   браузера, и это правило её перебивало: код вываливался на страницу
+   текстом. Вылезало «периодически» ровно потому, что скрипт есть не у
+   всех комментариев, а только у свёрнутых по минусам.
+   Общее правило «script, style { display: none !important }» тут не
+   спасает: при равном !important побеждает более весомый селектор, а
+   этот весомее. Исключать надо здесь. */
 .comment .c_footer a:not(.b-button), .comment .ddi a:not(.b-button),
-.comment .c_footer > *:not(.b-comment_thread_collapse):not(.ddi),
-.comment .ddi > *:not(.b-comment_thread_collapse) {
+.comment .c_footer > *:not(.b-comment_thread_collapse):not(.ddi):not(script):not(style),
+.comment .ddi > *:not(.b-comment_thread_collapse):not(script):not(style) {
   display: inline-block !important;
   padding: 1px 0 !important; margin: 0 !important; }
 
