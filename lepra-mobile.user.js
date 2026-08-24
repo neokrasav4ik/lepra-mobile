@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Lepra Mobile
 // @namespace    lepra.mobile
-// @version      1.1.0
+// @version      1.1.20
 // @description  Мобильная адаптация leprosorium.ru для iOS Safari
 // @author       neokrasav4ik
 // @homepageURL  https://github.com/neokrasav4ik/lepra-mobile
@@ -118,7 +118,7 @@
     return;
   }
 
-  var VERSION = '1.1.0';
+  var VERSION = '1.1.20';
 
   /* ============================================================
      НАСТРОЙКИ
@@ -188,6 +188,21 @@
        Два, а не ноль: рядом с экраном ролик должен быть готов к
        нажатию, иначе первый тап уйдёт в ожидание загрузки. */
     videoFree: true,
+    /* Сколько миллисекунд после события load не выгружать ничего.
+
+       Выгрузка решает, что ролик далеко, по положению прокрутки. При
+       переходе «назад» браузер восстанавливает место не мгновенно, и в
+       промежутке страница честно стоит наверху: наблюдатель видит все
+       ролики дальше двух экранов и выгружает их — включая те, которые
+       через мгновение окажутся под глазами. Место восстанавливается,
+       ближняя граница возвращает их обратно, источник назначается
+       заново, браузер перезагружает кадр. Это и есть перерисовка медиа,
+       которую видно как моргание.
+
+       Ждём, пока страница устоится. Полторы секунды ничего не стоят: за
+       это время дальше двух экранов не улистать, а выгружать ролики,
+       мимо которых ещё не прошли, незачем в любом случае. */
+    videoFreeWait: 2000,
     videoFreeAhead: 2,
     /* Граница ВОЗВРАТА — ближе, чем граница выгрузки, и это не
        украшательство. С одной границей на оба решения ролик, стоящий у
@@ -631,6 +646,60 @@
        у обрезанной картинки край и так прозрачный в обеих темах. */
     gertrudaDark: 'auto',
 
+    /* НАСТРОЙКА: не переворачивать эмодзи в тёмной теме. Эмодзи у лепры
+       не картинки, а текст, и общая инверсия красит их наравне с
+       буквами: жёлтое лицо становится синим. Заворачиваем найденное в
+       свой узел и возвращаем цвета обратной инверсией — см. раздел 6.5.
+       false вернёт прежний вид, когда эмодзи переворачивались вместе со
+       страницей. Обход при этом отключается целиком, вместе с
+       обёртыванием: смысла заворачивать без плёнки нет. */
+    emojiKeep: true,
+
+    /* НАСТРОЙКА: ссылка на архив в левой колонке навигационной штуки.
+       Архив живёт по адресу /archive/, и входа в него из шапки лепры
+       нет вовсе — только из подвала, до которого на телефоне листать
+       всю ленту. Ставим ссылку последней в столбике: нужна она редко, и
+       место в начале ей ни к чему.
+       Настройка, а не всегда: столбик тут короткий, и лишняя строка в
+       нём заметна. */
+    navArchive: true,
+
+    /* НАСТРОЙКА: кегль полей ввода в формах комментария, с поправкой на
+       масштаб страницы. Числа те же и по той же причине, что у поля
+       поиска (см. searchFocusFont): шестнадцать — это требование к
+       ТОМУ, ЧТО ВИДНО НА ЭКРАНЕ, а не к записи в стилях. При масштабе
+       страницы 90% шестнадцатый кегль доходит до глаза четырнадцатым с
+       небольшим, Safari считает поле мелким и приближает страницу к
+       нему — а окно раскладки при этом шире экрана, и правый край формы
+       вместе с крестиком уезжает за кромку.
+       Настоящий кегль считается делением на масштаб (formFontVar) и
+       кладётся в переменную --lm-form-font. При обычном стопроцентном
+       масштабе получается ровно шестнадцать.
+       Держим своей парой чисел, а не занимаем поисковые: поле поиска
+       поднимает кегль только на время касания и возвращает обратно, а
+       форма комментария живёт с ним постоянно — это разные повадки, и
+       однажды их захочется настроить порознь.
+       formFontMax — потолок на случай сильно уменьшенной страницы: при
+       50% деление дало бы тридцать два. */
+    formFont: 16,
+    formFontMax: 22,
+
+    /* НАСТРОЙКА: сворачивать форму нового комментария в конце треда.
+       Лепра показывает её раскрытой; на телефоне это поле в двести
+       пикселей с панелью кнопок в конце каждого треда, через которое
+       приходится листать. Свёрнутая оставляет надпись «Я, пожалуй,
+       напишу комментарий», по ней же и разворачивается.
+       false вернёт леприно поведение — форма сразу раскрыта. */
+    foldNewComment: true,
+
+    /* НАСТРОЙКА: держать место на странице при возврате «назад».
+         'auto' — только там, где браузер сам не справляется (Firefox)
+         'on'   — всегда, для проверки
+         'off'  — никогда, заводское поведение браузера
+       Разбор — в разделе 9.5. На айфоне при 'auto' раздел молчит
+       целиком, включая запись в хранилище. */
+    backRestore: 'auto',
+
     /* НАСТРОЙКА: снимать ли у гертруды сплошную кайму. Картинки приходят
        непрозрачными: рваный край нарисован по сплошному полю, и оно —
        часть файла. Заливкой от краёв это поле вычитается и заменяется
@@ -1005,6 +1074,7 @@
     videoLink:    { bool: true },
     navSticky:    { bool: true },
     cardsLift:    { bool: true },
+    navArchive:   { bool: true },
     /* чем сообщать о новой пыни */
     pynSound:     { list: ['push', 'ding', 'both', 'none'] },
     /* где показывать плашку */
@@ -1134,6 +1204,18 @@
   }
 
   applyNavStick();
+
+  /* Ссылка на архив — тоже классом на html, а не пересборкой столбика.
+     Узел строится всегда и всегда лежит на своём месте, видимостью
+     заведует класс. Так переключатель в попапе действует тем же кадром,
+     а не «со следующей страницы»; строить и выдёргивать узел на каждое
+     нажатие значило бы держать две ветки кода вместо одной. */
+  function applyNavArch() {
+    var el = document.documentElement;
+    if (el) el.classList.toggle('lm-arch', !!CFG.navArchive);
+  }
+
+  applyNavArch();
 
 
 
@@ -1455,7 +1537,8 @@
     footer:  new Marks(),   /* подпись поста сокращена */
     userRow: new Marks(),   /* пункт списка граждан размечен */
     offscreen: new Marks(), /* ролик под наблюдением «уехал за экран» */
-    vlink:   new Marks()    /* ссылка под роликом поставлена */
+    vlink:   new Marks(),   /* ссылка под роликом поставлена */
+    emoji:   new Marks()    /* эмодзи внутри обёрнуты */
   };
 
   /* Обход в глубину с отсечением поддеревьев. querySelectorAll возвращает
@@ -1951,6 +2034,23 @@
      ошибка. */
   var FRAME_C = 'rgb(220,217,209)';
 
+  /* Кнопки в подвале формы комментария: «Закрыть» и отправка.
+     Ширина и высота одни на обе и на отступ между ними, поэтому числа
+     вынесены сюда, а не написаны по месту трижды. Разбор — у самих
+     правил.
+     28 по высоте — та же величина, что у кнопок голосования и у кнопок
+     в попапе настроек: разнобой в пару пикселей читается небрежностью.
+     76 по ширине — под слово YARRR! полужирным кеглем 12 с запасом на
+     «Закрыть», которое чуть длиннее. */
+  var FORM_BTN_W = 76;
+  var FORM_BTN_H = 28;
+
+  /* Значок обновления над лентой комментариев. Был 24 наравне с
+     соседями по строке; соседи ушли под шеврон, и значок остался
+     единственным — можно и нужно крупнее. 28 — та же величина, что у
+     кнопок голосования и подвала формы. */
+  var CF_ICON = 28;
+
   /* Фон карточки — поста и комментария. Страница у лепры чисто белая,
      и карточка на ней до сих пор была дыркой с обводкой: рамка есть,
      тела нет. Тон взят из палитры лепры (её серый — 244,244,242),
@@ -1972,6 +2072,32 @@
      отделяет край общего свечения карточки. */
   var PAGE_ALT = 'rgb(231,228,219)';
   var CARD_ALT = 'rgb(253,252,250)';
+
+  /* Обратный набор: подсветка нажатого и заливка значков.
+
+     Все эти тона подбирались когда-то на БЕЛОЙ странице, и подбирались
+     по расстоянию до неё: подсветка нажатой кнопки 220 при фоне 255 —
+     это «на тридцать пять темнее фона», обводка 170 — «на восемьдесят
+     пять», светло-серый значок прыгалки 210 — «на сорок пять».
+
+     В обратном наборе страница уже не 255, а 231. Те же самые числа
+     превращаются в «на одиннадцать темнее» — то есть в ничто: нажатая
+     кнопка перестаёт отличаться от ненажатой, а значок прыгалки тонет в
+     фоне. Ровно это и видно на устройстве.
+
+     Поэтому пересчитываем не сами тона, а расстояния: берём то же
+     удаление от фона, что и в заводском наборе, и откладываем его от
+     231. Так переключение схемы не меняет ощущения контраста, а только
+     тон.
+
+     Из подсветок здесь только те, что лежат НА СТРАНИЦЕ, — кнопки
+     навигационной штуки. Кнопки попапа настроек стоят на своей плашке
+     rgb(245,245,245), которая от схемы не зависит, и трогать их не
+     надо. */
+  var ALT_ON_BG   = 'rgb(196,193,185)';   /* 231 − 35 */
+  var ALT_ON_EDGE = 'rgb(146,144,136)';   /* 231 − 85 */
+  var ALT_EDGE    = 'rgb(166,163,155)';   /* 231 − 65, обводка ненажатой */
+  var ALT_JUMP    = 'rgb(186,185,182)';   /* 231 − 45, значки прыгалок */
 
   /* Свечение карточки: радиальный переход от середины к краям.
 
@@ -2089,11 +2215,39 @@ html {
      стоит начальное значение — заводское или то, что человек сохранил
      в прошлый раз (см. tuneLoad). */
   --lm-media-max: ${CFG.mediaCut}vh;
-  max-width: 100vw !important;
+  /* Кегль полей ввода в формах комментария. Переменной, а не числом:
+     он зависит от масштаба страницы, а тот меняется без перезагрузки.
+     Здесь заводское значение — то, что получается при стопроцентном
+     масштабе; настоящее ставит formFontVar. */
+  --lm-form-font: ${CFG.formFont}px;
+  /* Потолок ширины — доля, а не vw, и это починка формы, уезжавшей за
+     правый край при уменьшенном масштабе страницы.
+
+     Разбор был по одному числу. Тык по полю ввода нижней формы дал
+     ширину 438 при полях страницы по 12 и border-box: 438 + 24 = 462.
+     То есть 100vw вернул 462 в тот момент, когда CSS-ширина документа
+     была другой. Safari на iOS считает vw не от текущей раскладки, а от
+     видового окна, заданного метатегом, и масштаб страницы на него не
+     влияет. При стопроцентном масштабе оба числа совпадают, и всё
+     работает; стоит уменьшить масштаб — раскладка становится уже, а vw
+     остаётся прежним, и обёртка оказывается на два-три десятка
+     пикселей шире экрана. Крестик формы прибит к правому краю обёртки
+     (right: 0) и уезжает вместе с ней — ровно то, что видно на снимке.
+
+     Доля таких расхождений не знает: она считается от настоящего
+     содержащего блока, а он у html — начальный, то есть та самая
+     раскладка, по которой страница и рисуется.
+
+     Числа для проверки печатаются в шапке отчёта: «100vw» рядом с
+     CSS-шириной. Разойдутся — сразу видно, вернулось ли. */
+  max-width: 100% !important;
   scroll-behavior: auto !important;
   overscroll-behavior-y: contain !important; }
 body {
-  max-width: 100vw !important; overflow-x: hidden !important;
+  /* Та же замена и по той же причине. Потолок тут по-прежнему нужен:
+     без него широкий чужой узел растянул бы body, и overflow-x: hidden
+     обрезал бы уже растянутое. */
+  max-width: 100% !important; overflow-x: hidden !important;
   scroll-behavior: auto !important;
   overscroll-behavior-y: contain !important;
   position: relative !important;
@@ -2102,7 +2256,10 @@ body {
 /* Поля по краям вешаем на .l-wrapper: он есть на всех страницах лепры,
    в отличие от .l-i-content_main, которого нет в профиле и подсайтах. */
 .l-wrapper, #js-nonfooter {
-  min-width: 0 !important; max-width: 100vw !important;
+  /* Доля, не vw: см. разбор у правила html. Именно на этой обёртке
+     расхождение и вылезало — она задаёт поля страницы, и её лишние
+     двадцать пять пикселей доставались всему, что внутри. */
+  min-width: 0 !important; max-width: 100% !important;
   padding-left: ${CFG.pageEdge}px !important;
   padding-right: ${CFG.pageEdge}px !important;
   box-sizing: border-box !important; }
@@ -2230,6 +2387,7 @@ html.lm-cards2.lm-stuck #lm-topbar {
    замер начал бы врать, а заметить это было бы нечем. */
 html.lm-notrans #lm-topbar,
 html.lm-notrans #lm-topbar .b-icon_button_logout { transition: none !important; }
+
 html.lm-measure #lm-topbar .b-icon_button_logout { max-height: 0 !important; }
 
 /* Логаут виден только у нетронутой шапки — см. buildTopbar. Уезжает
@@ -2994,7 +3152,86 @@ ${indentRules()}
 .b-comments_controls a[data-key="refresh"] {
   position: static !important; float: none !important;
   margin: 0 !important; flex: 0 0 auto !important;
-  width: 24px !important; height: 24px !important; }
+  /* Крупнее прежних 24: значок остался единственным в строке (всё
+     остальное ушло под шеврон), и он же самое частое нажатие в треде. */
+  width: ${CF_ICON}px !important; height: ${CF_ICON}px !important;
+  padding: 0 !important; }
+/* Жирнее. Стрелка обновления нарисована сплошной фигурой без обводки, и
+   утолщать её нечем, кроме как обвести той же краской: обводка ложится
+   по контуру и прибавляет каждой линии по полтолщины с каждой стороны.
+   Полпункта в системе координат значка 20 на 20 — это примерно
+   полтора пикселя на экране. */
+.b-comments_controls a[data-key="refresh"] svg { overflow: visible !important; }
+.b-comments_controls a[data-key="refresh"] svg path {
+  stroke: currentColor !important;
+  stroke-width: .5 !important;
+  stroke-linejoin: round !important; }
+
+/* ---- Спрятанные фильтры ----
+   Устройство и причины — у cfBuild. Здесь только вид.
+
+   Шеврон стоит в строке наравне со счётчиками, столбик ложится под ними
+   во всю ширину: строка у лепры flex с переносом, и элемент с основой в
+   сто процентов уходит на свою линию сам.
+   order не трогаем: у пустого контейнера без него доля равна нулю и он
+   встаёт перед всем, чему order задан, — эта грабля у нас записана.
+   Порядок задаём разметкой, шеврон и столбик добавляются последними. */
+.lm-cf_more {
+  -webkit-appearance: none !important; appearance: none !important;
+  flex: 0 0 auto !important;
+  display: inline-flex !important; align-items: center !important;
+  gap: 4px !important;
+  margin: 0 !important; padding: 4px 8px !important;
+  background: none !important;
+  border: 1px solid rgb(205,205,205) !important;
+  border-radius: ${UI_R}px !important;
+  font-family: inherit !important; font-weight: normal !important;
+  font-size: 13px !important; line-height: 1.2 !important;
+  color: rgb(102,102,102) !important;
+  -webkit-tap-highlight-color: transparent !important;
+  touch-action: manipulation !important;
+  cursor: pointer !important; }
+/* Выбран один из спрятанных — шеврон подсвечен: иначе строка молчала бы
+   о том, что лента отфильтрована. */
+.b-comments_controls.lm-cf__on .lm-cf_more {
+  background: rgb(220,218,218) !important;
+  border-color: rgb(170,170,170) !important;
+  color: rgb(20,20,20) !important; }
+html.lm-cards2:not(.lm-dark) .b-comments_controls.lm-cf__on .lm-cf_more {
+  background: ${ALT_ON_BG} !important;
+  border-color: ${ALT_ON_EDGE} !important; }
+/* Знак — подменой символа, а не поворотом. Тот же приём, что у пенсне:
+   повёрнутый шеврон в Safari даёт полупиксельное размытие. */
+.lm-cf_arrow::before { content: '▾' !important; font-size: 11px !important; }
+.b-comments_controls.lm-cf__open .lm-cf_arrow::before {
+  content: '▴' !important; }
+
+.lm-cf_box {
+  display: none !important;
+  flex: 0 0 100% !important; width: 100% !important;
+  box-sizing: border-box !important;
+  margin: 4px 0 0 !important; padding: 6px 8px !important;
+  background: rgb(250,250,250) !important;
+  border: 1px solid rgb(214,214,214) !important;
+  border-radius: ${UI_R}px !important; }
+.b-comments_controls.lm-cf__open .lm-cf_box {
+  display: flex !important; flex-direction: column !important;
+  align-items: flex-start !important;
+  gap: 2px !important; }
+/* Пункты столбика — строками во всю ширину: так по ним попадаешь
+   пальцем, а не по трём буквам подписи. */
+.lm-cf_box a[data-key] {
+  display: block !important; width: 100% !important;
+  box-sizing: border-box !important;
+  margin: 0 !important; padding: 7px 2px !important;
+  white-space: normal !important; }
+/* Поля ввода внутри столбика («автор» и поиск) — во всю строку. Кегль
+   тот же, что у форм: ниже шестнадцати Safari приближает страницу при
+   касании. */
+.lm-cf_box .i-form_text_input_pure {
+  width: 100% !important; box-sizing: border-box !important;
+  font-size: var(--lm-form-font, ${CFG.formFont}px) !important;
+  padding: 2px 0 !important; }
 
 /* ============ ГОЛОСОВАНИЕ ============ */
 /* Блок жил в левой колонке (left:-38px) и был скрыт до наведения мышью.
@@ -3122,6 +3359,143 @@ ${indentRules()}
   padding-left: 0 !important; padding-right: 0 !important;
   margin-left: 0 !important; margin-right: 0 !important; }
 
+/* ---- Две кнопки в подвале формы ----
+
+   У лепры внизу стоит одна кнопка — отправка, и она НЕ кнопка, а
+   картинка: input type="image" с файлом yarrr.gif 54 на 20, на котором
+   слово YARRR! уже нарисовано. Закрытие формы при этом живёт совсем в
+   другом месте — крестиком в правом верхнем углу.
+
+   Ставим обе рядом, «Закрыть» слева от отправки, и одинаковыми.
+
+   Числа: кнопка 76 на 28. Двадцать пикселей лепровской картинки под
+   палец мелковаты, а 28 — та же высота, что у наших кнопок голосования
+   и в попапе, то есть размер, уже принятый в наборе.
+
+   Разметку НЕ трогаем ни в одном месте, и это не осторожность вообще, а
+   осторожность конкретная: на этом самом узле у лепры висит отправка
+   комментария от имени человека. Обработчик мог быть навешен и прямо, и
+   через делегирование с оговоркой о родителе — проверить нечем, а
+   сломать отправку ради вида кнопки размен плохой.
+
+   Отсюда весь приём. Нарисованное на картинке слово перекрасить
+   нельзя, поэтому картинку гасим прозрачностью и рисуем своё слово под
+   нею — псевдоэлементом на строке подвала.
+
+   Прозрачность здесь взята НАРОЧНО, ровно за то свойство, из-за
+   которого она однажды стоила нам круга отладки: погашенный до нуля
+   элемент продолжает ловить нажатия. Тут это и нужно — палец попадает в
+   настоящий input лепры, а видит наше слово.
+
+   Место псевдоэлемента считается, а не подбирается. Строка подвала у
+   лепры position: relative, выравнивание по правому краю, отбивок нет;
+   в потоке в ней ровно один элемент — та самая картинка (ссылка
+   «приложу картинку» рядом стоит абсолютно). Значит правый нижний угол
+   строки и есть правый нижний угол кнопки, а размеры кнопки мы задали
+   сами. Привязка получается точной по построению.
+
+   Слово «Закрыть» — тоже псевдоэлементом, по прежней причине: крестик
+   это текстовый узел внутри ссылки, и подмена через DOM пережила бы
+   ровно до следующей перерисовки формы, а лепра собирает её заново на
+   каждое «ответить». Кегль ноль на самой ссылке прячет крестик.
+
+   Отступ справа у «Закрыть» — 84: ширина кнопки отправки плюс восемь
+   просвета. Число одно на два места и потому вынесено в переменную. */
+
+.b-comments_reply_block .b-comments_bottom_bar {
+  position: relative !important;
+  min-height: ${FORM_BTN_H}px !important;
+  text-align: right !important; }
+
+/* Кнопка отправки: наше слово поверх погашенной картинки. Нажатия
+   сквозь него проходят — ловить их должен input под ним.
+
+   Вид обеих кнопок описан двумя объявлениями подряд, а не одним
+   селектором через запятую. Причина не в стиле: jsdom, на котором мы
+   проверяем, при разборе группы с псевдоэлементом теряет и вторую её
+   половину — кнопка «Закрыть» получала в проверке лепровские 20 на 20,
+   хотя в браузере взяла бы наши 76 на 28. Правило, которое нельзя
+   проверить, всё равно что правило, которого нет.
+   Разойтись значениям негде: числа лежат в FORM_BTN_W/FORM_BTN_H,
+   повторяются только имена свойств. */
+.b-comments_reply_block .b-comments_bottom_bar::after {
+  content: 'YARRR!' !important;
+  display: block !important; position: absolute !important;
+  right: 0 !important; bottom: 0 !important;
+  pointer-events: none !important;
+  box-sizing: border-box !important;
+  width: ${FORM_BTN_W}px !important; height: ${FORM_BTN_H}px !important;
+  background: rgb(252,251,249) !important;
+  border: 1px solid rgb(198,196,192) !important;
+  border-radius: ${UI_R}px !important;
+  text-align: center !important;
+  /* Свойства шрифта порознь, а не сокращением font: оно сбрасывает
+     начертание и кегль разом, и стоящий следом font-weight в Safari
+     теряется. */
+  font-family: Verdana, Arial, sans-serif !important;
+  font-size: 12px !important; font-weight: bold !important;
+  line-height: ${FORM_BTN_H - 2}px !important;
+  color: rgb(186,58,45) !important; }
+
+/* Сама картинка: растянута по кнопке и погашена. Пределы лепры (100 и
+   60) снимаем — иначе они не дали бы задать размер. */
+.b-comments_reply_block .b-comments_reply_block_yarrr {
+  width: ${FORM_BTN_W}px !important; height: ${FORM_BTN_H}px !important;
+  max-width: none !important; max-height: none !important;
+  margin: 0 !important; padding: 0 !important;
+  border: 0 !important; background: none !important;
+  opacity: 0 !important;
+  position: relative !important; z-index: 2 !important;
+  cursor: pointer !important; }
+
+/* Кнопка «Закрыть». Остаётся на месте — абсолютно внутри обёртки
+   формы, — но переезжает из правого верхнего угла в правый нижний, к
+   соседке. Нижний край обёртки совпадает с нижним краем строки подвала:
+   подвал у лепры последний в форме, а своих отбивок снизу у обёртки
+   нет. */
+.b-comments_reply_block .b-close_btn {
+  display: block !important;
+  top: auto !important; left: auto !important;
+  bottom: 0 !important; right: ${FORM_BTN_W + 8}px !important;
+  margin: 0 !important; padding: 0 !important;
+  box-sizing: border-box !important;
+  width: ${FORM_BTN_W}px !important; height: ${FORM_BTN_H}px !important;
+  background: rgb(252,251,249) !important;
+  border: 1px solid rgb(198,196,192) !important;
+  border-radius: ${UI_R}px !important;
+  text-align: center !important;
+  text-decoration: none !important;
+  font-size: 0 !important;
+  -webkit-tap-highlight-color: transparent !important;
+  touch-action: manipulation !important; }
+.b-comments_reply_block .b-close_btn::before {
+  content: 'Закрыть' !important;
+  font-family: Verdana, Arial, sans-serif !important;
+  font-size: 12px !important; font-weight: bold !important;
+  line-height: ${FORM_BTN_H - 2}px !important;
+  color: rgb(70,70,70) !important; }
+.b-comments_reply_block .b-close_btn:active {
+  background: rgb(236,234,232) !important; }
+
+/* Ссылка «приложу картинку» стоит в той же строке абсолютно слева и
+   ширины не имеет — при узком экране она дотягивалась бы до кнопок.
+   Ограничиваем справа местом, которое кнопки занимают: 160 на них и
+   двенадцать просвета. */
+.b-comments_reply_block .b-file_uploader_button {
+  max-width: calc(100% - ${FORM_BTN_W * 2 + 20}px) !important;
+  line-height: 1.25 !important; }
+
+/* Надпись «Я, пожалуй, напишу комментарий». У лепры кегль 18 и запрет
+   переноса: при увеличенном масштабе страницы, когда ширина падает до
+   340, строка уезжает за кромку. Перенос разрешаем, кегль чуть
+   убавляем — восемнадцать здесь спорит с подписями комментариев над
+   нею. */
+.b-comments_controls_bottom { margin: 14px 0 !important; }
+.b-comments_controls_new_comment {
+  white-space: normal !important; font-size: 16px !important;
+  line-height: 1.35 !important; display: inline-block !important; }
+
+
 /* Отмотка лесенки — строго ПОСЛЕ правила выше, см. replyBleedRules. */
 ${replyBleedRules()}
 
@@ -3198,6 +3572,24 @@ textarea, select {
   box-sizing: border-box !important; }
 input[type="radio"], input[type="checkbox"] {
   transform: scale(1.2); margin-right: 6px; }
+
+/* Кегль полей ввода в формах комментария. Правило выше ставит всем
+   полям ровно шестнадцать; здесь то же требование, но переменной — она
+   учитывает масштаб страницы (разбор в описании CFG.formFont).
+
+   Стоит НИЖЕ общего правила И тяжелее его на класс — оба условия
+   обязательны. Браузер решает спор по весу, jsdom по порядку
+   объявления, и совпасть они должны на одном и том же правиле; сперва
+   этот блок стоял выше, и проверка показывала шестнадцать там, где
+   браузер показал бы восемнадцать.
+
+   Перечисляем и textarea, и текстовое поле: в форме есть и то, и
+   другое (поле у загрузчика картинки), а приближает Safari то поле, в
+   которое ткнули. */
+.b-comments_reply_block textarea,
+.b-comments_reply_block input[type="text"],
+.b-comments_reply_block .i-form_text_input {
+  font-size: var(--lm-form-font, ${CFG.formFont}px) !important; }
 
 /* ============ СТРАНИЦА НОВОГО ПОСТА ============ */
 /* Разметка формы — самая старая на лепре: одна таблица во всю страницу,
@@ -3891,6 +4283,172 @@ html:not(.lm-profart) body.l-profile .l-content_wrapper {
 .b-archive_calendar, .b-archive_calendar table {
   width: 100% !important; max-width: 100% !important;
   box-sizing: border-box !important; }
+/* Сам календарь свёрстан на 280 пикселей: коробка 280, ячейка дня ровно
+   сорок, подсказка снизу опять 280. В 393 это влезает, но оставляет
+   справа пустую треть — а календарь тут единственный орган управления,
+   и по нему тычут пальцем.
+   Отдаём ему всю ширину, а ячейку задаём долей: семь ячеек по 14.28%
+   складываются в строку при любой ширине экрана, включая уменьшенный
+   масштаб страницы.
+   Доля работает, потому что между ячейками в разметке НЕТ пробелов —
+   строчно-блочные элементы стоят вплотную, и лишнего просвета, который
+   у inline-block съедает четвёртый пиксель и роняет седьмую ячейку на
+   вторую строку, здесь не возникает. Проверено по разметке, а не на
+   глаз. */
+.b-calendar { width: 100% !important; box-sizing: border-box !important; }
+.b-calendar_hint { width: auto !important; }
+.b-calendar_month_header .b-calendar_day,
+.b-calendar_month_days .b-calendar_day {
+  width: 14.28% !important; box-sizing: border-box !important; }
+
+/* ============ ДЕМОКРАТИЯ (Белый дом) ============ */
+/* Страница собрана реактом и свёрстана в две колонки по половине ширины
+   с обтеканием. Всё остальное на ней — числа под десктопную тысячу:
+   отрицательные поля обёрток (−24 у колонок, −20 у устава), отступ 220
+   у последней колонки таблицы, попап импичмента 519×340 с привязкой к
+   середине через отрицательные поля.
+
+   Своего класса странице не заводим: имена p-democracy__* больше нигде
+   не встречаются, и признак «мы на демократии» вычисляется из них
+   самих. Лишний класс — это лишний проход и лишнее место, где можно
+   разойтись с разметкой. */
+
+/* Колонки в столбик. Отрицательное поле обёртки снимаем вместе с
+   обтеканием: оно вытягивало содержимое левее полей страницы, и без
+   колонок это просто сдвиг всего блока за кромку.
+   Правило, а не расчёт на unfloatWide: тот сработал бы (половина
+   экрана больше его порога в 40%), но зависеть от замера там, где
+   ответ известен заранее, незачем. */
+.p-democracy__columns-wrapper {
+  margin-left: 0 !important; margin-bottom: 20px !important; }
+.p-democracy__column {
+  float: none !important; width: auto !important;
+  border-right: 0 !important; margin-right: 0 !important;
+  padding-left: 0 !important; }
+
+/* Заголовок. У лепры 27 пунктов по картинке-подложке; на телефоне это
+   две строки на полэкрана. Кегль тот же, что у заголовка архива.
+
+   С подложкой пришлось разобраться отдельно, и разбор был по размеру
+   файла: regular-title.jpg — 558×70. У лепры коробка выходит примерно в
+   72 пикселя (отбивки 19 и 20 плюс строка в 27 пунктов), то есть ровно
+   под высоту картинки. Ужав кегль и отбивки, я сделал коробку в 49 — и
+   нижние два десятка пикселей картинки просто обрезались краем блока.
+   Со стороны это и выглядит как «подпись снизу наезжает на картинку»:
+   наезжает не подпись, картинке не хватило места.
+
+   Лечим двумя правилами сразу, и оба нужны. Нижний предел высоты — 70,
+   натуральная высота файла: меньше неё коробка не станет ни при каком
+   кегле. И background-size: contain — потому что 558 шире доступных
+   четырёхсот с небольшим, и при натуральном размере картинку срезало бы
+   уже справа. contain вписывает её целиком: на нашей ширине она
+   уменьшается примерно до 413×52 и внутри семидесяти помещается с
+   запасом, ничего не теряя.
+   cover, стоявший здесь раньше, делает обратное — заполняет коробку,
+   обрезая лишнее. Для декоративной заливки это верно, а тут в картинке
+   нарисован текст. */
+.p-democracy__header { margin-bottom: 16px !important; }
+.p-democracy__header-main {
+  font-size: 20px !important; line-height: 1.25 !important;
+  padding: 12px 0 12px 10px !important; margin-bottom: 14px !important;
+  min-height: 70px !important; box-sizing: border-box !important;
+  background-size: contain !important;
+  background-position: left top !important; }
+.p-democracy__header-sub {
+  font-size: 13px !important; line-height: 1.4 !important; }
+
+.p-democracy__container { padding: 12px !important; }
+.p-democracy__title { padding: 10px 0 !important; }
+.p-democracy__closed-subdomains-indicator { margin-bottom: 12px !important; }
+/* Отбивка списка имён у лепры 20; на трети экрана это заметная доля. */
+.react .b-user-list { padding-left: 14px !important; }
+.p-democracy__inbox { margin: 12px 0 !important; }
+
+/* Двач-режим. Подпись отбита слева на 90 под картинку 77×66, которая
+   лежит в псевдоэлементе, — отбивку оставляем (без неё подпись легла бы
+   на картинку), а вертикальную ужимаем: тридцать сверху и снизу под
+   одну строку это полсантиметра пустоты с каждой стороны. */
+.p-democracy__anonymous { padding: 14px 0 !important; }
+.p-democracy__anonymous-indicator {
+  padding: 22px 0 22px 84px !important; }
+
+/* Кнопка импичмента. Высота у лепры прибита числом (33) при строке 37 —
+   на телефоне подпись переносится и вылезает за кнопку. Отдаём высоту
+   содержимому. */
+.p-democracy__impeach { margin-bottom: 24px !important; }
+.p-democracy__impeach-button {
+  height: auto !important; line-height: 1.2 !important;
+  font-size: 18px !important; padding: 8px 14px !important;
+  margin-bottom: 8px !important; }
+.p-democracy__impeach-text { line-height: 1.4 !important; }
+
+.p-democracy__press { padding-top: 8px !important; }
+/* Лента твиттера приходит чужим кадром неизвестной ширины. */
+.b-twitter { max-width: 100% !important; overflow: hidden !important; }
+.b-twitter iframe { max-width: 100% !important; }
+
+/* Устав. Таблицу НЕ разбираем в блоки, хотя общее правило форм такое
+   умеет: здесь ячейки объединены по строкам (rowspan), и «Ещё
+   дополнительные голоса и сливочный соус!» относится сразу к двум
+   ступеням кармы. В столбик это превратилось бы в набор строк без
+   связи, то есть в потерю смысла. Оставляем две колонки: первая
+   набрана числами и не переносится, второй достаётся остальное.
+   Отступ 220 у последней колонки — под десктопную ширину; снимаем. */
+.b-sparja { margin-left: 0 !important; padding-bottom: 30px !important; }
+.b-sparja table { width: 100% !important; }
+.b-sparja__title { margin-bottom: 16px !important; }
+.b-sparja thead tr { height: 44px !important; }
+.b-sparja th, .b-sparja td {
+  padding: 4px 6px !important; font-size: 12px !important; }
+.b-sparja th span, .b-sparja td span { font-size: 15px !important; }
+.b-sparja__indent td:last-child,
+.b-sparja__indent th:last-child { padding-left: 6px !important; }
+/* Спаржа. У лепры коробка нулевой ширины, а картинка вывешена из неё
+   абсолютно вправо-вниз — приём для колонки в 220 пикселей, на телефоне
+   картинка уезжает за кромку. Возвращаем обе в поток.
+   Селекторы лепры (.b-sparja div и .b-sparja div img) весят больше
+   наших, поэтому здесь !important обязателен — на одном весе мы бы
+   проиграли. */
+.b-sparja__image {
+  position: static !important; width: auto !important;
+  height: auto !important; }
+.b-sparja__image img {
+  position: static !important; max-width: 100% !important;
+  /* Потолок высоты. Файл sparja.png — 209×416, то есть полэкрана в
+     высоту. У лепры этого не видно: там коробка нулевая, а картинка
+     вывешена из неё абсолютно и на высоту строки не влияет. Вернув её
+     в поток, мы вернули и все её четыреста шестнадцать пикселей —
+     ступень кармы «250 / 3» вымахала на пол-экрана.
+     Ширину не задаём: при потолке по высоте и width: auto браузер
+     ужимает замещённый элемент соразмерно, как и медиа в постах. */
+  height: auto !important; width: auto !important;
+  max-height: 120px !important; }
+
+/* Попап импичмента. У лепры коробка 519×340, прибитая к середине окна
+   отрицательными полями в половину своих размеров — приём, который на
+   узком экране уводит её левый край далеко за кромку.
+   Ставим от краёв теми же полями, что у страницы, а высоту отдаём
+   содержимому с потолком: и картинка, и две кнопки должны поместиться,
+   но простыней окно быть не должно.
+   Отрицательное поле контейнера (−128) снимаем: оно поднимает пустую
+   обёртку поверх подвала, когда попап закрыт. */
+html body .b-portal__container { margin-top: 0 !important; }
+.p-democracy__impeach-popup {
+  position: fixed !important;
+  top: 8vh !important; bottom: auto !important;
+  left: ${CFG.pageEdge}px !important; right: ${CFG.pageEdge}px !important;
+  width: auto !important; height: auto !important;
+  max-height: 84vh !important; overflow: auto !important;
+  margin: 0 !important; padding-bottom: 14px !important;
+  box-sizing: border-box !important; }
+.p-democracy__impeach-popup img {
+  max-width: 100% !important; height: auto !important; }
+.p-democracy__impeach-popup-close {
+  top: 8px !important; right: 8px !important; }
+/* Кнопки в попапе по 155 пикселей: вдвоём это 310 плюс поля, и на узком
+   экране вторая уезжает. Ширину отдаём подписи. */
+.p-democracy__impeach-button_popup {
+  width: auto !important; margin: 6px 5px !important; }
 
 /* подписи постов: строки переносятся часто, тесная высота строки
    заставляла соседние строки наезжать друг на друга */
@@ -5625,13 +6183,73 @@ body.l-profile #lm-navthing { margin-bottom: 0 !important; }
 /* Герб внутри прячем, а не удаляем: узел леприн, и хотя он декоративный,
    выдёргивать чужие узлы из разметки ради косметики не стоит. */
 .lm-navthing_links .b-aside_imperial_blogs_bg { display: none !important; }
-.lm-navthing_links .b-aside_imperial_blogs strong {
-  margin-bottom: 4px !important; padding-left: 0 !important;
-  font-size: 14px !important; }
+/* Блок власти: президент и вход в Белый дом в общей рамке.
+   Обводка, а не черта под ними: пара эта про одно — кто правит и куда
+   идти смотреть, — а список подлепр под нею про другое, и рамка
+   разделяет их честнее линии. Тон рамки тот же, что у карточки:
+   другого серого в наборе заводить незачем.
+   По центру: внутри рамки левый край держать не за что, а строки тут
+   короткие и разной длины.
+   Отбивка снизу отделяет рамку от списка; своих отбивок ни у президента
+   внутри, ни у заголовка при этом нет — их задаёт эта коробка. */
+.lm-navthing_gov {
+  margin: 0 0 8px !important;
+  padding: 6px 6px 7px !important;
+  border: 1px solid ${FRAME_C} !important;
+  border-radius: ${UI_R}px !important;
+  text-align: center !important; }
+/* display: block обязателен — strong строчный, и у него собственная
+   ширина по буквам; блоком он занимает строку целиком, и выравнивание
+   от рамки достаётся ему как надо. Своей раскладки лепра на этом узле
+   не держит, внутри одна ссылка. */
+/* Кегль и начертание — как у ника президента строкой выше: это
+   равноправная строка блока, а не заголовок над ним. Полужирное
+   начертание strong снимаем явно — оно у него от встроенной таблицы
+   браузера, а не от лепры, и без сброса «Белый дом» выделялся бы
+   вдвойне: и жиром, и размером. */
+.lm-navthing_gov strong {
+  display: block !important;
+  margin: 3px 0 0 !important; padding: 0 !important;
+  font-weight: normal !important;
+  font-size: 13px !important; }
 .lm-navthing_links .b-aside_imperial_blogs ul { margin: 0 !important; }
 .lm-navthing_links .b-aside_imperial_blogs li {
   padding-left: 0 !important; margin-bottom: 3px !important; }
 .lm-navthing_links .b-aside_imperial_blogs a { font-size: 13px !important; }
+/* Президент — первой строкой столбика. У лепры блок отбит слева на 65
+   пикселей под портрет, который лежит там же абсолютно; портрет прячем
+   (в колонку шириной в треть экрана он не встанет), отбивку снимаем.
+   Кегль ника 17 у неё рассчитан на боковую колонку — здесь он был бы
+   вдвое крупнее соседнего списка; ставим тот же 13, что и у ссылок.
+   Подпись под ником мельче и серее: это пояснение, а не ссылка. */
+/* Отбивок у президента нет вовсе: расстояние до заголовка задаёт его
+   собственная верхняя отбивка, а расстояние до края — поля рамки. Два
+   источника отступа между одними и теми же узлами всегда кончаются
+   двойным. */
+.lm-navthing_links .b-aside_president {
+  width: auto !important; min-height: 0 !important;
+  margin: 0 !important; padding: 0 !important;
+  border-bottom: 0 !important; }
+.lm-navthing_links .b-aside_president_bg { display: none !important; }
+.lm-navthing_links .b-aside_president a,
+.lm-navthing_links .b-aside_president b { font-size: 13px !important; }
+.lm-navthing_links .b-aside_president p {
+  margin: 1px 0 0 !important;
+  font-size: 11px !important; line-height: 1.3 !important;
+  color: rgb(110,110,110) !important; }
+/* Ссылка на архив. Кегль и отбивка — как у пунктов списка выше, чтобы
+   строка читалась продолжением столбика, а не приклеенной снизу
+   врезкой. Блочная: строчная встала бы в одну строку с последним
+   пунктом списка, если у того короткое имя.
+   По умолчанию скрыта — показывает её класс на html, см. applyNavArch.
+   Прячем display'ем, а не прозрачностью: погашенная до нуля ссылка
+   продолжает ловить нажатия, и это уже стоило нам одного круга на
+   кнопке «наверх». */
+.lm-navthing_arch { display: none !important; }
+html.lm-arch .lm-navthing_arch {
+  display: block !important;
+  margin-top: 3px !important; padding-left: 0 !important;
+  font-size: 13px !important; }
 /* Крестик «отписаться» лепра показывает по .b-aside_imperial_blogs
    li:hover. Я считал, что на телефоне это правило мёртвое, — оказалось
    нет: Safari после тапа по ссылке оставляет на пункте состояние hover,
@@ -6381,6 +6999,18 @@ html.lm-dark [style*="background-image"] {
    проверка решили бы спор по-разному. */
 html.lm-dark .lm-navthing_gert.lm-opaque img { filter: none !important; }
 
+/* Эмодзи. Узел ставит проход fixEmoji (раздел 6.5); здесь только
+   возврат цветов — тот же приём, что и у картинок строкой выше.
+   Плёнка висит на html.lm-dark, поэтому в светлой теме узел ничего не
+   делает и заворачивать можно всегда, не переобходя страницу при
+   переключении темы.
+   display оставляем строчным: эмодзи стоит посреди строки, и
+   inline-block отнял бы у неё возможность перенестись по этому месту.
+   Safari плёнку на строчном узле рисует — проверено на устройстве
+   (если вдруг нет, лечится строкой display: inline-block). */
+html.lm-dark .lm-emo {
+  filter: invert(1) hue-rotate(180deg) !important; }
+
 /* ============ ПОПАП НАСТРОЕК ============ */
 /* Слой выше всего нашего, кроме плашки о пыни: настройки перекрывают
    страницу целиком, но сообщение о новом ответе перекрывать не должны —
@@ -6734,6 +7364,37 @@ html.lm-cards2 .c_i {
    border-width, а не border: цвет и скругление пусть лежат в одном
    месте, на случай если рамку когда-нибудь вернут. */
 html.lm-cards2 .comment .c_i::before { border-width: 0 !important; }
+
+/* Контраст органов управления в обратном наборе. Причина и способ
+   расчёта — рядом с ALT_ON_BG.
+
+   :not(.lm-dark) обязателен. Обратный набор сочетается с тёмной темой
+   (есть отдельные правила html.lm-dark.lm-cards2), и там страница уже
+   не 231, а почти чёрная; свои тона у тёмной темы посчитаны отдельно, и
+   здешние их только испортили бы.
+
+   Правила стоят НИЖЕ исходных и тяжелее их ровно на один класс (html.
+   lm-cards2 против голого .lm-navthing_extra …), так что спор решается
+   одинаково и по весу, и по порядку. */
+html.lm-cards2:not(.lm-dark) .lm-navthing_extra .lm-disco_btn {
+  border-color: ${ALT_EDGE} !important; }
+html.lm-cards2:not(.lm-dark) .lm-navthing_extra .lm-disco_btn.lm-on {
+  background: ${ALT_ON_BG} !important;
+  border-color: ${ALT_ON_EDGE} !important; }
+html.lm-cards2:not(.lm-dark) .lm-navthing_extra .lm-disco_mode.lm-on,
+html.lm-cards2:not(.lm-dark) .lm-navthing_extra
+  .b-slider_scale_icon.js-feed_type_active {
+  background: ${ALT_ON_BG} !important; }
+
+/* Значки прыгалок и стрелка стыковки. Заливка задана фигурам атрибутом
+   (её ставит svgNode из CFG.jumpColor), поэтому перекрываем правилом —
+   иначе пришлось бы перерисовывать значки при переключении схемы. Тот
+   же приём, что и в тёмной теме.
+   Глаз маски (ellipse, красный) не трогаем: он и на притемнённой
+   странице виден, а перекрашенный перестал бы быть глазом. */
+html.lm-cards2:not(.lm-dark) #lm-nav svg polygon,
+html.lm-cards2:not(.lm-dark) #lm-dsc_arrow svg polygon {
+  fill: ${ALT_JUMP} !important; }
 
 
 /* Звёздочки «золотого» поста. У лепры это спрайт 52 на 12 — пять
@@ -7122,6 +7783,36 @@ ${voteRules()}
    последним: обязана перебивать и общие правила, и наборы голосовалок,
    и оба набора тонов карточек. */
 ${darkRules()}
+
+/* ============ НОВЫЙ КОММЕНТАРИЙ: БЕЗ СВЕЧЕНИЯ ============
+   Лепра подсвечивает новые комментарии заливкой карточки — в её
+   настройках это «серым фоном», rgb(247,247,247). Наша карточка
+   rgb(250,249,246), то есть разница в три единицы: подсветку не видно
+   вовсе. В обратном наборе карточка 253, разница шесть — тоже почти
+   ничего.
+
+   Красить новые сами мы не можем: заливка на .c_i намеренно оставлена
+   без !important, чтобы леприна подсветка побеждала (см. долгий
+   комментарий там же), и подменять её значило бы отобрать у человека
+   выбор из четырёх вариантов в настройках сайта.
+
+   Поэтому отличаем не цветом, а рисунком: у нового комментария гасим
+   свечение. Обычная карточка идёт от светлого в середине к тёплому по
+   краям, новая остаётся ровной — «плоская среди светящихся». Разница
+   заметна при любом наборе тонов и при любой из четырёх подсветок,
+   включая «никак».
+
+   Селектор нарочно тяжёлый и стоит в самом конце файла. Перебить нужно
+   четыре объявления свечения сразу: заводское на .comment .c_i,
+   обратного набора на html.lm-cards2 .c_i, тёмной темы и её же в
+   обратном наборе (html.lm-dark.lm-cards2 .c_i — три класса при
+   элементе). Здесь четыре класса при элементе, то есть тяжелее каждого
+   из них, И ниже всех по файлу: браузер решит спор по весу, jsdom по
+   порядку, и решат одинаково.
+
+   Гасим только рисунок, не заливку: цвет по-прежнему выбирает лепра. */
+html .comments .comment.new .c_i {
+  background-image: none !important; }
 `;
 
   function injectCss() {
@@ -7455,7 +8146,10 @@ ${darkRules()}
     if (!r.width || !r.height) return false;
     if (r.width <= W && r.left >= -1 && r.right <= W + 1) return false;
 
-    el.style.setProperty('max-width', '100vw', 'important');
+    /* Ширину задаём замеренным числом, а не 100vw: vw в Safari не
+       следует за масштабом страницы (разбор у правила html), а W сюда
+       пришёл из clientWidth — то есть из настоящей раскладки. */
+    el.style.setProperty('max-width', W + 'px', 'important');
     el.style.setProperty('box-sizing', 'border-box', 'important');
     el.style.setProperty('left', '0', 'important');
     el.style.setProperty('margin-left', '0', 'important');
@@ -9667,6 +10361,37 @@ ${darkRules()}
     }, { rootMargin: '2px 0px 0px 0px', threshold: 0 }).observe(probe);
   }
 
+  /* Тишина в плашке на время сборки страницы.
+
+     Жалоба: при переходе «назад» верх экрана моргает и слегка дёргается.
+     Разобрано так. Плашка теряет логаут не мгновенно, а переходом в
+     NAV_FOLD миллисекунд — это сделано нарочно, чтобы при обычной
+     прокрутке строка уезжала плавно, а не пропадала рывком.
+
+     При обычном открытии страницы это не видно: страница стоит вверху,
+     плашка в полном виде, а прилипает она уже под пальцем, когда
+     человек сам крутит.
+
+     При возврате «назад» всё наоборот. Браузер восстанавливает место, и
+     страница оказывается прокрученной ДО того, как мы успели поставить
+     признак «прокручено». Наблюдатель за щупом ставит его следом — и
+     переход честно играет свои 280 миллисекунд посреди уже собранной
+     страницы. Это и есть моргание: логаут схлопывается на глазах, а
+     вместе с ним на несколько пикселей ходит всё, что под плашкой.
+
+     Чинить состояние не надо — оно правильное. Надо убрать анимацию
+     этого состояния на время, пока страница ещё устаканивается.
+     Гасим переходы на первые доли секунды: любое переключение в этом
+     окне происходит мгновенно и незаметно, а дальше всё как было.
+
+     Приём заведомо безопасный: класс не меняет НИ ОДНОГО состояния и не
+     трогает раскладку, он гасит только переход. Сломать липкость им
+     нельзя по построению.
+
+     Заводим окно и по pageshow тоже. Если Safari отдаст страницу из
+     своего кэша назад-вперёд, скрипт не перезапустится вовсе — а
+     перерисовка всё равно будет, и слушатель, повешенный в прошлой
+     жизни страницы, доживёт до неё и сработает. */
   function setStuck(on) {
     var el = document.documentElement;
     /* В тёмной теме липкости нет вовсе (см. CSS), а значит и признаку
@@ -10059,6 +10784,11 @@ ${darkRules()}
   var SUBSITE_KEEP =
     /b-subsite_header|b-subsite_logo|js-subsite_logo|b-gertruda|b-subdomain|\bh1\b|\.cls-/i;
 
+  /* Приставка html в начале селектора (или любой его части через
+     запятую) — подпись чужого оформления: только ради веса она там и
+     стоит. См. разбор в killSubsiteCss. */
+  var HTML_FIRST = /(^|,)\s*html(?![\w-])/i;
+
   /* Какие таблицы считаем чужим оформлением.
 
      Разбор архива поправил моё прежнее представление. Я думал, что
@@ -10166,6 +10896,7 @@ ${darkRules()}
          пропускал бы каждое второе правило. */
       var rules;
       try { rules = sheet.cssRules; } catch (e) { l.disabled = true; return; }
+      var inline = (l.tagName === 'STYLE');
       var gone = 0, kept = 0;
       for (var i = rules.length - 1; i >= 0; i--) {
         var sel = rules[i].selectorText || '';
@@ -10174,6 +10905,32 @@ ${darkRules()}
            разбирать вложенные @media ради заливок не стоит — их всё
            равно перекрывают наши правила с !important. */
         if (!sel || SUBSITE_KEEP.test(sel)) { kept++; continue; }
+        /* Во ВСТРОЕННОЙ таблице выметаем только правила с приставкой
+           html, и это не осторожность, а починка архива.
+
+           Разбор был такой. На архиве календарь приезжал россыпью: дни
+           недели слипались в «пнвтсрчтптсбвс», числа шли одной строкой
+           за край экрана, месяц с годом становились маркированным
+           списком. Выглядело как наша поломка раскладки, а оказалось
+           проще: вся раскладка календаря (.b-calendar*, ширина ячейки в
+           сорок пикселей, две колонки управления по половине) живёт во
+           ВСТРОЕННОЙ таблице стилей страницы — и мы её выметали
+           начисто. Отсюда и «скорявило после некоторых изменений»:
+           изменение было ровно одно — мы начали прореживать <style>.
+
+           Различить чужое оформление и раскладку страницы можно по той
+           самой примете, ради которой прореживание и затевалось.
+           Оформление подлепры перебивает all.css не порядком, а весом:
+           каждое её правило написано с приставкой html. Раскладка
+           страницы такой приставки не имеет — ей не с чем спорить.
+           Признак надёжный: обе встроенные таблицы, которые есть на
+           КАЖДОЙ странице (набор тонов и «html .l-content
+           background-image: none»), написаны через html и уходят как
+           прежде, а таблица календаря остаётся.
+
+           Внешних ссылок это послабление не касается: там наоборот,
+           таблица целиком чужая, и выметать надо всё. */
+        if (inline && !HTML_FIRST.test(sel)) { kept++; continue; }
         /* Полосу под заголовком запоминаем перед удалением правила. */
         if (!subsiteArt && /\.l-content(?![_a-z-])/.test(sel)) {
           var img = rules[i].style && rules[i].style.backgroundImage;
@@ -10784,6 +11541,13 @@ ${darkRules()}
       });
     other.appendChild(navRow);
 
+    /* Свой слушатель после setToggle — по той же причине, что и у
+       карточек: он срабатывает вторым, когда CFG уже переписан. */
+    var archRow = setToggle('navArchive', 'Архив в навигационной штуке');
+    archRow.querySelector('.lm-set_switch')
+      .addEventListener('click', function () { applyNavArch(); });
+    other.appendChild(archRow);
+
     win.appendChild(other);
 
     /* Отдельным разделом, а не в «Другом»: тут не удобства, а
@@ -10968,7 +11732,10 @@ ${darkRules()}
     '<path d="M12 15v6"/></g></svg>';
 
   var BLOGS_KEY = 'lm-blogs';     /* последний увиденный список подлепр */
+  var PRES_KEY = 'lm-president';  /* последний увиденный блок президента */
   var BLOGS_URL = 'https://leprosorium.ru/underground/';
+  var ARCHIVE_URL = 'https://leprosorium.ru/archive/';
+  var DEMOCRACY_URL = 'https://leprosorium.ru/democracy/';
   var VEG_KEY = 'lm-veg';         /* были ли у овощебазы замены */
   var VEG_URL = 'https://leprosorium.ru/fraud/replacements/';
 
@@ -11158,6 +11925,86 @@ ${darkRules()}
      Счётчик «0/524» и крестик «отписаться» в запись не идут намеренно:
      число непрочитанного к следующей странице уже неверно, а крестик без
      скрипта лепры — просто нерабочий значок. */
+  /* ---- Президент из памяти ----
+
+     Блок президента лепра кладёт в правую колонку, а колонки этой нет
+     на целых разделах: в профиле, в магазине, на внутренних страницах.
+     Список подлепр там же и по той же причине отсутствует — его мы
+     давно храним и восстанавливаем, а президента до сих пор нет, и в
+     рамке «Белый дом» стоял один, без имени. Заводим ему такую же
+     память.
+
+     Храним разобранное, а не разметку. Причина не в размере: у блока
+     внутри лежит герб (.b-aside_president_bg), который мы всё равно
+     прячем, и класс js-date на датах, за который берётся скрипт лепры.
+     Сохранив разметку целиком, мы принесли бы на чужую страницу оба, а
+     нужны нам три вещи — имя, адрес и две строчки подписи.
+
+     Строки подписи режем ПО <br>, а не по textContent: у лепры это
+     «Президент Грузии» и «с 26.02 по 22.02», разделённые переводом
+     строки, и склеенные в одну они читались бы кашей.
+
+     Даты в копии застывают до следующего захода на страницу с правой
+     колонкой. Это та же плата, что и за список подлепр: срок
+     президентства меняется раз в год, а колонка попадается на глаза
+     при первом же возвращении на главную. */
+
+  function readPres(el) {
+    var a = el.querySelector('a');
+    if (!a) return null;
+    var lines = [], cur = '';
+    var pp = el.querySelector('p');
+    if (pp) {
+      sliceOf(pp.childNodes).forEach(function (n) {
+        if (n.nodeType === 1 && n.tagName === 'BR') { lines.push(cur); cur = ''; return; }
+        cur += (n.textContent || '');
+      });
+      lines.push(cur);
+    }
+    return {
+      t: (a.textContent || '').replace(/\s+/g, ' ').trim(),
+      u: a.getAttribute('href') || '',
+      l: lines.map(function (x) { return x.replace(/\s+/g, ' ').trim(); })
+              .filter(function (x) { return x; })
+    };
+  }
+
+  function rememberPres(el) {
+    var data = readPres(el);
+    if (!data || !data.t) return;
+    try { localStorage.setItem(PRES_KEY, JSON.stringify(data)); } catch (e) {}
+  }
+
+  function cachedPres() {
+    try {
+      var raw = localStorage.getItem(PRES_KEY);
+      var data = raw && JSON.parse(raw);
+      return (data && data.t && data.u) ? data : null;
+    } catch (e) { return null; }
+  }
+
+  /* Классы лепры оставляем: по ним написаны и её правила, и наши, и обе
+     копии — родная и восстановленная — выглядят одинаково. Герб не
+     переносим вовсе: в колонке шириной в треть экрана он всё равно
+     скрыт правилом. */
+  function makePres(data) {
+    var box = document.createElement('div');
+    box.className = 'b-aside_item b-aside_president';
+    var a = document.createElement('a');
+    a.setAttribute('href', data.u);
+    a.textContent = data.t;
+    box.appendChild(a);
+    if (data.l && data.l.length) {
+      var pp = document.createElement('p');
+      data.l.forEach(function (line, i) {
+        if (i) pp.appendChild(document.createElement('br'));
+        pp.appendChild(document.createTextNode(line));
+      });
+      box.appendChild(pp);
+    }
+    return box;
+  }
+
   function readBlogs(el) {
     var head = el.querySelector('strong a') || el.querySelector('a');
     if (!head) return null;
@@ -11280,16 +12127,81 @@ ${darkRules()}
     } else {
       var saved = cachedBlogs();
       if (saved) links.appendChild(makeBlogs(saved));
-      else {
-        /* Ни разметки, ни записи — первый заход не с главной. Оставляем
-           хотя бы вход в общий список, чтобы строка не разворачивалась
-           в одну гертруду. */
-        var only = document.createElement('a');
-        only.setAttribute('href', BLOGS_URL);
-        only.textContent = 'Блоги Империи';
-        links.appendChild(only);
-      }
+      /* Ни разметки, ни записи — первый заход не с главной. Пусто и
+         ладно: столбик всё равно не схлопнется, ниже в нём блок власти
+         и ссылка на архив, а они есть всегда. */
     }
+
+    /* ---- Блок власти ----
+       Президент и вход в Белый дом, обведённые общей рамкой. Своей
+       обёрткой, а не двумя правилами по месту: рамка должна охватывать
+       оба, а лежат они на разной глубине — президент отдельным блоком
+       правой колонки, заголовок внутри блока блогов. Общего родителя у
+       них нет, и одним CSS такую рамку не нарисовать.
+
+       Заголовок ведёт в Белый дом, а не в общий список подлепр.
+       Причина простая: «Блоги Империи» — ссылка на /underground/, ровно
+       та же, что «N сайтов» в шапке, то есть дубль; а входа на страницу
+       демократии из шапки нет вовсе.
+
+       Заголовок ВЫНИМАЕМ из блока блогов, оставляя там один список.
+       Узел леприн, но за ним у неё ничего не закреплено: обработчики
+       отписки висят на пунктах списка, а не на заглавии. Список при
+       этом остаётся на своём месте, ниже рамки.
+
+       Текст и адрес меняем ПОСЛЕ rememberBlogs: в память должно лечь
+       то, что отдала лепра, иначе на следующей странице мы прочитали бы
+       из неё собственную подмену и потеряли настоящий адрес. */
+    var gov = document.createElement('div');
+    gov.className = 'lm-navthing_gov';
+
+    /* Президент. Есть разметка — переносим узлом и заодно запоминаем;
+       нет (профиль, магазин, внутренние страницы — правой колонки там
+       не бывает) — собираем копию из памяти. Устройство памяти и то,
+       почему храним разобранное, — у readPres. */
+    var pres = document.querySelector('.b-aside_president');
+    if (pres) {
+      rememberPres(pres);
+      gov.appendChild(pres);
+    } else {
+      var savedPres = cachedPres();
+      if (savedPres) gov.appendChild(makePres(savedPres));
+    }
+
+    var head = links.querySelector('.b-aside_imperial_blogs strong');
+    if (head) {
+      var headLink = head.querySelector('a');
+      if (headLink) {
+        headLink.setAttribute('href', DEMOCRACY_URL);
+        headLink.textContent = 'Белый дом';
+      }
+      gov.appendChild(head);
+    } else {
+      /* Блока блогов на странице не было — собираем заголовок сами, той
+         же разметкой: правила оформления одни на оба случая. */
+      var mine = document.createElement('strong');
+      var mineLink = document.createElement('a');
+      mineLink.setAttribute('href', DEMOCRACY_URL);
+      mineLink.textContent = 'Белый дом';
+      mine.appendChild(mineLink);
+      gov.appendChild(mine);
+    }
+
+    links.insertBefore(gov, links.firstChild);
+
+    /* Архив — последней строкой столбика. Строим всегда, показываем по
+       классу lm-arch (см. applyNavArch): переключатель в попапе должен
+       действовать сразу, а не со следующей страницы.
+       Адрес абсолютный, на главный домен. Относительный '/archive/' на
+       подлепре увёл бы в её собственный архив, а он есть не у всех и
+       называется тем же словом — то есть ссылка вела бы то туда, то
+       сюда в зависимости от того, откуда нажали. */
+    var arch = document.createElement('a');
+    arch.className = 'lm-navthing_arch';
+    arch.setAttribute('href', ARCHIVE_URL);
+    arch.textContent = 'Архив';
+    links.appendChild(arch);
+
     top.appendChild(links);
 
     /* Переносим саму картинку, а не блок .b-gertruda с нею внутри: у
@@ -13804,6 +14716,130 @@ ${darkRules()}
     put('unread', fresh);
   }
 
+  /* ============================================================
+     СТРОКА ФИЛЬТРОВ НАД ЛЕНТОЙ КОММЕНТАРИЕВ
+     ============================================================
+
+     У лепры это десять органов в одну строку: значок обновления, «все
+     комментарии N», «новые N», ссылки, картинки, видео, поле «автор»,
+     выбор пола, поле поиска, выбор сортировки. На десктопе они
+     укладываются в строку, на телефоне занимают четыре и стоят перед
+     каждым тредом стеной.
+
+     Прячем всё, кроме трёх постоянно нужных: обновления и двух
+     счётчиков. Остальное уходит в столбик под шевроном.
+
+     Главное решение здесь — НИЧЕГО НЕ ПЕРЕСТАВЛЯТЬ, кроме одного
+     переноса в столбик при сборке. Первая задумка была другой: активный
+     фильтр вынимать из столбика обратно в строку, а при смене
+     возвращать на место. Это значило бы двигать леприны узлы туда-сюда
+     на каждое нажатие, помнить их исходный порядок и надеяться, что её
+     обработчики переживут переезд.
+     Вместо этого активный фильтр показывает САМ ШЕВРОН: подпись на нём
+     и есть имя выбранного. Узлы при этом лежат неподвижно, а строка
+     говорит ровно то же самое.
+
+     Отсюда и правило показа, которое просил Den:
+       выбрано «все»       → рядом видно «новые N»
+       выбрано «новые»     → рядом видно «все комментарии N»
+       выбрано что-то ещё  → видно оба счётчика, а имя выбранного стоит
+                             на шевроне
+     Первые два случая выходят сами собой: оба счётчика в строке всегда,
+     а лепра красит выбранный своим классом. */
+
+  /* Ключи, которые остаются в строке. Остальное уходит в столбик. */
+  var CF_KEEP = { refresh: 1, all: 1, unread: 1 };
+
+  function cfBar() { return document.querySelector('.b-comments_controls'); }
+
+  /* Собрать столбик. Один раз за страницу: метка на самой строке. */
+  function cfBuild() {
+    var bar = cfBar();
+    if (!bar || bar.dataset.lmFilters) return;
+
+    var links = sliceOf(bar.querySelectorAll('a[data-key]'))
+      .filter(function (a) { return !CF_KEEP[a.getAttribute('data-key')]; });
+    /* Нечего прятать — не городим и шеврон. Так бывает на страницах, где
+       лепра показывает урезанную строку. */
+    if (!links.length) return;
+    bar.dataset.lmFilters = '1';
+
+    var more = document.createElement('button');
+    more.type = 'button';
+    more.className = 'lm-cf_more';
+    /* Подпись и знак — разными узлами: подпись меняется, знак нет, и
+       переписывать textContent целиком значило бы каждый раз собирать
+       обе части заново. */
+    var label = document.createElement('span');
+    label.className = 'lm-cf_label';
+    var arrow = document.createElement('span');
+    arrow.className = 'lm-cf_arrow';
+    more.appendChild(label);
+    more.appendChild(arrow);
+
+    var box = document.createElement('div');
+    box.className = 'lm-cf_box';
+    /* Переносим узлами, а не копиями: обработчики фильтров лепра вешает
+       на них самих, и importNode их бы не перенёс — эта грабля у нас уже
+       записана. Порядок разметки сохраняется сам, forEach идёт по нему. */
+    links.forEach(function (a) { box.appendChild(a); });
+
+    bar.appendChild(more);
+    bar.appendChild(box);
+
+    more.addEventListener('click', function (e) {
+      e.preventDefault();
+      bar.classList.toggle('lm-cf__open');
+      more.setAttribute('aria-expanded',
+        bar.classList.contains('lm-cf__open') ? 'true' : 'false');
+    });
+
+    /* Выбрали фильтр — столбик закрывается. С задержкой: сперва должен
+       отработать обработчик лепры, а он смотрит на разметку, которая
+       при закрытии прячется.
+       Поля ввода («автор» и поиск) исключены: в них печатают, и
+       схлопывать столбик под пальцем нельзя. */
+    box.addEventListener('click', function (e) {
+      var t = e.target;
+      if (t && t.closest && (t.closest('input') || t.closest('select'))) return;
+      setTimeout(function () {
+        bar.classList.remove('lm-cf__open');
+        more.setAttribute('aria-expanded', 'false');
+        guard('cfSync', cfSync)();
+      }, 0);
+    });
+
+    cfSync();
+  }
+
+  /* Подпись шеврона. Лепра помечает выбранный фильтр классом active;
+     если выбран один из спрятанных, его имя и стоит на шевроне.
+     Текст берём у самого узла и чистим: у полей выбора внутри лежит
+     ещё и скрытый select, чей текст в textContent попадает. */
+  function cfSync() {
+    var bar = cfBar();
+    if (!bar || !bar.dataset.lmFilters) return;
+    var label = bar.querySelector('.lm-cf_label');
+    var box = bar.querySelector('.lm-cf_box');
+    if (!label || !box) return;
+
+    var on = box.querySelector('a[data-key].active');
+    label.textContent = on ? cfName(on) : 'фильтры';
+    bar.classList.toggle('lm-cf__on', !!on);
+  }
+
+  function cfName(a) {
+    /* У полей выбора видимая подпись лежит в .threshold_select_button —
+       берём её, иначе в текст попадут все пункты скрытого select.
+       У полей ввода своего текста нет вовсе: имя стоит в
+       data-placeholder. */
+    var pick = a.querySelector('.threshold_select_button');
+    var text = pick ? pick.textContent : a.getAttribute('data-placeholder');
+    if (!text) text = a.textContent;
+    text = (text || '').replace(/\u00a0/g, ' ').replace(/\s+/g, ' ').trim();
+    return text || 'фильтры';
+  }
+
   /* Кнопка обновления догружает комментарии асинхронно, поэтому проверяем
      несколько раз: сразу, через полсекунды, через полторы и через три. */
   function watchRefreshButton() {
@@ -14059,6 +15095,62 @@ ${darkRules()}
   /* Форма именно этого комментария и именно видимая. Нулевая высота
      означает, что лепра ещё не развернула контейнер (у него анимация
      max-height) — крутить по ней рано, верх ещё уедет. */
+  /* Кегль полей формы с поправкой на масштаб страницы. Считаем ровно
+     так же, как для поля поиска (searchFontVar), и по той же причине —
+     разбор в описании CFG.formFont.
+
+     Масштаб берём из visualViewport.scale: это отношение видимой части
+     к раскладке, и меню «Аа» в Safari меняет именно его. Нет
+     visualViewport — считаем масштаб единичным; хуже, чем было, от
+     этого не станет.
+
+     Нижняя граница — сам formFont, и она не формальность: когда Safari
+     всё-таки приблизил страницу к полю, scale становится больше
+     единицы, деление даёт тринадцать, и мы бы своими руками сделали
+     поле мелким ровно в тот момент, когда этого нельзя.
+
+     Пишем переменную ВСЕГДА, а не по касанию, как поиск. У поиска кегль
+     поднимается на время и возвращается, потому что раздутое поле в
+     строке ссылок выглядит чужеродно; форма комментария занимает экран
+     целиком, и её полю крупный кегль только к лицу. Заодно отпадает
+     вопрос «а если Safari решает про приближение до нашего касания». */
+  function formFontVar() {
+    var vv = window.visualViewport;
+    var k = (vv && vv.scale) ? vv.scale : 1;
+    formScaleSeen = k;
+    var px = Math.ceil(CFG.formFont / k);
+    px = Math.min(CFG.formFontMax, Math.max(CFG.formFont, px));
+    formFontSeen = px;
+    /* Пишем ТОЛЬКО при изменении. Слушатель висит на visualViewport, а
+       это событие на iOS приходит не только от клавиатуры, но и от
+       прячущейся адресной строки — то есть при обычной прокрутке.
+       Масштаб между такими событиями почти никогда не меняется, и
+       безусловная запись была бы записью того же значения по многу раз
+       за жест. Свойство трогает раскладку, и рассчитывать на то, что
+       браузер сам заметит одинаковое значение, не стоит: прокрутка у
+       нас под особым присмотром именно потому, что телефон от неё
+       грелся. Та же оговорка и теми же словами стоит в
+       syncTopbarVars. */
+    var el = document.documentElement, v = px + 'px';
+    if (el.style.getPropertyValue('--lm-form-font') !== v)
+      el.style.setProperty('--lm-form-font', v);
+  }
+
+  /* Числа для отчёта: какой масштаб увидели и какой кегль поставили. */
+  var formScaleSeen = 1, formFontSeen = 0;
+
+  /* Масштаб страницы меняется без перезагрузки — меню «Аа» и щипок. То
+     же событие приходит и от клавиатуры, но повторная запись прежнего
+     значения переменной браузеру ничего не стоит. */
+  var zoomWatched = false;
+
+  function watchZoom() {
+    if (zoomWatched || !window.visualViewport) return;
+    zoomWatched = true;
+    window.visualViewport.addEventListener('resize',
+      guard('formFontVar', formFontVar));
+  }
+
   function replyFormIn(comment) {
     var f = comment.querySelector('.b-comments_reply_block');
     if (!f) return null;
@@ -14104,6 +15196,259 @@ ${darkRules()}
         }), ms);
       });
     }, true);
+
+    /* Второй случай — надпись «Я, пожалуй, напишу комментарий» в конце
+       треда. Форма под нею разворачивается на месте, страница под неё
+       не крутится, и поле оказывается под клавиатурой.
+
+       Почему это не работало само. При обычном тапе в поле страницу
+       подтягивает сам Safari — поэтому для формы, показанной сразу,
+       ничего и не требовалось. А тут лепра ставит фокус в поле, пока
+       обёртка ещё едет по max-height: Safari считает положение поля в
+       этот момент, к концу движения оно уже другое, и подтягивание
+       промахивается.
+
+       Заходы те же три и по той же причине: первый — когда разметка на
+       месте, последний — когда движение кончилось и клавиатура встала. */
+    document.addEventListener('click', function (e) {
+      var t = e.target;
+      if (!t || !t.closest) return;
+      if (!t.closest('.b-comments_controls_new_comment')) return;
+      [120, 400, 850].forEach(function (ms) {
+        setTimeout(guard('liftReply', function () {
+          var f = newCommentForm();
+          if (f) liftReply(f);
+        }), ms);
+      });
+    }, true);
+  }
+
+  /* ============================================================
+     ФОРМА НОВОГО КОММЕНТАРИЯ В КОНЦЕ ТРЕДА
+     ============================================================
+
+     Лепра показывает её раскрытой, а закрывается она крестиком, после
+     чего на её месте остаётся надпись «Я, пожалуй, напишу комментарий».
+     На телефоне это неудобно: развёрнутое поле в двести пикселей плюс
+     панель кнопок стоят в конце каждого треда, и до навигации под ними
+     приходится листать через пустую форму. Сворачиваем при загрузке —
+     надпись остаётся, форма разворачивается по ней.
+
+     Сворачиваем ЕЁ ЖЕ СПОСОБОМ: нажимаем крестик. Прямо переставить
+     max-height нельзя — на нём у лепры держится анимация разворота, и
+     чужие записи в него кончаются формой, застрявшей полураскрытой (это
+     уже записано в общих граблях). Нажатие оставляет лепру в согласии с
+     собой: и метка hidden у надписи, и высота обёртки, и её внутреннее
+     состояние ставятся её собственным кодом.
+
+     Две предосторожности вокруг нажатия.
+
+     Первая — снимаем href. У крестика он '#', и если обработчик лепры
+     ещё не навешен (а при первом проходе он обычно и не навешен),
+     нажатие сработает как переход по ссылке: в адресе появится решётка.
+     Это не косметика — по решётке у нас открывается отладочная панель,
+     и подмена '#lmdebug' на '#' закрыла бы её на ровном месте. Без
+     атрибута href ссылка перестаёт быть ссылкой, а обработчик лепры
+     находит её по классу и срабатывает как ни в чём не бывало.
+
+     Вторая — возвращаем прокрутку. Схлопывание формы укорачивает
+     страницу, и если тред открыт по прямой ссылке на комментарий,
+     видимое место уехало бы вниз. */
+
+  function newCommentForm() {
+    var box = document.getElementById('js-comments_add_block_bottom');
+    if (!box) return null;
+    var f = box.querySelector('.b-comments_reply_block');
+    return (f && f.getBoundingClientRect().height) ? f : null;
+  }
+
+  function foldNewComment() {
+    var box = document.getElementById('js-comments_add_block_bottom');
+    var toggle = document.getElementById('js-toggle_new_thread_button');
+    if (!box || !toggle) return false;
+    /* Надпись видна — значит форма уже свёрнута. Ответ утвердительный:
+       делать больше нечего. */
+    if (!toggle.classList.contains('hidden')) return true;
+
+    var btn = box.querySelector('.b-close_btn');
+    if (!btn) return false;
+
+    var href = btn.getAttribute('href');
+    var y = scrollTopNow();
+    if (href !== null) btn.removeAttribute('href');
+    try { btn.click(); } catch (e) {}
+    if (href !== null) btn.setAttribute('href', href);
+    /* Возврат прокрутки — только если она действительно уехала.
+
+       Сворачивание формы страницу почти никогда не двигает: форма стоит
+       в самом низу треда, и укорачивается то, что НИЖЕ видимого места.
+       Безусловная запись поэтому в подавляющем большинстве случаев
+       возвращала прокрутку туда, где она и так стояла, — то есть была
+       записью впустую.
+
+       Впустую, но не бесплатно: при переходе «назад» браузер
+       восстанавливает место не мгновенно, а своим чередом, и такая
+       запись может попасть в этот промежуток — прочитать положение до
+       восстановления и записать его уже после.
+
+       Порог, а не сравнение с нулём: прокрутка гуляет на доли пикселя
+       от адресной строки. Та же оговорка стоит в liftReply и по той же
+       причине — лишняя запись это лишний рывок. */
+    var now = scrollTopNow();
+    if (Math.abs(now - y) > 2) scrollTopSet(y);
+
+    return !toggle.classList.contains('hidden');
+  }
+
+  /* Несколько заходов: обработчики лепра вешает своим скриптом, и к
+     первому проходу их обычно ещё нет. Останавливаемся, как только
+     форма свернулась, — и в любом случае после последнего срока, чтобы
+     не жать крестик по кругу на странице, где надписи нет вовсе. */
+  function watchNewComment() {
+    if (!CFG.foldNewComment || watchNewComment.on) return;
+    if (!document.getElementById('js-toggle_new_thread_button')) return;
+    watchNewComment.on = true;
+    var tries = [0, 300, 800, 1600, 2600];
+    var step = function (i) {
+      if (i >= tries.length) return;
+      setTimeout(function () {
+        if (guard('foldNewComment', foldNewComment)()) return;
+        step(i + 1);
+      }, tries[i]);
+    };
+    step(0);
+  }
+
+  /* ============================================================
+     6.5. ЭМОДЗИ В ТЁМНОЙ ТЕМЕ
+     ============================================================
+
+     Тёмная тема сделана инверсией всей страницы, а картинки и видео
+     инвертируются обратно, чтобы остаться собой. С эмодзи этот приём не
+     проходит: у лепры они не картинки, а обычный текст — 🌊 и 😂 лежат
+     в разметке символами. Инверсия красит их наравне с буквами, и
+     весёлое жёлтое лицо становится синим трупом.
+
+     Выбрать текст правилом нельзя, поэтому обходим текстовые узлы и
+     заворачиваем найденное в свой <span>, которому в тёмной теме
+     возвращаем цвета обратной инверсией — тем же способом, что и
+     картинкам.
+
+     Обходим ВСЕГДА, а не только при включённой тёмной теме, и это не
+     расточительность. Плёнка filter висит на правиле html.lm-dark и без
+     этого класса не делает ничего, зато переключение темы не требует
+     заново обойти всю страницу — а обойти пришлось бы, и на треде в
+     тысячу комментариев это была бы заметная пауза ровно в тот момент,
+     когда человек ждёт мгновенной смены цвета.
+
+     Отбор — главная тонкость. В тех же страницах рядом с эмодзи стоят
+     ☆ и →: это значки самой лепры, одноцветные, и они обязаны
+     инвертироваться вместе со всем остальным, иначе в подписи повиснет
+     светлая звезда на светлом. Поэтому берём не «все символы», а те, у
+     которых цветное начертание по умолчанию: Emoji_Presentation плюс
+     пиктограммы со знаком эмодзи-начертания U+FE0F. ☆ (U+2606) —
+     пиктограмма, но без FE0F показывается знаком, и под образец не
+     попадает. Отдельно перечислены флаги (пара региональных
+     указателей) и клавиши вида 1️⃣.
+
+     Свойства Unicode в образце требуют флага u и поддержки
+     \p{...} — она есть и в Safari, и в Firefox нужных лет, но образец
+     всё равно собран в try: негодный образец не должен ронять скрипт на
+     первой строке. Запасной — грубый диапазон пиктограмм. */
+
+  var EMO_RE = (function () {
+    var pic = '(?:\\p{Emoji_Presentation}|\\p{Extended_Pictographic}\\uFE0F)';
+    var tone = '[\\u{1F3FB}-\\u{1F3FF}]?';
+    try {
+      return new RegExp(
+        '(?:' +
+          pic + tone +
+          '(?:\\u200D' + '(?:\\p{Emoji_Presentation}|\\p{Extended_Pictographic})' +
+            '\\uFE0F?' + tone + ')*' +
+          '|[\\u{1F1E6}-\\u{1F1FF}]{2}' +        /* флаги */
+          '|[0-9#*]\\uFE0F\\u20E3' +             /* клавиши 1️⃣ */
+        ')+', 'gu');
+    } catch (e) {
+      try { return new RegExp('[\\u{1F300}-\\u{1FAFF}]+', 'gu'); }
+      catch (e2) { return null; }
+    }
+  })();
+
+  /* Где ищем: тела постов и комментариев, ники, заглавия. Пынь и
+     овощебазу не трогаем — так решено, и расширять список молча не
+     надо: каждый новый селектор это ещё один обход документа. */
+  var EMO_SEL = '.p_body, .c_body, .c_user, .b-user-login, .b-subsite_header, h1, h2';
+
+  /* Куда не заходим. textarea и input — потому что там текст
+     пользователя, и вставленный в него узел уедет в отправляемое поле;
+     script и style — по общей причине; code и pre — потому что в них
+     важна ровно та строка, что написана. */
+  var EMO_SKIP = /^(SCRIPT|STYLE|TEXTAREA|INPUT|SELECT|OPTION|CODE|PRE)$/;
+
+  function emojiWrap(host) {
+    if (!EMO_RE || seen.emoji.has(host)) return 0;
+    seen.emoji.add(host);
+
+    /* Сперва СОБИРАЕМ подходящие узлы, потом правим. Править прямо в
+       обходе нельзя: замена узла на набор узлов сбивает обходчик, и
+       часть текста остаётся непросмотренной. Та же причина, по которой
+       замер и запись разведены по фазам в сокращении постов. */
+    var walker = document.createTreeWalker(host, NodeFilter.SHOW_TEXT, {
+      acceptNode: function (n) {
+        var p = n.parentNode;
+        if (!p || p.nodeType !== 1) return NodeFilter.FILTER_REJECT;
+        if (EMO_SKIP.test(p.tagName)) return NodeFilter.FILTER_REJECT;
+        if (p.className === 'lm-emo') return NodeFilter.FILTER_REJECT;
+        return NodeFilter.FILTER_ACCEPT;
+      }
+    });
+    var list = [], n;
+    while ((n = walker.nextNode())) {
+      EMO_RE.lastIndex = 0;
+      if (EMO_RE.test(n.nodeValue || '')) list.push(n);
+    }
+    if (!list.length) return 0;
+
+    var done = 0;
+    list.forEach(function (node) {
+      var text = node.nodeValue, out = document.createDocumentFragment();
+      var last = 0, m;
+      EMO_RE.lastIndex = 0;
+      while ((m = EMO_RE.exec(text))) {
+        /* Пустое совпадение образцу с квантификаторами теоретически
+           доступно, а зациклился бы цикл вполне практически. */
+        if (!m[0].length) { EMO_RE.lastIndex++; continue; }
+        if (m.index > last)
+          out.appendChild(document.createTextNode(text.slice(last, m.index)));
+        var span = document.createElement('span');
+        span.className = 'lm-emo';
+        span.textContent = m[0];
+        out.appendChild(span);
+        last = m.index + m[0].length;
+        done++;
+      }
+      if (last < text.length)
+        out.appendChild(document.createTextNode(text.slice(last)));
+      if (node.parentNode) node.parentNode.replaceChild(out, node);
+    });
+    return done;
+  }
+
+  /* Счётчики для отчёта: сколько мест просмотрено и сколько эмодзи
+     завёрнуто. Печатать не только значение, но и его источник — правило
+     из записки; здесь источник это «за сколько заходов». */
+  var emoHosts = 0, emoFound = 0;
+
+  function fixEmoji() {
+    if (!CFG.emojiKeep || !EMO_RE) return;
+    var host = root();
+    if (!host) return;
+    var list = host.querySelectorAll(EMO_SEL);
+    for (var i = 0; i < list.length; i++) {
+      if (seen.emoji.has(list[i])) continue;
+      emoHosts++;
+      emoFound += emojiWrap(list[i]);
+    }
   }
 
   /* ============================================================
@@ -14470,8 +15815,33 @@ ${darkRules()}
     freeBack++;
   }
 
+  /* Готовность к выгрузке. Взводится один раз за страницу — по событию
+     load с задержкой, а если load почему-то не придёт, то по
+     сторожевому сроку от запуска. Второй путь не перестраховка: на
+     странице, отданной из кэша назад-вперёд, load может не случиться
+     вовсе — это уже записано у нас в start. */
+  var freeReady = false;
+
+  function armFree() {
+    if (armFree.on) return;
+    armFree.on = true;
+    var go = function () {
+      if (freeReady) return;
+      freeReady = true;
+      guard('watchFree', watchFree)();
+    };
+    window.addEventListener('load', function () {
+      setTimeout(go, CFG.videoFreeWait);
+    }, { once: true });
+    setTimeout(go, CFG.videoFreeWait + 4000);
+  }
+
   function watchFree() {
     if (!CFG.videoFree || !('IntersectionObserver' in window)) return;
+    /* Пока страница не устоялась, не выгружаем ничего: наблюдатель
+       судил бы о дальности по положению прокрутки, которого ещё нет.
+       Разбор — у CFG.videoFreeWait. */
+    if (!freeReady) { armFree(); return; }
     var vh = feedHeight();
     if (!vh) return;
     var far = Math.round(vh * CFG.videoFreeAhead);
@@ -14737,11 +16107,17 @@ ${darkRules()}
      ссылки живут на одной и той же странице, и по второй кнопки не
      появлялись. */
   var FEED_PATH = new RegExp(
-    '^/(pages?/\d+/?)?$' +                          /* главная и подлепры */
-    '|^/my(/pages?/\d+)?/?$' +                      /* мои вещи */
-    '|^/my/favourites(/pages?/\d+)?/?$' +           /* избранное */
-    '|^/users/[^/]+/posts(/pages?/\d+)?/?$' +      /* посты профиля */
-    '|^/users/[^/]+/favs(/pages?/\d+)?/?$'         /* избранное профиля */
+    '^/(pages?/\\d+/?)?$' +                          /* главная и подлепры */
+    '|^/my(/pages?/\\d+)?/?$' +                      /* мои вещи */
+    '|^/my/favourites(/pages?/\\d+)?/?$' +           /* избранное */
+    '|^/users/[^/]+/posts(/pages?/\\d+)?/?$' +      /* посты профиля */
+    '|^/users/[^/]+/favs(/pages?/\\d+)?/?$' +        /* избранное профиля */
+    /* Архив. Две формы: сегодняшний день (/archive/) и конкретный
+       (/archive/20260816). Косая на конце необязательна — лепра ссылается
+       на соседние дни и так, и так. Комментариев в архиве нет, кнопки
+       «Ещё? Ещё!» тоже — от обычной ленты он отличается только
+       адресом. */
+    '|^/archive/(\\d{8}/?)?$'                       /* архив */
   );
 
   /* Лента, а не страница поста. Признаков два, и оба нужны: контейнер
@@ -14751,10 +16127,35 @@ ${darkRules()}
      Чарли — под образец не подходят и сюда не попадают. */
   function discoFeed() {
     var h = document.getElementById('js-posts_holder');
-    if (!h) return null;
-    if (document.getElementById('js-comments')) return null;
-    if (!FEED_PATH.test(location.pathname)) return null;
-    return h;
+    if (h) {
+      if (document.getElementById('js-comments')) return null;
+      if (!FEED_PATH.test(location.pathname)) return null;
+      return h;
+    }
+    /* Страница поста. Своего контейнера у неё нет — #js-posts_holder
+       там не бывает вовсе, — поэтому возвращаем сам .post: всем, кто
+       эту функцию зовёт, нужна либо истинность ответа, либо узел, за
+       которым можно наблюдать. Посты для сокращения берёт не она, а
+       discoPosts, и берёт их по всему содержимому.
+
+       Автоподгрузка от расширения не страдает: она начинается с поиска
+       кнопки #js-index_load_more_posts, а ни в архиве, ни на странице
+       поста такой кнопки нет — feedButton вернёт null раньше, чем дело
+       дойдёт до discoFeed. */
+    if (!discoSolo()) return null;
+    return document.querySelector('.post');
+  }
+
+  /* Страница одиночного поста с комментариями. Адрес один и на главной,
+     и на подлепрах: /comments/<номер>/.
+     Держим отдельным образцом, а не подмешиваем в FEED_PATH: у этой
+     страницы своё поведение — пост на ней режется безусловно, см.
+     оговорку про atTop в discoScan. */
+  var POST_PATH = /^\/comments\/\d+\/?$/;
+
+  function discoSolo() {
+    return !!document.getElementById('js-comments') &&
+           POST_PATH.test(location.pathname);
   }
 
   /* Посты ленты. Раньше брались прямые дети #js-posts_holder — и это
@@ -15206,7 +16607,15 @@ ${darkRules()}
          оставался бы целым до тех пор, пока его не пролистают. */
       var below = r.top >= vhNow;
       var above = r.bottom <= 0;
-      var atTop = scrollTopNow() <= 4;
+      /* Страница поста — особый случай, и послабление тут не «как в
+         самом верху», а безусловное. Пост на ней ровно один и стоит
+         первым: под ним ничего нет, кроме комментариев, а сдвинуть
+         комментарии вверх — это и есть то, ради чего сокращение
+         затевалось. Без этой оговорки пост сокращался бы только при
+         заходе на самый верх страницы, а при заходе по прямой ссылке
+         на глубокий комментарий (страница уже проскроллена) оставался
+         бы целым — то есть работал бы через раз и непонятно почему. */
+      var atTop = scrollTopNow() <= 4 || discoSolo();
       if (!below && !above && !atTop) {
         discoPending++;
         return say('h=' + Math.round(r.height) + ' top=' + Math.round(r.top) +
@@ -16009,12 +17418,15 @@ ${darkRules()}
     var cOn = discoCommentsOn() && !!discoThread();
     document.documentElement.classList.toggle('lm-sconnect',
       (on || cOn) && scWanted());
-    /* Метка треда — своя и независимая: лента и комментарии на одной
-       странице не встречаются (discoFeed прямо отказывается считать
-       лентой страницу с #js-comments), так что двух классов разом не
-       будет никогда. Держим их всё же порознь, а не одним: правила у
-       них разные, и «уплотнён пост» с «уплотнён комментарий» не должны
-       случайно достаться друг другу. */
+    /* Метка треда — своя и независимая. Раньше здесь стояло, что двух
+       классов разом не будет никогда: лента и комментарии на одной
+       странице не встречались, потому что discoFeed прямо отказывался
+       считать лентой страницу с #js-comments. Теперь отказ снят —
+       одиночный пост на странице комментариев сокращается наравне с
+       лентой, — и оба класса на такой странице стоят вместе.
+       Порознь их держать тем более важно: правила разные, и «уплотнён
+       пост» с «уплотнён комментарий» не должны доставаться друг другу
+       по недосмотру. */
     document.documentElement.classList.toggle('lm-disco_c', cOn);
   }
 
@@ -17069,6 +18481,21 @@ ${darkRules()}
     return 'нигде не задан — значит, белый по умолчанию';
   }
 
+  /* Замер 100vw пробным узлом. Узел ставим и убираем тут же: держать
+     его на странице незачем, а один замер стоит одного пересчёта
+     раскладки — цена отчёта, а не работы скрипта. */
+  function vwProbe() {
+    try {
+      var d = document.createElement('div');
+      d.style.cssText = 'position:absolute;left:-9999px;top:0;' +
+                        'width:100vw;height:1px;pointer-events:none';
+      document.body.appendChild(d);
+      var w = Math.round(d.getBoundingClientRect().width);
+      d.parentNode.removeChild(d);
+      return w;
+    } catch (e) { return '?'; }
+  }
+
   function report() {
     var L = ['Lepra Mobile v' + VERSION,
              'URL: ' + location.pathname,
@@ -17076,8 +18503,37 @@ ${darkRules()}
                ' | окно: ' + window.innerWidth +
                ' | CSS-ширина: ' + document.documentElement.clientWidth,
              'ширина документа: ' + document.documentElement.scrollWidth,
+             /* Сколько на самом деле стоит 100vw. Число нужно ровно для
+                одного вопроса: следует ли vw за масштабом страницы.
+                Пока оно совпадает с CSS-шириной, всё в порядке; разойдётся —
+                значит вернулась история с формой за правым краем, и
+                искать надо там, где ширина задана в vw.
+                Мерим пробным узлом, а не считаем: посчитать это нечем. */
+             '100vw = ' + vwProbe() + ' (CSS-ширина ' +
+               document.documentElement.clientWidth + ')',
+             /* Масштаб страницы и посчитанный по нему кегль полей формы.
+                Если форма опять уедет вправо, первым делом сюда: кегль
+                ниже шестнадцати «на глаз» — это приближение Safari, а
+                масштаб, застрявший на единице, — это visualViewport,
+                который нам его не отдал. */
+             'масштаб: ' + Math.round(formScaleSeen * 100) / 100 +
+               ' | кегль формы: ' + formFontSeen +
+               ' (база ' + CFG.formFont + ', потолок ' + CFG.formFontMax + ')',
+             /* Возврат «назад». Печатаем не только исход, но и его
+                источник — правило из записки: строка «не трогаем»
+                означает обычный переход, «записи нет» — что снимка не
+                было, «по узлу …» — что сработало и по какому. */
+             'возврат назад: ' + (backOn() ? 'ведём' : 'не ведём') +
+               ' | ' + (backLog || '—'),
              'лёгких проходов: ' + lightRuns + ' | суммарно ' + lightMs +
                'мс | самый долгий ' + lightWorst + 'мс',
+             /* Эмодзи: обойдено мест и завёрнуто знаков. Строка нужна
+                прежде всего затем, чтобы отличить «не сработало» от
+                «нечего было заворачивать»: ноль найденных при нуле
+                обойдённых мест — это про образец или про селекторы, а
+                ноль найденных при трёхстах обойдённых — про страницу. */
+             'эмодзи: обойдено мест ' + emoHosts + ', завёрнуто ' + emoFound +
+               (EMO_RE ? '' : ' (образец не собрался)'),
              ''];
     if (CFG.mournOff) {
       /* Строка временная, вместе с самой настройкой. Нужна на случай,
@@ -17570,6 +19026,185 @@ ${darkRules()}
   }
 
   /* ============================================================
+     9.5. ВОЗВРАТ НА ПРЕЖНЕЕ МЕСТО ПО КНОПКЕ «НАЗАД»
+     ============================================================
+
+     Жалоба с Андроида: кнопка «назад» в Firefox приводит не туда, откуда
+     ушли, а к самой шапке. На айфоне этого нет.
+
+     Восстановлением места заведует браузер, и делает он это по числу
+     пикселей, снятому в момент ухода. Число верно ровно до тех пор, пока
+     страница той же высоты. Наша ею не бывает: viewport, разбор колонок,
+     потолок высоты медиа, выгрузка ушедших роликов и особенно уплотнение
+     постов меняют высоту на тысячи пикселей, и меняют её ПОСЛЕ того, как
+     браузер уже восстановил прокрутку. Дальше всё зависит от того, кто
+     когда: WebKit восстанавливает позже и попадает, Gecko — раньше,
+     упирается в тогдашнюю высоту документа и прижимается к верху.
+
+     Проверить эту догадку на устройстве мне нечем, поэтому чинится она
+     не догадкой, а способом, которому всё равно, кто прав: держим место
+     сами и не пикселями, а УЗЛОМ. Запоминаем не «сорок тысяч сверху», а
+     «пост p2531675, и его верх был на сорока пикселях ниже кромки».
+     Такая привязка переживает любое изменение высоты — в том числе
+     уплотнение, которое меняет её больше всего.
+
+     Айфона это не касается вовсе: без Firefox в строке опознания весь
+     раздел молчит, включая запись в хранилище.
+
+     Запись — по pagehide, а не по прокрутке. Правило «прокрутка не
+     запускает обходов DOM» тут в силе: снимок стоит одного обхода
+     видимых узлов, и делать его тридцать раз в секунду незачем.
+
+     Если Firefox сохранит страницу в кэше назад-вперёд, скрипт при
+     возврате не перезапустится вовсе, место восстановит сам браузер, и
+     наша запись просто никому не понадобится. Мешать этому мы не
+     мешаем. */
+
+  var BACK_KEY = 'lm-back';
+
+  function backOn() {
+    if (CFG.backRestore === 'off') return false;
+    if (CFG.backRestore === 'on') return true;
+    return /Firefox\/\d/.test(navigator.userAgent || '');
+  }
+
+  /* Ключ страницы: путь и запрос, без решётки. Решётка сюда попасть не
+     должна — по ней открывается отладочная панель и приходят прямые
+     ссылки на комментарий, а место на странице от этого не меняется. */
+  function backWhere() { return location.pathname + location.search; }
+
+  /* Опорный узел — первый пост или комментарий, чей низ ещё виден.
+     Именно первый видимый, а не ближайший к середине: у поста в три
+     экрана середина приходится на его же тело, и «вернуться к середине»
+     значило бы вернуться неизвестно куда. Верхняя кромка однозначна. */
+  function backSnap() {
+    var host = root();
+    if (!host) return null;
+    var list = host.querySelectorAll('.post[id], .comment[id]');
+    for (var i = 0; i < list.length; i++) {
+      var r = list[i].getBoundingClientRect();
+      if (r.bottom > 0) return { k: list[i].id, o: Math.round(r.top) };
+    }
+    return null;
+  }
+
+  function backSave() {
+    if (!backOn()) return;
+    var snap = backSnap();
+    var data = {
+      w: backWhere(),
+      y: Math.round(scrollTopNow()),
+      k: snap ? snap.k : '',
+      o: snap ? snap.o : 0
+    };
+    /* Верх страницы не запоминаем: возвращаться к нему браузер и так
+       умеет, а запись стёрла бы прежнюю, настоящую. */
+    if (!data.y && !data.k) return;
+    try { sessionStorage.setItem(BACK_KEY, JSON.stringify(data)); } catch (e) {}
+  }
+
+  function backRead() {
+    try {
+      var raw = sessionStorage.getItem(BACK_KEY);
+      var d = raw && JSON.parse(raw);
+      return (d && d.w === backWhere()) ? d : null;
+    } catch (e) { return null; }
+  }
+
+  /* Как сюда попали. Восстанавливаем в двух случаях: «назад-вперёд» —
+     ради чего всё и затевалось, и «перезагрузка» — потому что взяв
+     восстановление на себя (scrollRestoration: manual), мы отняли его у
+     браузера ЦЕЛИКОМ, а не только для кнопки «назад». Не вернув место
+     после обновления страницы, мы починили бы одно и сломали другое.
+
+     Обычный переход по ссылке в список не входит: он должен
+     открываться сверху.
+
+     Два источника: новый (тип записи в журнале производительности) и
+     старый, на случай если новый недоступен. Возвращаем строку, а не
+     да/нет, — она уходит в отчёт: знать, почему не сработало, важнее,
+     чем знать, что не сработало. */
+  function backWhy() {
+    try {
+      var e = performance.getEntriesByType &&
+              performance.getEntriesByType('navigation')[0];
+      if (e && e.type)
+        return (e.type === 'back_forward' || e.type === 'reload') ? e.type : '';
+    } catch (err) {}
+    try {
+      var t = performance.navigation && performance.navigation.type;
+      if (t === 2) return 'back_forward';
+      if (t === 1) return 'reload';
+    } catch (err) {}
+    return '';
+  }
+
+  var backLog = '';
+
+  /* Один заход восстановления. Возвращает true, когда попал: тогда
+     остальные заходы отменяются.
+     Мажем по узлу, а если узла на месте нет (лента перетасовалась,
+     комментарий свернулся) — по пикселям, как умеет браузер. Хуже, чем
+     сейчас, от этого не станет. */
+  function backGo(d) {
+    var el = d.k && document.getElementById(d.k);
+    if (el) {
+      var r = el.getBoundingClientRect();
+      var want = scrollTopNow() + r.top - d.o;
+      if (Math.abs(r.top - d.o) <= 2) return true;
+      scrollTopSet(want);
+      backLog = 'по узлу ' + d.k + ' (смещение ' + d.o + ')';
+      /* Проверяем сразу же: если высота ещё не устоялась, прокрутка
+         упрётся в конец документа и до места не дотянет. */
+      return Math.abs(el.getBoundingClientRect().top - d.o) <= 2;
+    }
+    if (!d.y) return true;
+    if (Math.abs(scrollTopNow() - d.y) <= 2) return true;
+    scrollTopSet(d.y);
+    backLog = 'по пикселям (' + d.y + ', узла ' + (d.k || '—') + ' на месте нет)';
+    return Math.abs(scrollTopNow() - d.y) <= 2;
+  }
+
+  function backRestore() {
+    if (!backOn()) return;
+    var why = backWhy();
+    if (!why) { backLog = 'обычный переход — не трогаем'; return; }
+    var d = backRead();
+    if (!d) { backLog = why + ': записи для этой страницы нет'; return; }
+    backLog = why + ': ищем место';
+
+    /* Заходы те же по смыслу, что у формы ответа: первый — когда
+       разметка на месте, последние — когда сокращение постов и потолки
+       медиа уже отработали и высота перестала прыгать. */
+    var tries = [0, 300, 800, 1600, 2600, 4000];
+    var step = function (i) {
+      if (i >= tries.length) return;
+      setTimeout(function () {
+        if (guard('backGo', backGo)(d)) return;
+        step(i + 1);
+      }, tries[i]);
+    };
+    step(0);
+  }
+
+  function watchBack() {
+    if (!backOn() || watchBack.on) return;
+    watchBack.on = true;
+    /* Ручное восстановление: иначе браузер сделает своё поверх нашего, и
+       спорить с ним придётся каждому заходу. Ставим только там, где
+       раздел вообще работает, — WebKit остаётся с заводским поведением,
+       которое его устраивает. */
+    try { history.scrollRestoration = 'manual'; } catch (e) {}
+    window.addEventListener('pagehide', guard('backSave', backSave));
+    /* На Андроиде уход со страницы не всегда доходит до pagehide —
+       вкладку могут просто увести в фон. Снимок при этом лишним не
+       будет: он перепишется следующим. */
+    document.addEventListener('visibilitychange', function () {
+      if (document.visibilityState === 'hidden') guard('backSave', backSave)();
+    });
+  }
+
+  /* ============================================================
      10. ЗАПУСК
      ============================================================ */
 
@@ -17626,7 +19261,14 @@ ${darkRules()}
     guard('setThemeColor', setThemeColor)();
     guard('ensureNav', ensureNav)();
     guard('watchRefreshButton', watchRefreshButton)();
+    guard('cfBuild', cfBuild)();
     guard('watchReply', watchReply)();
+    /* Кегль полей формы — до того, как в форму ткнут: решение о
+       приближении Safari принимает в момент нажатия, и поднимать кегль
+       по касанию было бы поздно. */
+    guard('formFontVar', formFontVar)();
+    guard('watchZoom', watchZoom)();
+    guard('watchNewComment', watchNewComment)();
     guard('compactPostFooters', compactPostFooters)();
     guard('compactCommentFooters', compactCommentFooters)();
     /* класс страницы — до перестройки шапки: она смотрит на него */
@@ -17677,6 +19319,10 @@ ${darkRules()}
     guard('fitUsersRows', fitUsersRows)();
     guard('shortenTabs', shortenTabs)();
     guard('unfloatWide', unfloatWide)();
+    /* Эмодзи — до замеров медиа и сокращения: обёртка строчная и высоты
+       не меняет, но пусть разметка будет окончательной к моменту, когда
+       по ней начнут считать бюджеты. */
+    guard('fixEmoji', fixEmoji)();
     guard('registerMedia', registerMedia)();
     guard('fixMediaSizes', fixMediaSizes)();
     guard('fixOverflow', fixOverflow)();
@@ -17711,6 +19357,14 @@ ${darkRules()}
   }
 
   function lightBody() {
+    /* Догруженные комментарии и посты приходят со своими эмодзи. Проход
+       дешёвый: обойдённые тела помечены, и повторный заход до них не
+       доходит вовсе. */
+    guard('fixEmoji', fixEmoji)();
+    /* Тред лепра дособирает после загрузки, и формы в конце к первому
+       полному проходу может ещё не быть. Проход сам уходит ни с чем,
+       если уже отработал. */
+    guard('watchNewComment', watchNewComment)();
     guard('registerMedia', registerMedia)();
     guard('fixMediaSizes', fixMediaSizes)();
     /* заметка профиля: лепра переписывает её содержимое своим скриптом */
@@ -17722,6 +19376,12 @@ ${darkRules()}
     guard('syncThemeColor', syncThemeColor)();
     /* комментарии могли догрузиться — числа и подписи устарели */
     guard('refreshCommentCounters', refreshCommentCounters)();
+    /* Строка фильтров: лепра собирает её своим скриптом, и к первому
+       полному проходу её может ещё не быть. Сборка сама уходит ни с чем,
+       если уже отработала; подпись шеврона обновляем всегда — выбранный
+       фильтр меняется без единого добавления узлов. */
+    guard('cfBuild', cfBuild)();
+    guard('cfSync', cfSync)();
     guard('compactPostFooters', compactPostFooters)();
     guard('compactCommentFooters', compactCommentFooters)();
     /* лента уведомлений собирается скриптом лепры после загрузки, а
@@ -17741,6 +19401,10 @@ ${darkRules()}
   }
 
   function start() {
+    /* Слежение — до восстановления: снимок надо начать снимать в любом
+       случае, даже если возвращать сейчас нечего. */
+    guard('watchBack', watchBack)();
+    guard('backRestore', backRestore)();
     guard('watchSubsiteCss', watchSubsiteCss)();
     fullPass();
     /* Слушатели нажатий вешаем ЗДЕСЬ, а не только по load. Раньше они
