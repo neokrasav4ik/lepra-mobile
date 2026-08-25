@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Lepra Mobile
 // @namespace    lepra.mobile
-// @version      1.1.20
+// @version      1.1.31
 // @description  Мобильная адаптация leprosorium.ru для iOS Safari
 // @author       neokrasav4ik
 // @homepageURL  https://github.com/neokrasav4ik/lepra-mobile
@@ -118,7 +118,7 @@
     return;
   }
 
-  var VERSION = '1.1.20';
+  var VERSION = '1.1.31';
 
   /* ============================================================
      НАСТРОЙКИ
@@ -1073,7 +1073,13 @@
        остальных (см. TUNE_DEF). */
     videoLink:    { bool: true },
     navSticky:    { bool: true },
-    cardsLift:    { bool: true },
+    /* Не bool, хотя значения те же два: попап показывает эту настройку
+       не выключателем, а выбором из двух слов («Карточки» / «Фон»), а
+       setChoice берёт варианты именно из list. Порядок в списке — это
+       порядок кнопок в попапе, менять его нельзя, не поменяв подписи.
+       Сохранённое от прежних версий переживает: список содержит те же
+       true и false, и tuneLoad их находит. */
+    cardsLift:    { list: [false, true] },
     navArchive:   { bool: true },
     /* чем сообщать о новой пыни */
     pynSound:     { list: ['push', 'ding', 'both', 'none'] },
@@ -1769,13 +1775,28 @@
              '  background-color: ' + invRgb(32, 32, 32) + ' !important;\n' +
              '  background-image: ' + CARD_GLOW2 + ' !important;\n' +
              '  border-color: ' + invRgb(61, 61, 61) + ' !important; }');
+    /* Карточка подлепры теми же тонами, что и пост. Без этого правила
+       она не сломалась бы — общая инверсия страницы её всё равно
+       затемнит, — но заводская заливка 250 переворачивается в 5, то
+       есть карточка выходит ТЕМНЕЕ страницы (21), тогда как у поста тут
+       же назначено обратное, 32 против 21. Две карточки на соседних
+       страницах смотрелись бы по-разному нарисованными. */
+    out.push(D + '.b-blogs_list .b-list_item,\n' +
+             D + '.l-content_aside_subscriptions_top .b-subscriptions_aside_block {\n' +
+             '  background-color: ' + invRgb(32, 32, 32) + ' !important;\n' +
+             '  background-image: ' + CARD_GLOW2 + ' !important;\n' +
+             '  border-color: ' + invRgb(61, 61, 61) + ' !important; }');
     out.push(D + '.c_i {\n' +
              '  background-color: ' + invRgb(32, 32, 32) + ' !important;\n' +
              '  background-image: ' + CARD_GLOW2 + ' !important; }');
     out.push(D + '.comment .c_i::before {\n' +
              '  border-color: ' + invRgb(61, 61, 61) + ' !important; }');
 
-    out.push('html.lm-dark.lm-cards2 .post,\nhtml.lm-dark.lm-cards2 .c_i {\n' +
+    out.push('html.lm-dark.lm-cards2 .post,\n' +
+             'html.lm-dark.lm-cards2 .c_i,\n' +
+             'html.lm-dark.lm-cards2 .b-blogs_list .b-list_item,\n' +
+             'html.lm-dark.lm-cards2 .l-content_aside_subscriptions_top' +
+             ' .b-subscriptions_aside_block {\n' +
              '  background-color: ' + invRgb(23, 23, 22) + ' !important;\n' +
              '  background-image: ' + CARD_GLOW + ' !important; }');
 
@@ -2172,6 +2193,13 @@
      остаётся верным, и проверка такого не ловит: ровно та же история,
      что с пропавшими объявлениями переменных из записки. */
   var SET_PHONE_H = 186, SET_PHONE_W = 102;
+
+  /* Рост короны у ника президента. Числом в двух местах: сама корона и
+     вычет из потолка ширины ника — они обязаны совпадать, иначе при
+     длинном нике пара переносится.
+     Объявлено ЗДЕСЬ по той же причине, что и всё остальное в этом
+     гнезде: шаблонная строка стилей собирается ниже. */
+  var PRES_CROWN_W = 20;
 
   /* Общий кегль тех же органов. Число тоже лепровское: поле поиска в
      шапке набрано тринадцатью, и по нему равняются кнопки. У поля выбора
@@ -2829,6 +2857,45 @@ html.lm-tabs #js-header_search_form .b-icon_button_search { order: 2 !important;
 .dd .lm-icons .b-post_interest_info { display: none !important; }
 .dd .lm-icons svg {
   display: block !important; width: 14px !important; height: 14px !important; }
+/* Перерисованные значки. Три правки, каждая снимает наследство того
+   вида, в котором значок был до вектора.
+
+   Фоновая картинка. У .post_icon и .c_icon рисунок лежал фоном
+   (post-icon.gif), причём на странице поста лепра пишет его ИНЛАЙНОВЫМ
+   стилем. Под нашим значком он остался бы вторым слоем; !important
+   перебивает и правило, и инлайн.
+
+   Заливка. У «прочитано» лепра красит фигуры правилом
+   .b-mark_as_read_control .b-svg-icon svg * { fill: rgb(187,187,187) } —
+   оно попадает и на наши контуры, залив их серым изнутри. Возвращаем
+   fill: none и цвет обводки; звезда «из избранного» залита нарочно, и
+   её исключаем поимённо, а не отменой правила целиком.
+
+   Метрики. У .b-controls_button задана коробка 20 на 20 со сдвигом
+   top: 7 и минусовыми полями — приём для строки, где значок сидел на
+   базовой линии. В обойме высоту и центрирование задаёт флекс, а сдвиг
+   уводил крестик вниз. */
+.lm-ico_host {
+  background-image: none !important;
+  position: static !important; top: auto !important;
+  margin: 0 !important; padding: 0 !important;
+  /* Один тон на все значки обоймы. До вектора у каждого был свой: лепра
+     красила крестик в 187, стрелку к родителю в 136, «в мои вещи»
+     ссылочным синим, а страничку не красила вовсе — она была картинкой.
+     Собранные в один столбик, они смотрелись набором из разных мест.
+     Тот же серый, что и у самой точки, — значки и точка теперь одно
+     семейство.
+     currentColor у фигур внутри берётся отсюда, поэтому цвет задан
+     один раз здесь, а не в каждом рисунке. */
+  color: rgb(120,120,120) !important; }
+.lm-ico_host svg.lm-ico *,
+.dd .lm-icons .lm-ico_host svg.lm-ico *,
+#js-comments_holder .lm-ico_host svg.lm-ico * {
+  fill: none !important; stroke: currentColor !important; }
+.lm-ico_host svg.lm-ico [fill="currentColor"],
+.dd .lm-icons .lm-ico_host svg.lm-ico [fill="currentColor"],
+#js-comments_holder .lm-ico_host svg.lm-ico [fill="currentColor"] {
+  fill: currentColor !important; }
 /* Пустые обёртки под фоновые спрайты лепры рисовали мелкие чёрточки по
    краям значков. Но в такой же <span class="b-svg-icon"> завёрнут svg
    галочки — поэтому скрываем только ПУСТЫЕ, по содержимому, а не по тегу. */
@@ -3132,6 +3199,13 @@ ${indentRules()}
   display: inline-flex !important; align-items: center !important;
   position: static !important; height: 18px !important; }
 #js-comments_holder .c_footer .b-button_share svg {
+  display: block !important; width: 14px !important; height: 14px !important; }
+/* Размер наших значков в подписи комментария. У поста то же самое даёт
+   правило .dd .lm-icons svg; здесь своё, потому что списки селекторов
+   у поста и комментария разные — см. разбор у столбика. Селектор с
+   идентификатором заведомо тяжелее любого лепровского на этих узлах и
+   стоит ниже них по файлу. */
+#js-comments_holder .c_footer svg.lm-ico {
   display: block !important; width: 14px !important; height: 14px !important; }
 /* обёртки значка «поделиться» сдвигали его вверх на пару пикселей */
 #js-comments_holder .c_footer .b-button_share .b-button_icon,
@@ -5271,24 +5345,46 @@ html.lm-fraud .b-tabs_content, html.lm-fraud .b-inner_container {
 .b-list_item__user { margin-right: 0 !important; }
 .b-subscriptions_random { display: none !important; }
 
-/* Плотная раскладка самого списка подлепр. Правила ниже намеренно
-   привязаны к .b-blogs_list: те же классы .b-list_item носят список
-   граждан и подлепры в профиле, у них своя разметка и своя ширина. */
+/* Список подлепр карточками — теми же, что посты и комментарии. Числа
+   не подобраны заново, а взяты из общих переменных: рамка, скругление,
+   заливка и свечение те же, что у .post. Иначе через месяц одно из
+   четырёх разойдётся с остальными и никто не вспомнит, какое верное.
+
+   Отбивка между карточками 8, а не 14, как у постов. Карточка поста
+   занимает пол-экрана, и четырнадцать между такими — просвет; здесь
+   карточка в шестьдесят пикселей, и тот же просвет читался бы дырой.
+   Восемь — тот же порядок, что и внутренние поля карточки, то есть
+   список выглядит рядом коробок, а не россыпью.
+
+   Правила ниже намеренно привязаны к .b-blogs_list: те же классы
+   .b-list_item носит список граждан, у него своя разметка и своя
+   ширина. */
 .b-blogs_list .b-list_item {
   display: flex !important; flex-direction: column !important;
-  padding: 0 0 6px !important; margin-bottom: 6px !important;
-  border-bottom: 1px solid rgb(226, 224, 222) !important; }
+  box-sizing: border-box !important;
+  padding: 6px 8px 8px !important; margin-bottom: 8px !important;
+  border: 1px solid ${FRAME_C} !important;
+  border-radius: ${FRAME_R}px !important;
+  background-color: ${CARD_BG} !important;
+  background-image: ${CARD_GLOW} !important; }
 /* Описание лежит в разметке ПЕРЕД телом: на десктопе оно уплывало вправо
    и логотипу не мешало, а без обтекания встало бы первой строкой пункта —
    поверх логотипа, который позиционирован абсолютно. Меняем порядок. */
 .b-blogs_list .b-list_item_body {
-  order: 1 !important; padding: 7px 0 0 54px !important; }
+  order: 1 !important; padding: 0 0 0 54px !important; }
 .b-blogs_list .b-list_item_blog_description { order: 2 !important; }
 /* распорка под обтекание; во флекс-колонке она встала бы первым элементом */
 .b-blogs_list .b-list_item > .clear { display: none !important; }
+/* Герб отсчитывается от коробки карточки, а не от её содержимого, —
+   поэтому его угол выставлен ровно по полям карточки (6 и 8). Тогда
+   отбивка тела слева в 54 (44 герб плюс 10 просвета) отсчитывается от
+   того же места и даёт ровный просвет; при left: 0 герб залезал бы на
+   рамку. Верхнюю отбивку тела при этом снимаем совсем: её задаёт поле
+   карточки, а два источника отступа между одними и теми же узлами
+   всегда кончаются двойным. */
 .b-blogs_list .b-list_item_logo {
   width: 44px !important; height: 44px !important;
-  top: 7px !important; left: 0 !important; }
+  top: 6px !important; left: 8px !important; }
 /* Адрес, название и создатель занимали три строки из четырёх. Адрес и
    название читаются как одна строка, разделителя у лепры нет — ставим сами. */
 .b-blogs_list .b-list_item_body_text { line-height: 1.3 !important; }
@@ -5326,18 +5422,204 @@ html.lm-fraud .b-tabs_content, html.lm-fraud .b-inner_container {
 .b-menu_underground_search form {
   width: auto !important; margin: 0 !important;
   display: flex !important; align-items: center !important; }
+/* Кегль поля берём тот же, что у форм комментария, и по той же причине:
+   у лепры тут 14, Safari считает такое поле мелким и при касании
+   приближает к нему страницу — а окно раскладки шире экрана, и правый
+   край формы вместе с кнопкой поиска уезжает за кромку.
+   Переменная, а не число: шестнадцать — требование к тому, ЧТО ВИДНО НА
+   ЭКРАНЕ. При масштабе страницы 85% шестнадцатый кегль доходит до глаза
+   четырнадцатым, и приближение возвращается. --lm-form-font считает
+   formFontVar делением на visualViewport.scale и пересчитывает при
+   каждой смене масштаба; на этой странице она уже есть — функция
+   зовётся в fullPass, а не по месту. Запасное значение в var() — на
+   случай, если переменной почему-то нет. */
 .b-menu_underground_search .i-form_text_input {
-  width: auto !important; flex: 1 1 auto !important; }
+  width: auto !important; flex: 1 1 auto !important;
+  font-size: var(--lm-form-font, ${CFG.formFont}px) !important; }
 .l-subscription_list .b-load_more_posts_button {
   margin-bottom: 16px !important; }
 
-/* Врезка с подлепрой дня отсчитывалась от левой колонки в 245 пикселей:
-   на телефоне это отжимало её к правому краю в вертикальную полоску.
-   Отбивка снизу в 60 — расчёт на пустое поле рядом с колонкой. */
-.l-content_aside_subscriptions_top { margin: 0 0 12px !important; }
+/* Врезка с подлепрой дня (Девито) — первой на странице, над списком.
+   Отсчитывалась от левой колонки в 245 пикселей: на телефоне это
+   отжимало её к правому краю в вертикальную полоску. Отбивка снизу в
+   60 — расчёт на пустое поле рядом с колонкой.
+
+   Дальше делаем её той же карточкой, что и пункты списка под ней: она
+   и есть подлепра, только вынутая наверх, и выглядеть иначе ей незачем.
+   Числа взяты из тех же переменных и повторяют устройство карточки
+   списка один в один — герб абсолютно в углу по полям коробки, текст с
+   отбивкой в 54 (44 герб плюс 10 просвета).
+   Своя заливка rgb(246,245,245) при этом снимается: карточка красится
+   общими CARD_BG и свечением, а серая подложка под ними давала третий
+   тон, которого больше нигде нет. */
+.l-content_aside_subscriptions_top { margin: 0 0 8px !important; }
+.l-content_aside_subscriptions_top .b-subscriptions_aside_block {
+  box-sizing: border-box !important;
+  padding: 6px 8px 8px !important; margin: 0 !important;
+  border: 1px solid ${FRAME_C} !important;
+  border-radius: ${FRAME_R}px !important;
+  background-color: ${CARD_BG} !important;
+  background-image: ${CARD_GLOW} !important; }
+/* Герб. У лепры он просто absolute без координат и размера — то есть
+   стоит там, где пришёлся бы в потоке, и во всю свою натуральную
+   величину. Задаём то же гнездо, что у карточек списка.
+   object-fit, а не одна ширина: файл может оказаться не квадратным, и
+   тогда жёсткие 44 на 44 его сплющили бы. */
+.l-content_aside_subscriptions_top .b-subscriptions_aside_block img {
+  top: 6px !important; left: 8px !important;
+  width: 44px !important; height: 44px !important;
+  object-fit: contain !important; margin: 0 !important; }
+/* Название, описание и кнопка подписки — с той же отбивкой, что и тело
+   карточки списка. У лепры тут 75: место под герб в 64. */
+.l-content_aside_subscriptions_top .b-subscriptions_aside_block h3 {
+  padding-left: 54px !important; margin: 0 !important;
+  font-size: 15px !important; line-height: 1.3 !important; }
 .l-content_aside_subscriptions_top .b-subscriptions_aside_block p {
-  font-size: 13px !important; line-height: 1.35 !important;
-  margin-top: 6px !important; }
+  padding-left: 54px !important; margin-top: 2px !important;
+  font-size: 13px !important; line-height: 1.35 !important; }
+.l-content_aside_subscriptions_top .b-subscribe_button {
+  margin-left: 54px !important; }
+
+/* ============ ПРАВЛЕНИЕ ПОДЛЕПРЫ (/controls/) ============ */
+/* Страница прав и доступа. Вся её раскладка — одна таблица: обёртка
+   .b-controls_columns объявлена display: table, строка — table-row,
+   а каждая колонка — table-cell шириной в четверть. Колонок в строке
+   четыре («Человек с кнопкой», «Читают», «Пишут», «Забаненные»), и на
+   телефоне это четыре полоски по девяносто пикселей, в которых ники
+   стоят с запретом переноса.
+   Разбираем в столбик: строке и обёртке возвращаем блочность, колонке —
+   полную ширину.
+
+   Модификаторы колонок перечислены поимённо и все сразу, хотя на
+   странице, по которой я это писал, встретился только базовый класс.
+   Причина в том, что страница у каждого своя: приложенная снята НЕ
+   владельцем подлепры, и у неё показаны четыре панели из полутора
+   десятков. У владельца тут же появляются оформление подсайта
+   (.b-controls_columns__subsite_design, где колонки ещё и плавающие),
+   три колонки вместо четырёх (__three_columns с шириной 33%), широкая
+   и узкая (_wide 50%, _small 30%) и колонка с чертой слева (__frame).
+   Все они — тот же табличный каркас, и без них панель владельца
+   осталась бы в четверть экрана. Перечисление именами, а не отбором по
+   куску класса: отбор задел бы .b-controls_columns_row, у которого свои
+   правила, и однажды заденет что-нибудь ещё. */
+.b-controls_columns,
+.b-controls_columns__three_columns,
+.b-controls_columns__subsite_design.b-controls_columns,
+.b-controls_columns_row,
+.b-controls_columns__subsite_design .b-controls_columns_row {
+  display: block !important;
+  width: auto !important; position: static !important; }
+.b-controls_column,
+.b-controls_columns__three_columns .b-controls_column,
+.b-controls_columns__subsite_design .b-controls_column,
+.b-controls_column_wide,
+.b-controls_column_small {
+  display: block !important;
+  width: auto !important; max-width: none !important;
+  float: none !important; }
+/* Черта между панелями. В таблице их разделяли столбцы, в столбик они
+   слились бы в сплошную простыню из заголовков и списков. Цвет и приём
+   те же, что у пунктов списка подлепр.
+   Последней черта не нужна: под ней подвал, а не следующая панель. */
+.b-controls_column {
+  padding-bottom: 10px !important; margin-bottom: 10px !important;
+  border-bottom: 1px solid rgb(226, 224, 222) !important; }
+.b-controls_column:last-child {
+  padding-bottom: 0 !important; margin-bottom: 0 !important;
+  border-bottom: 0 !important; }
+/* Внутренние обёртки колонок. Отбивки у них расчитаны на соседство по
+   горизонтали: 16 слева у .b-column_inner, 40 справа у .b-controls_inner,
+   36 и 18 по бокам у именованных вариантов, черта слева у __frame — всё
+   это разделяло колонки, стоявшие рядом. В столбик разделяет черта
+   выше, а отбивки только отжимают содержимое от края экрана. */
+.b-column_inner,
+.b-controls_inner,
+.b-controls_column__center .b-controls_inner,
+.b-controls_column__right .b-controls_inner,
+.b-controls_column__left .b-controls_inner,
+.b-blog_controls_side_controls .b-controls_inner {
+  padding-left: 0 !important; padding-right: 0 !important; }
+.b-controls_column__frame .b-column_inner { border-left: 0 !important; }
+
+/* Обёртка страницы. 90% ширины оставляли справа пустую десятину, а
+   отбивка снизу в 70 — расчёт на подвал, которого на телефоне под
+   страницей нет. */
+.b-controls_container {
+  width: auto !important; padding-bottom: 16px !important; }
+/* Тело вкладки. Отбивка сверху в 43 — место под панель вкладок, которая
+   у лепры стоит на нём внахлёст абсолютно; у нас она в потоке, и это
+   место пустует. Ширина 96% — та же лишняя десятина справа. */
+.b-tabs_content {
+  width: auto !important; padding: 0 !important; }
+.b-tabs_content_section { margin-top: 12px !important; }
+.b-controls_section { padding-bottom: 16px !important; }
+/* Строка про латышей. Минусовая отбивка сверху втягивала её в те самые
+   43 пикселя под панелью вкладок. Пустоты больше нет — минус убираем,
+   иначе строка наезжает на панель. */
+.b-latvian_access { margin: 0 0 12px !important; }
+.b-latvian_access label { vertical-align: middle !important; }
+
+/* Заголовок панели. 18 у лепры — кегль для колонки в четверть широкого
+   экрана; здесь он спорит с заголовком подлепры над страницей. */
+.b-controls_subtitle {
+  font-size: 16px !important; margin: 0 0 5px !important; }
+
+/* Плашка владельца. Поля по 30 с боков — под колонку; ник кеглем 24
+   рядом с заголовком в 16 читался главным на странице, хотя главное
+   тут права, а не имя. */
+.b-owner_box {
+  padding: 10px 12px !important; margin-bottom: 12px !important;
+  border-radius: ${UI_R}px !important; }
+.b-owner_box_name { font-size: 19px !important; }
+.b-domain_creation { margin-bottom: 8px !important; }
+
+/* Списки граждан. Отбивка справа в 27 — место под крестик «выгнать»,
+   который лепра показывает по наведению; на телефоне наведения нет.
+   Перенос строк разрешаем: ники бывают длинные, а nowrap в узкой
+   колонке выдавливал их за край. */
+.b-blog_controls_users ul {
+  margin: 0 0 8px !important; padding: 0 !important; }
+.b-blog_controls_users li { white-space: normal !important; }
+.b-blog_controls_users ul.b-government_list { margin-left: 12px !important; }
+.b-blog_controls_users ul.b-government_list__sub { margin-left: 24px !important; }
+/* Поле ввода ника в 75% ширины — доля от колонки, которой больше нет.
+   Кегль 11 Safari считает мелким и приближает к нему страницу. */
+.b-blog_controls_users .i-form_text_input,
+.b-domain_settings_form .i-form_text_input {
+  width: auto !important; max-width: 100% !important;
+  box-sizing: border-box !important;
+  font-size: var(--lm-form-font, ${CFG.formFont}px) !important; }
+/* Отбивка полей внутри панели. 24 у лепры — расчёт на широкую колонку;
+   между собой поля разводим десяткой. У последнего снимаем: расстояние
+   до следующей панели задаёт черта колонки, а два источника отступа
+   между одними и теми же узлами всегда кончаются двойным.
+   На приложенной странице поле в колонке всегда одно, но у владельца
+   их бывает несколько подряд — потому не ноль. */
+.b-controls_column .b-form_field { margin-bottom: 10px !important; }
+.b-controls_column .b-form_field:last-child { margin-bottom: 0 !important; }
+
+/* «Инбокс правительству». Плавала влево с очисткой — приём для колонки;
+   в столбик из-за float она вываливалась из потока, и черта панели
+   проходила поверх неё. Ставим строкой: значок и подпись по центру
+   друг относительно друга. */
+.b-moderators_inbox {
+  display: inline-flex !important; align-items: center !important;
+  gap: 6px !important;
+  float: none !important; clear: none !important;
+  height: auto !important; padding: 6px 10px !important;
+  margin: 6px 0 0 !important;
+  border-radius: ${UI_R}px !important; }
+.b-moderators_inbox .b-svg-icon__inbox { top: 0 !important; }
+/* Пояснение под забаненными. Отбивка сверху в 24 — на телефоне это
+   пустая строка между списком и текстом о нём. */
+.b-form_field_description__ban { padding-top: 8px !important; }
+.b-government_container .b-form_field_description {
+  padding-top: 8px !important; padding-bottom: 10px !important; }
+/* Колонка с формами передачи и амнистии: ширины в пикселях и долях,
+   плюс плавание — то же самое и по той же причине. */
+.b-form_field_domain__handover { width: auto !important; }
+.b-amnesia_container .b-form_field {
+  float: none !important; width: auto !important; margin-right: 0 !important; }
 
 /* ============ СПИСОК ГРАЖДАН (/users/) ============ */
 /* Пункт списка раскидан по десктопной сетке: тело на 40% ширины, карма
@@ -6231,12 +6513,66 @@ body.l-profile #lm-navthing { margin-bottom: 0 !important; }
   margin: 0 !important; padding: 0 !important;
   border-bottom: 0 !important; }
 .lm-navthing_links .b-aside_president_bg { display: none !important; }
+/* Ник подрос с 13 до 15: рядом с ним встала корона, и при прежнем кегле
+   она выглядела не значком при имени, а картинкой, к которой имя
+   приписано мелким шрифтом.
+
+   display: inline-block — вот из-за чего корона оказывалась НАД ником, а
+   не слева. У лепры на этой ссылке стоит display: block, то есть она
+   занимает строку целиком, и вставленный перед ней значок вытесняется
+   на строку выше. Строчный блок ставит их соседями по одной строке, а
+   выключка по центру у рамки уже есть.
+
+   Менять display чужому узлу мы обычно не беремся — на нём у лепры
+   держится раскладка. Здесь случай безопасный и разобран отдельно:
+   блочной ссылку сделали ради обрезки длинного ника многоточием
+   (overflow: hidden плюс text-overflow: ellipsis, а они требуют
+   небудь-строчного), и inline-block это свойство сохраняет полностью.
+   Внутри ссылки один текстовый узел, больше на ней ничего не висит.
+
+   Потолок ширины — вычитанием, а не 100%: сотня процентов считается от
+   рамки целиком, и при длинном нике пара «корона плюс имя» вылезала бы
+   за неё и переносилась. Вычитаем ровно место короны с её отбивкой. */
 .lm-navthing_links .b-aside_president a,
-.lm-navthing_links .b-aside_president b { font-size: 13px !important; }
+.lm-navthing_links .b-aside_president b { font-size: 15px !important; }
+.lm-navthing_links .b-aside_president a {
+  display: inline-block !important;
+  vertical-align: middle !important;
+  max-width: calc(100% - ${PRES_CROWN_W + 4}px) !important; }
+/* Подпись под ником — 10 вместо 11. Это две строки пояснения («Президент
+   Грузии», «с 26.02 по 22.02»), они самые длинные в узкой колонке и
+   переносились; и это самое неважное, что в блоке есть.
+   Верхняя отбивка 3, а не 1: корона опущена на два пикселя и выходит за
+   нижний край своей строки ровно на столько же. Сдвиг сделан свойством
+   top, а оно раскладку не трогает — то есть место под короной никто не
+   освободит, и отбивку приходится задавать здесь. */
 .lm-navthing_links .b-aside_president p {
-  margin: 1px 0 0 !important;
-  font-size: 11px !important; line-height: 1.3 !important;
+  margin: 3px 0 0 !important;
+  font-size: 10px !important; line-height: 1.3 !important;
   color: rgb(110,110,110) !important; }
+/* Корона. Строчный блок, а не блок: она сосед ника по одной выключенной
+   по центру строке, и центруются они вместе.
+   Выравнивание по середине строчного ящика, а не по базовой линии: у
+   svg базовой линии нет, и по умолчанию он сел бы нижним краем на
+   линию букв, то есть выше нужного на добрую треть.
+   Дальше опускаем ещё на два: по чистой середине строки корона
+   вставала чуть выше глазной линии имени. Сдвигаем свойством top у
+   relative, а не отбивкой: top ничего не двигает в потоке, то есть
+   строка не становится выше и соседи не разъезжаются. Место под эти
+   два пикселя отдаёт подпись — см. её отбивку выше.
+   Отбивка справа отделяет корону от имени; слева отбивки нет —
+   расстояние до края рамки задают её поля, а два источника отступа
+   между одними и теми же узлами всегда кончаются двойным. */
+.lm-crown {
+  display: inline-block !important;
+  position: relative !important; top: 2px !important;
+  width: ${PRES_CROWN_W}px !important; height: ${PRES_CROWN_W}px !important;
+  margin: 0 4px 0 0 !important; padding: 0 !important;
+  vertical-align: middle !important;
+  flex: 0 0 auto !important; }
+.lm-crown svg {
+  display: block !important;
+  width: ${PRES_CROWN_W}px !important; height: ${PRES_CROWN_W}px !important; }
 /* Ссылка на архив. Кегль и отбивка — как у пунктов списка выше, чтобы
    строка читалась продолжением столбика, а не приклеенной снизу
    врезкой. Блочная: строчная встала бы в одну строку с последним
@@ -7011,17 +7347,29 @@ html.lm-dark .lm-navthing_gert.lm-opaque img { filter: none !important; }
 html.lm-dark .lm-emo {
   filter: invert(1) hue-rotate(180deg) !important; }
 
+/* Корона у президента. Цвета у неё заданы прямо в фигурах — золото,
+   синяя шапка, красные камни, — и общий переворот страницы сделал бы её
+   ядовито-голубой. Возвращаем подлинные цвета тем же приёмом, что у
+   картинок и эмодзи выше. Селектор один, без .lm-navthing_links: значок
+   живёт только там, а лишний класс в селекторе ничего не уточняет. */
+html.lm-dark .lm-crown {
+  filter: invert(1) hue-rotate(180deg) !important; }
+
 /* ============ ПОПАП НАСТРОЕК ============ */
 /* Слой выше всего нашего, кроме плашки о пыни: настройки перекрывают
    страницу целиком, но сообщение о новом ответе перекрывать не должны —
    оно короткое и само уходит. */
+/* Поля по бокам прежние, сверху и снизу — четыре пикселя вместо
+   двенадцати. Затемнение вокруг окна и так есть, а высота здесь дороже
+   воздуха: раздел «Разное» подрос, и на стопроцентном масштабе окно
+   стало упираться в прокрутку. */
 #lm-set {
   position: fixed !important; inset: 0 !important;
   z-index: 2147481000 !important;
   background: rgba(0, 0, 0, .45) !important;
   display: flex !important; align-items: center !important;
   justify-content: center !important;
-  padding: ${CFG.pageEdge}px !important;
+  padding: 4px ${CFG.pageEdge}px !important;
   box-sizing: border-box !important;
   overflow: auto !important; }
 .lm-set_win {
@@ -7031,8 +7379,15 @@ html.lm-dark .lm-emo {
      затемнения. Доля ведёт себя одинаково на любом масштабе. Потолок в
      520 оставлен на случай широкого экрана, где окно во всю ширину
      превратилось бы в простыню. */
+  /* Потолок высоты — доля, а не 94vh, и это та же починка, что была у
+     ширины. vh в Safari считается от видового окна, заданного метатегом,
+     и за масштабом страницы не следует; доля считается от настоящего
+     содержащего блока — то есть от затемнения, которое прибито к краям
+     экрана. Заодно окно берёт всю доступную высоту вместо 94 процентов:
+     вместе с сузившимися полями это те самые пол-сотни пикселей, из-за
+     которых на стопроцентном масштабе появлялась прокрутка. */
   width: 100% !important; max-width: min(520px, 100%) !important;
-  max-height: 94vh !important; overflow: auto !important;
+  max-height: 100% !important; overflow: auto !important;
   box-sizing: border-box !important;
   background: rgb(245,245,245) !important;
   border: 1px solid rgb(200,200,200) !important;
@@ -7049,12 +7404,20 @@ html.lm-dark .lm-emo {
 .lm-set_block {
   padding: 6px ${CFG.pageEdge}px !important;
   border-bottom: 1px solid rgb(222,222,222) !important; }
+/* По центру. Раздел — это подпись и под ней ряды «слева название,
+   справа кнопки»; прижатый влево заголовок вставал в один столбец с
+   названиями рядов и читался таким же рядом, только без кнопок.
+   По центру он явно над ними, а не среди них.
+   Заголовку левой колонки верхнего раздела выключка ничего не меняет:
+   колонка шириной ровно в него (он самый широкий её ребёнок и стоит
+   nowrap), центрировать внутри собственной ширины нечего. */
 .lm-set_head {
   font-size: 12px !important; line-height: 1.25 !important;
+  text-align: center !important;
   color: rgb(90,90,90) !important; margin-bottom: 3px !important; }
 /* Верхнему разделу отбивку возвращаем: там три столбца, и прижимать
    схемофон к линейкам незачем. */
-.lm-set_top { padding: 10px ${CFG.pageEdge}px !important; }
+.lm-set_top { padding: 7px ${CFG.pageEdge}px !important; }
 
 /* Верхний блок — три столбца: выбор, ползунок, схемофон. Именно flex, а
    не таблица: у среднего столбца ширина фиксирована поворотом ползунка,
@@ -7153,36 +7516,53 @@ html.lm-dark .lm-emo {
   font-size: 11px !important; text-align: center !important;
   color: rgb(90,90,90) !important; margin-top: 4px !important; }
 
+/* Раздел точности стоит В ДВЕ КОЛОНКИ: слева заголовок, ползунок и
+   число, справа дорожка значков. Столбиком (заголовок сверху во всю
+   ширину, под ним ряд) он занимал на шестнадцать пикселей больше, а
+   дорожка при этом всё равно вдвое выше ползунка — то есть справа от
+   неё зияло пустое место ровно той высоты, которой не хватало кнопке
+   «Закрыть» внизу окна. Теперь заголовок и число живут в этом месте.
+   Плата — заголовок выключен по центру своей колонки, а не всего
+   раздела, и стоит чуть левее прочих. */
 .lm-set_dock {
   display: flex !important; align-items: center !important;
   gap: 10px !important; }
-.lm-set_flat { flex: 1 1 auto !important; min-width: 0 !important; }
-/* Стрелка и гнездо в настоящем размере: значок ${CFG.jumpSize} на
-   ${CFG.jumpSize}, между ними ровно тот допуск, что стоит в настройке.
-   Высота дорожки — с запасом на самый большой допуск, иначе при
-   движении ползунка вправо блок рос бы и раздел прыгал. */
-/* Своя отбивка у раздела точности: сверху чуть меньше общей, снизу
-   заметно меньше. Причина в самой дорожке значков — её высота взята с
-   запасом на самый большой допуск, и при обычных значениях снизу
-   остаётся свободное поле, которое общая отбивка удваивала. Сверху
-   такого запаса нет: значки прижаты к верху дорожки заголовком. */
+.lm-set_dockcol {
+  flex: 1 1 auto !important; min-width: 0 !important; }
+/* Ползунок во всю ширину колонки. Раньше он был флекс-элементом самой
+   строки и тянулся сам; теперь он в колонке блочным потоком, и ширину
+   надо задать. */
+.lm-set_flat {
+  width: 100% !important; min-width: 0 !important;
+  box-sizing: border-box !important; }
+/* Своя отбивка у раздела точности: обе меньше общей. Причина в дорожке
+   значков — её высота взята с запасом на самый большой допуск, и при
+   обычных значениях сверху и снизу остаётся свободное поле, которое
+   общая отбивка удваивала. */
 .lm-set_dock_block {
-  padding-top: 8px !important; padding-bottom: 2px !important; }
-.lm-set_dock_block .lm-set_head { margin-bottom: 2px !important; }
+  padding-top: 4px !important; padding-bottom: 2px !important; }
+.lm-set_dock_block .lm-set_head { margin-bottom: 1px !important; }
 
-/* Дорожка значков. Высота с запасом на самый большой допуск — иначе при
-   движении ползунка вправо блок рос бы и раздел прыгал. А пара внутри
-   стоит ПО ЦЕНТРУ: при малом допуске она иначе прижималась бы к верху,
-   и под ней зияла бы пустая треть блока — так и вышло в первой сборке.
+/* Дорожка значков. Стрелка и гнездо в НАСТОЯЩЕМ размере, ${CFG.jumpSize}
+   на ${CFG.jumpSize}, — и это не украшательство. Допуск тут показан
+   расстоянием между двумя предметами, а расстояние читается только
+   вместе с их размером: те же семнадцать пикселей между значками в
+   сорок и между значками в двадцать четыре выглядят совершенно
+   по-разному, и уменьшенная картинка врала про то, насколько точно надо
+   попасть. Раз врёт — она бесполезна, ради неё раздел и заведён.
+
+   Высота с запасом на самый большой допуск — иначе при движении
+   ползунка вправо блок рос бы и раздел прыгал. А пара внутри стоит ПО
+   ЦЕНТРУ: при малом допуске она иначе прижималась бы к верху, и под ней
+   зияла бы пустая треть блока — так и вышло в первой сборке.
    Ширина шире значка: у гнезда есть свечение, и оно выходит за края. */
 .lm-set_dockpic {
   flex: 0 0 auto !important;
   width: ${CFG.jumpSize + 16}px !important;
-  /* Высота = значок плюс самый большой допуск. Раньше стояло два значка
-     плюс запас — под картинку, которая показывала расхождение втрое
-     больше настоящего; заодно этот блок отбирал высоту у раздела над
-     собой. Теперь ровно столько, сколько нужно самому широкому
-     расхождению центров. */
+  /* Высота = значок плюс самый большой допуск (30, см. TUNE.discoDock).
+     Ровно столько, сколько нужно самому широкому расхождению центров:
+     при допуске 30 пара стоит с просветом в 10, при малом — наезжает
+     друг на друга, и в обоих случаях дорожка одной высоты. */
   height: ${CFG.jumpSize + 30}px !important;
   display: flex !important; flex-direction: column !important;
   align-items: center !important; justify-content: center !important; }
@@ -7193,9 +7573,13 @@ html.lm-dark .lm-emo {
   display: block !important;
   width: ${CFG.jumpSize}px !important; height: ${CFG.jumpSize}px !important; }
 
+/* Отбивка между рядами: 3 давали строки почти впритык, и раздел из
+   четырёх пунктов читался сплошным блоком. 6 разводит их настолько,
+   чтобы взгляд цеплялся за пункт, и настолько мало, чтобы попап не
+   вырос на лишний ряд по высоте. */
 .lm-set_row {
   display: flex !important; align-items: center !important;
-  gap: 8px !important; margin-bottom: 3px !important; }
+  gap: 8px !important; margin-bottom: 6px !important; }
 .lm-set_row:last-child { margin-bottom: 0 !important; }
 .lm-set_label {
   flex: 1 1 auto !important; min-width: 0 !important;
@@ -7234,8 +7618,12 @@ html.lm-dark .lm-emo {
   border-color: rgb(150,150,150) !important;
   color: rgb(20,20,20) !important; }
 
+/* Подвал: пять пикселей вместо семи. Кнопка «Закрыть» и так с полями в
+   восемь, воздух вокруг неё берётся из них — а лишняя пара пикселей
+   сверху и снизу это ровно та высота, которой кнопке не хватало, чтобы
+   уместиться в окне на стопроцентном масштабе. */
 .lm-set_foot {
-  padding: 7px !important; text-align: center !important; }
+  padding: 5px !important; text-align: center !important; }
 .lm-set_close {
   padding: 8px 22px !important; font-size: 13px !important;
   background: #fff !important;
@@ -7336,6 +7724,16 @@ html.lm-dark .lm-emo {
 html.lm-cards2 body,
 html.lm-cards2 .l-i-wrapper { background: ${PAGE_ALT} !important; }
 html.lm-cards2 .post {
+  background-color: ${CARD_ALT} !important;
+  background-image: ${CARD_GLOW2} !important; }
+/* Карточка подлепры — тем же набором и по тем же причинам, что и пост.
+   Отдельным правилом, а не приписыванием селектора к .post: у постов
+   ниже есть свои продолжения (рамка комментария, подсветка новых), и
+   общий селектор пришлось бы таскать по всем ним. Вес (три класса)
+   тяжелее базового правила карточки (два), и стоит оно ниже по файлу —
+   спор решается одинаково и в браузере, и в проверке. */
+html.lm-cards2 .b-blogs_list .b-list_item,
+html.lm-cards2 .l-content_aside_subscriptions_top .b-subscriptions_aside_block {
   background-color: ${CARD_ALT} !important;
   background-image: ${CARD_GLOW2} !important; }
 /* Без !important, ровно по той же причине, что и основной фон
@@ -9737,12 +10135,9 @@ html .comments .comment.new .c_i {
 
   /* Подпись поста занимала две широких строки. Сокращаем: домен без
      хвоста .leprosorium.ru, дата числами, длинные ссылки — значками. */
-  var FOOTER_ICONS = [
-    ['b-post_my_post_controls_button_in_interest',    '\u2295'],  /* в мои вещи */
-    ['b-post_my_post_controls_button_out_interest',   '\u2296'],  /* из моих вещей */
-    ['b-post_my_post_controls_button_in_favourites',  '\u2606'],  /* в избранное */
-    ['b-post_my_post_controls_button_out_favourites', '\u2605']   /* из избранного */
-  ];
+  /* Таблица глифов подписи (⊕ ⊖ ☆ ★) отсюда убрана: все значки обоймы
+     теперь рисуются вектором одним пером — см. ICON_BODY и vectorIcons
+     выше. */
 
   /* «129 комментариев / 2 новых» -> «129 / 2 новых».
      Если новых нет — остаётся «129 комментариев».
@@ -9797,6 +10192,57 @@ html .comments .comment.new .c_i {
     if (total && !fresh) bold(total, false);
   }
 
+  /* Значок «только новые комментарии» — свой, лепра такого не даёт.
+     Ведёт на тот же пост с фильтром ?unread=on, и ведёт ВСЕГДА, даже
+     когда новых в посте нет: ссылка «N новых» появляется у лепры только
+     при непрочитанном, а зайти в пост с этим фильтром бывает нужно и
+     после того, как счётчик обнулился.
+
+     Рисунок — облачко реплики с точкой внутри: «комментарии, а в них
+     новое». Рисуем сами, а не берём готовый глиф, по той же причине,
+     что и у стрелки ответа: у подходящих символов Юникода есть
+     эмодзи-начертание, и iOS показывает цветную наклейку вместо знака
+     в тон подписи.
+
+     Обводка, а не заливка: толщина линии не зависит от того, как
+     сложится путь, и значок остаётся ровным на любом размере — в строке
+     он 14 пикселей, во всплывающем столбике 18. currentColor — чтобы
+     брать цвет подписи и не краситься отдельно в тёмной теме. */
+  var UNREAD_SVG =
+    '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor"' +
+    ' stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"' +
+    ' aria-hidden="true">' +
+    '<rect x="2.6" y="3.4" width="14.8" height="10.4" rx="2.6"/>' +
+    '<path d="M6.6 13.8 L6.6 17.4 L10.6 13.8"/>' +
+    '<circle cx="10" cy="8.6" r="1.5" fill="currentColor" stroke="none"/>' +
+    '</svg>';
+
+  /* Адрес поста. Берём у ссылок на комментарии, а при их отсутствии —
+     у значка-странички: на странице самого поста блока ссылок нет, а
+     значок есть, и фильтр там тоже к месту.
+     Строку запроса и якорь срезаем: у ссылки «N новых» уже стоит
+     ?unread=on, и без обрезки вышло бы два вопросительных знака подряд.
+     Ссылки-пустышки лепры (href оканчивается на '#') не в счёт — по
+     ним никуда не попадёшь. */
+  function postUrl(ddi) {
+    var a = ddi.querySelector('.b-post_comments_links a[href]') ||
+            ddi.querySelector('a.post_icon[href]');
+    var u = a && a.getAttribute('href');
+    if (!u || u.charAt(u.length - 1) === '#') return '';
+    return u.split('#')[0].split('?')[0];
+  }
+
+  function unreadIcon(ddi) {
+    var base = postUrl(ddi);
+    if (!base) return null;
+    var a = document.createElement('a');
+    a.className = 'lm-unread';
+    a.setAttribute('href', base + '?unread=on');
+    a.title = 'только новые комментарии';
+    a.innerHTML = UNREAD_SVG;
+    return a;
+  }
+
   /* Значки лежат в двух обёртках .b-post_controls с разными метриками.
      Собираем их в один свой контейнер: так они становятся соседями по
      флекс-боксу и выравниваются по центру гарантированно. */
@@ -9811,6 +10257,7 @@ html .comments .comment.new .c_i {
        забираем, иначе они остаются со своими метриками и уезжают. */
     var loose = sliceOf(ddi.children).filter(function (el) {
       if (el.classList.contains('lm-icons')) return false;
+      if (boxes.indexOf(el) >= 0) return false;   /* это обёртка, её разбирают выше */
       if (el.classList.contains('b-post_pinned_icon')) return false;   /* метка «закреплён» */
       if (el.classList.contains('b-post_comments_links')) return false;
       if (el.classList.contains('js-date')) return false;
@@ -9821,6 +10268,11 @@ html .comments .comment.new .c_i {
     });
 
     if (!boxes.length && !loose.length) return;
+
+    /* Свой значок собираем ДО того, как что-то переехало: адрес поста
+       берётся из узлов, которые ниже уходят в обойму, и после переезда
+       искать их в подписи было бы уже негде. */
+    var unread = unreadIcon(ddi);
 
     var holder = document.createElement('span');
     holder.className = 'lm-icons';
@@ -9840,6 +10292,11 @@ html .comments .comment.new .c_i {
     var icon = ddi.querySelector('.post_icon');
     if (icon) holder.appendChild(icon);
 
+    /* Наш значок — последним. Столбик всплывает ВВЕРХ, то есть последний
+       в разметке оказывается ближним к точке: под тем самым пальцем,
+       которым её только что нажали. */
+    if (unread) holder.appendChild(unread);
+
     wrapMore(ddi, holder);
   }
 
@@ -9855,6 +10312,125 @@ html .comments .comment.new .c_i {
      её давно прячем, а в подписи комментария она осталась — и рядом с
      нашей точкой-кнопкой две точки подряд читались бы как одна
      сломанная. Прячем и здесь, правилом внизу файла. */
+  /* ---- Векторные значки подписи ----
+
+     Всё, что лежит под точкой, нарисовано здесь и одним пером: контур,
+     currentColor, система координат 20 на 20, скруглённые концы. До
+     этого в обойме соседствовали три разные породы значков — текстовые
+     глифы (⊕, ☆, ×, ↑), фоновые картинки (post-icon.gif, спрайт) и
+     собственные svg лепры сплошной заливкой, — и в столбике они стояли
+     каждый своего роста, веса и цвета.
+
+     Почему не глифы. У ⊕, ☆ и прочих в Юникоде есть эмодзи-начертание,
+     и iOS показывает цветную наклейку вместо знака в тон подписи; кроме
+     того, каждый шрифт сажает их на свою высоту, и центрировать в
+     коробке приходилось бы подбором. Та же причина, по которой «ответить»
+     стало значком, — см. REPLY_SVG.
+
+     Почему контур, а не заливка. У обводки толщина линии не зависит от
+     того, как сложится путь, и значок остаётся ровным на любом размере:
+     в строке он 14 пикселей, во всплывающем столбике 18.
+
+     currentColor — чтобы значок брал цвет подписи и не пришлось красить
+     его отдельно в тёмной теме и в обратном наборе тонов.
+
+     «Похожесть» соблюдена намеренно: плюс и минус в кружке — это те же
+     ⊕ и ⊖, что стояли раньше; звёздочка пустая и залитая — те же ☆ и ★;
+     стрелка вверх, крестик, страничка, галочка и стрелка из лотка
+     повторяют то, что рисовала лепра. Человек не должен переучиваться. */
+  var ICON_STAR =
+    'M10.00 2.90 L11.85 7.75 L17.04 8.01 L13.00 11.27 L14.35 16.29' +
+    ' L10.00 13.45 L5.65 16.29 L7.00 11.27 L2.96 8.01 L8.15 7.75 Z';
+
+  var ICON_BODY = {
+    /* в мои вещи / из моих вещей — плюс и минус в кружке */
+    interest_in:  '<circle cx="10" cy="10" r="7"/>' +
+                  '<path d="M10 6.6 V13.4 M6.6 10 H13.4"/>',
+    interest_out: '<circle cx="10" cy="10" r="7"/><path d="M6.6 10 H13.4"/>',
+    /* в избранное / из избранного — звезда пустая и залитая */
+    fav_in:  '<path d="' + ICON_STAR + '"/>',
+    fav_out: '<path d="' + ICON_STAR + '" fill="currentColor"/>',
+    /* скрыть. Толщина своя, 2.1 вместо общей 1.8: две диагонали
+       размываются сглаживанием сильнее прямых линий, и на четырнадцати
+       пикселях крестик выходил заметно бледнее соседей. */
+    close:  '<path stroke-width="2.1" d="M6 6 L14 14 M14 6 L6 14"/>',
+    /* к родительскому комментарию — стрелка вверх (была глифом ↑) */
+    parent: '<path d="M10 16.2 V4.4 M5.2 9.2 L10 4.4 L14.8 9.2"/>',
+    /* ссылка на сам пост или комментарий — листок с загнутым углом.
+       Строчек внутри нет намеренно: на четырнадцати пикселях они
+       сливались в серое пятно и листок переставал читаться листком. */
+    post:   '<path d="M5.2 2.9 H11.4 L14.8 6.3 V17.1 H5.2 Z"/>' +
+            '<path d="M11.2 3 V6.4 H14.7"/>',
+    /* пометить прочитанным — галочка в кружке */
+    read:   '<circle cx="10" cy="10" r="7"/>' +
+            '<path d="M6.6 10.2 L9 12.6 L13.6 7.6"/>',
+    /* поделиться — стрелка вверх из лотка, как у лепры */
+    share:  '<path d="M10 12.8 V4.2"/><path d="M6.7 7.5 L10 4.2 L13.3 7.5"/>' +
+            '<path d="M5.2 11.4 V16 H14.8 V11.4"/>'
+  };
+
+  function iconSvg(name) {
+    var body = ICON_BODY[name];
+    if (!body) return '';
+    return '<svg class="lm-ico" viewBox="0 0 20 20" fill="none"' +
+           ' stroke="currentColor" stroke-width="1.8"' +
+           ' stroke-linecap="round" stroke-linejoin="round"' +
+           ' aria-hidden="true">' + body + '</svg>';
+  }
+
+  /* Какой значок какому узлу. Список общий на пост и комментарий:
+     половина классов встречается и там, и там, а держать два почти
+     одинаковых перечня — верный способ однажды поправить один и забыть
+     про другой.
+     Порядок важен: .b-icon_button_close должен опознаться РАНЬШЕ
+     .b-controls_button, потому что крестик носит оба класса сразу, а
+     .b-controls_button — это ещё и обёртка под спрайт. */
+  var ICON_MAP = [
+    ['.b-post_my_post_controls_button_in_interest',    'interest_in'],
+    ['.b-post_my_post_controls_button_out_interest',   'interest_out'],
+    ['.b-post_my_post_controls_button_in_favourites',  'fav_in'],
+    ['.b-post_my_post_controls_button_out_favourites', 'fav_out'],
+    ['.b-icon_button_close',    'close'],
+    ['.b-mark_as_read_control', 'read'],
+    ['.b-button_share',         'share'],
+    ['.c_parent',               'parent'],
+    ['.post_icon',              'post'],
+    ['.c_icon',                 'post']
+  ];
+
+  /* Перерисовка. Меняем СОДЕРЖИМОЕ узла, а не сам узел: на узле висят
+     обработчики лепры (пометить прочитанным, добавить в избранное), и
+     подменять его нельзя — тот же приём и по той же причине, что в
+     iconifyAnswer.
+
+     Полный текст уходит в title: у части значков он был единственным
+     пояснением («в мои вещи»), и после замены на картинку от него не
+     должно остаться пусто.
+
+     Идемпотентность по нашей же метке, а не по длине текста: после
+     первой замены текста в узле нет вовсе, и проверка «текст короче
+     трёх знаков» пропустила бы узел навсегда — но и любой чужой
+     значок тоже. Метка отвечает ровно на тот вопрос, который задан.
+
+     Шеврон сворачивания ветки не трогаем: он носит класс
+     .b-post_my_post_controls_button, под отбор не попадает, но лежит
+     рядом — оговорка на случай, если список однажды расширят. */
+  function vectorIcons(root) {
+    for (var i = 0; i < ICON_MAP.length; i++) {
+      var sel = ICON_MAP[i][0], name = ICON_MAP[i][1];
+      var list = root.querySelectorAll(sel);
+      for (var j = 0; j < list.length; j++) {
+        var el = list[j];
+        if (el.querySelector('svg.lm-ico')) continue;
+        if (el.closest('.b-comment_thread_collapse')) continue;
+        var text = (el.textContent || '').replace(/\s+/g, ' ').trim();
+        if (text && !el.title) el.title = text;
+        el.classList.add('lm-ico_host');
+        el.innerHTML = iconSvg(name);
+      }
+    }
+  }
+
   var C_ICONS = ['.c_icon', '.c_parent', '.b-button_share',
                  '.b-icon_button_close', '.b-controls_button'];
 
@@ -10077,6 +10653,7 @@ html .comments .comment.new .c_i {
       seen.footer.add(foot);
       foot.querySelectorAll('.js-date').forEach(shortenDate);
       iconifyAnswer(foot);
+      vectorIcons(foot);
       groupCommentIcons(foot);
       splitCommentFooter(foot);
     });
@@ -10206,14 +10783,7 @@ html .comments .comment.new .c_i {
 
       ddi.querySelectorAll('.js-date').forEach(shortenDate);
 
-      FOOTER_ICONS.forEach(function (pair) {
-        var a = ddi.querySelector('.' + pair[0]);
-        if (!a) return;
-        var text = (a.textContent || '').trim();
-        if (text.length < 3) return;            /* уже значок */
-        a.title = text;
-        a.textContent = pair[1];
-      });
+      vectorIcons(ddi);
 
       compactCommentCount(ddi);
       groupFooterIcons(ddi);
@@ -11427,17 +11997,33 @@ html .comments .comment.new .c_i {
     win.appendChild(top);
 
     /* --- scroll-connect --- */
-    var dock = setBlock('Точность scroll-connect');
+    /* Заголовок собираем сами, а не через setBlock: он уходит ВНУТРЬ
+       левой колонки, к ползунку и числу, а не встаёт над строкой во всю
+       ширину. Разбор — у правил .lm-set_dock: дорожка значков вдвое выше
+       ползунка, и заголовок с числом занимают место, которое иначе
+       пустовало бы рядом с ней. */
+    var dock = setBlock(null);
     dock.classList.add('lm-set_dock_block');
     var dockRow = document.createElement('div');
     dockRow.className = 'lm-set_dock';
+    var dockCol = document.createElement('div');
+    dockCol.className = 'lm-set_dockcol';
+    var dockHead = document.createElement('div');
+    dockHead.className = 'lm-set_head';
+    dockHead.textContent = 'Точность scroll-connect';
+    dockCol.appendChild(dockHead);
     var dockPic = document.createElement('div');
     dockPic.className = 'lm-set_dockpic';
     /* Значки настоящие — те же, что летают по странице: тот же
-       треугольник, тот же размер, те же цвета. Нарисовать вместо них
-       пару рамочных треугольников было проще, но тогда картинка
-       показывала бы не то, что происходит: у гнезда есть свечение, и
-       именно по нему человек ловит попадание. */
+       треугольник, тот же размер, те же цвета, то же свечение у гнезда.
+       Нарисовать вместо них пару рамочных треугольников было проще, но
+       тогда картинка показывала бы не то, что происходит: у гнезда есть
+       свечение, и именно по нему человек ловит попадание.
+       Размер обязан быть настоящим и по второй причине: допуск показан
+       расстоянием между двумя предметами, а расстояние читается только
+       вместе с их размером. Уменьшенные значки при том же расхождении
+       выглядели куда дальше друг от друга, чем на самом деле, — то есть
+       картинка врала про то, насколько точно надо попасть. */
     var mkTri = function (cls, fill, glow) {
       var b = document.createElement('div');
       b.className = cls;
@@ -11488,6 +12074,9 @@ html .comments .comment.new .c_i {
          Правильный сдвиг отрицательный: значки должны наезжать друг на
          друга, и чем точнее допуск, тем сильнее. Это и есть правда —
          в момент стыковки они почти совпадают.
+         Вычитается CFG.jumpSize — рост значка: расстояние между
+         центрами равно «отбивка плюс рост», и чтобы центры разошлись
+         ровно на discoDock, отбивке остаётся разница.
          setProperty с весом, а не присваивание: в правилах у этих
          значков стоит margin: 0 auto !important, и обычный инлайновый
          стиль его не перебивает — ползунок двигался, значение
@@ -11501,37 +12090,59 @@ html .comments .comment.new .c_i {
     });
     dockDraw();
 
-    dockRow.appendChild(dockSlider);
-    dockRow.appendChild(dockVal);
+    dockCol.appendChild(dockSlider);
+    dockCol.appendChild(dockVal);
+    dockRow.appendChild(dockCol);
     dockRow.appendChild(dockPic);
     dock.appendChild(dockRow);
     win.appendChild(dock);
 
     /* --- уведомления --- */
-    var note = setBlock('Уведомления о новой пыне');
+    var note = setBlock('Уведомления пыни');
     var sideRow = setChoice('pynToastSide', 'Плашка', ['снизу', 'сверху']);
     var sideSync = function () {
       /* Плашка показывается при «плашкой» и «и так и так». При «звуком»
          и «никак» её нет вовсе, и спрашивать про её сторону бессмысленно. */
       setRowOff(sideRow, CFG.pynSound === 'ding' || CFG.pynSound === 'none');
     };
+    /* Сторона плашки — ПЕРВЫМ рядом, «чем сообщать» — вторым, хотя
+       зависимость обратная: гаснет сторона, а гасит её выбор способа.
+       Порядок при этом читается сверху вниз как «плашка снизу, и
+       сообщать ею», то есть от того, что видно, к тому, чем это
+       вызвано. Ряд, который гаснет, стоит над своей причиной, а не под
+       ней, — и погасание сразу видно тем же взглядом, каким нажимали.
+       На устройство это не влияет: sideSync зовётся из обработчика
+       pynSound по ссылке, а не по соседству в разметке. Но собрать
+       sideRow всё равно надо РАНЬШЕ — на него ссылается sideSync. */
+    note.appendChild(sideRow);
     note.appendChild(setChoice('pynSound', 'Сообщать',
       ['плашкой', 'звуком', 'и так и так', 'никак'], sideSync));
-    note.appendChild(sideRow);
     sideSync();
     win.appendChild(note);
 
-    /* --- другое --- */
-    var other = setBlock('Другое');
-    other.appendChild(setToggle('videoLink', 'Ссылка «Link» под видео-роликом'));
+    /* --- разное --- */
+    var other = setBlock('Разное');
 
-    /* Свой слушатель ставится ПОСЛЕ навешенного setToggle и потому
+    /* Притемнение — первым пунктом раздела: из всего здешнего оно одно
+       меняет вид страницы целиком, а не отдельную мелочь.
+
+       Переключатель из двух слов вместо «показываем / не показываем».
+       Настройка отвечает не на вопрос «показывать ли», а на вопрос
+       «что именно темнее» — и пара «Карточки / Фон» отвечает на него
+       прямо, тогда как «не показываем» требовало держать в голове, что
+       именно считается заводским.
+       «Карточки» — это cardsLift === false, то есть заводское поведение
+       лепры: страница белая, карточки чуть темнее. «Фон» — обратный
+       набор.
+
+       Свой слушатель ставится ПОСЛЕ навешенного setChoice и потому
        срабатывает вторым — когда CFG уже обновлён. Применить класс
        раньше записи значения означало бы применить прошлое. */
-    var cardsRow = setToggle('cardsLift', 'Светлые карточки на тёмном фоне');
-    cardsRow.querySelector('.lm-set_switch')
-      .addEventListener('click', function () { applyCards(); });
+    var cardsRow = setChoice('cardsLift', 'Сделать чуть темнее',
+                             ['Карточки', 'Фон'], applyCards);
     other.appendChild(cardsRow);
+
+    other.appendChild(setToggle('videoLink', 'Ссылка «Link» под видео-роликом'));
 
     var navRow = setToggle('navSticky', 'Планка навигации при скролле');
     navRow.querySelector('.lm-set_switch')
@@ -11949,6 +12560,67 @@ html .comments .comment.new .c_i {
      президентства меняется раз в год, а колонка попадается на глаза
      при первом же возвращении на главную. */
 
+  /* Корона слева от ника президента.
+
+     Своя отрисовка, а не картинка лепры. Картинка есть — это
+     .b-aside_president_bg, файл president_.png 50 на 49, — но взять её
+     нельзя по двум причинам сразу. Первая: на подлепрах в этом узле
+     лежит не корона, а собственный герб подлепры, и значок получался бы
+     разный на разных доменах. Вторая: блока президента нет на целых
+     разделах (профиль, магазин, внутренние страницы), мы восстанавливаем
+     его из памяти, и пришлось бы хранить ещё и адрес картинки.
+     Нарисованная корона одна и та же везде и ничего не требует от
+     страницы.
+
+     Рисунок повторяет лепровский: обод с камнями, тёмно-синяя шапка под
+     золотыми дужками, держава с крестом сверху и меховая опушка внизу.
+     Опушка соболиная, а не жемчужная, как на лепровской картинке:
+     бледно-серая полоска на светлом фоне рамки читалась не основанием
+     короны, а пустотой под ней — корона будто висела в воздухе.
+     Система координат 20 на 20 — та же, что у прочих наших значков.
+
+     Цвета заданы прямо в фигурах, а не currentColor: корона тем и
+     корона, что золотая, и в тон серой подписи она была бы просто
+     кляксой. Плата за это — правило в тёмной теме: страница там
+     переворачивается целиком, и значок надо перевернуть обратно, как
+     картинки и эмодзи. */
+  var PRES_CROWN =
+    '<svg viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"' +
+    ' aria-hidden="true">' +
+    '<path d="M4.3 12.6 C4.3 8.6 6.9 6.6 10 6.6 C13.1 6.6 15.7 8.6 15.7 12.6 Z"' +
+    ' fill="#2c2168"/>' +
+    '<path d="M4.3 12.6 C4.3 8.6 6.9 6.6 10 6.6 C13.1 6.6 15.7 8.6 15.7 12.6"' +
+    ' fill="none" stroke="#dda42a" stroke-width="1.6"/>' +
+    '<path d="M10 6.6 L10 12.6" stroke="#dda42a" stroke-width="1.3"/>' +
+    '<rect x="2.5" y="12" width="15" height="3.8" rx="1.1" fill="#e8b334"/>' +
+    '<circle cx="6" cy="13.9" r="0.9" fill="#c0392b"/>' +
+    '<circle cx="10" cy="13.9" r="0.9" fill="#2f6fb5"/>' +
+    '<circle cx="14" cy="13.9" r="0.9" fill="#c0392b"/>' +
+    '<rect x="2.1" y="15.5" width="15.8" height="2.2" rx="1.1" fill="#6b4a2b"/>' +
+    '<circle cx="10" cy="5.2" r="1.5" fill="#e8b334"/>' +
+    '<rect x="9.2" y="0.6" width="1.6" height="3.8" rx="0.5" fill="#e8b334"/>' +
+    '<rect x="7.9" y="1.6" width="4.2" height="1.6" rx="0.5" fill="#e8b334"/>' +
+    '</svg>';
+
+  /* Ставится и на перенесённый узел лепры, и на копию из памяти —
+     поэтому отдельной функцией, а не строкой в каждой ветке.
+     Перед ссылкой, а не в начало блока: в начале блока у лепры лежат
+     пробельные текстовые узлы, и корона отъехала бы от ника на их
+     ширину. Строка блока выключена по центру, корона и ник — соседи по
+     ней, и центруются вместе.
+     Метка на случай повторного прохода: столбик собирается один раз, но
+     дешевле проверить, чем однажды получить две короны. */
+  function presCrown(box) {
+    if (!box || box.querySelector('.lm-crown')) return;
+    var a = box.querySelector('a');
+    if (!a) return;
+    var c = document.createElement('span');
+    c.className = 'lm-crown';
+    c.setAttribute('aria-hidden', 'true');
+    c.innerHTML = PRES_CROWN;
+    box.insertBefore(c, a);
+  }
+
   function readPres(el) {
     var a = el.querySelector('a');
     if (!a) return null;
@@ -12161,11 +12833,20 @@ html .comments .comment.new .c_i {
        почему храним разобранное, — у readPres. */
     var pres = document.querySelector('.b-aside_president');
     if (pres) {
+      /* Корону вешаем ПОСЛЕ rememberPres: в память должно лечь то, что
+         отдала лепра. Иначе на следующей странице мы прочитали бы из
+         неё собственную вставку — та же оговорка и по той же причине,
+         что у заголовка блогов ниже. */
       rememberPres(pres);
+      presCrown(pres);
       gov.appendChild(pres);
     } else {
       var savedPres = cachedPres();
-      if (savedPres) gov.appendChild(makePres(savedPres));
+      if (savedPres) {
+        var copyPres = makePres(savedPres);
+        presCrown(copyPres);
+        gov.appendChild(copyPres);
+      }
     }
 
     var head = links.querySelector('.b-aside_imperial_blogs strong');
@@ -13717,6 +14398,32 @@ html .comments .comment.new .c_i {
     if (!f) return;
     document.documentElement.classList.add('lm-newpost');
     if (f.querySelector('.lm-np')) return;      /* уже разобрано */
+
+    /* Заголовок подлепры и полосу её оформления выносим ИЗ формы —
+       наружу, перед неё.
+
+       На подлепре лепра кладёт <h1 class="b-subsite_header"> внутрь
+       самой формы (на главной его нет вовсе), а relayoutHeader к этому
+       времени успевает пристроить рядом с ним полосу #lm-subband — она
+       строится сразу после заголовка, где бы тот ни лежал. Ниже мы
+       сносим все прежние дети формы разом, и оба узла уходили вместе с
+       таблицами. Снаружи это выглядело так, будто пост пишется не на
+       подлепру: ни названия, ни картинки, всё как на главной. Форма при
+       этом всё время слала куда надо — action у неё на домен подлепры,
+       и мы его не трогаем.
+
+       Переносим узлами, а не копиями: за заголовком у лепры закреплён
+       обработчик перехода, а за полосой — наш замер высоты картинки,
+       который дорисовывает её по загрузке. Порядок сохраняем — сперва
+       заголовок, потом полоса, — вставляя оба перед формой по очереди.
+
+       Кегль заголовка потом подгонит замером fitSubsiteHeader: он ищет
+       узел по классу, а не по месту в разметке, и переезд ему не
+       помеха. */
+    var head = f.querySelector('.b-subsite_header');
+    var band = f.querySelector('#lm-subband');
+    if (head && f.parentNode) f.parentNode.insertBefore(head, f);
+    if (band && f.parentNode) f.parentNode.insertBefore(band, f);
 
     var np = document.createElement('div');
     np.className = 'lm-np';
