@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Lepra Mobile
 // @namespace    lepra.mobile
-// @version      1.1.31
+// @version      1.1.32
 // @description  Мобильная адаптация leprosorium.ru для iOS Safari
 // @author       neokrasav4ik
 // @homepageURL  https://github.com/neokrasav4ik/lepra-mobile
@@ -118,7 +118,7 @@
     return;
   }
 
-  var VERSION = '1.1.31';
+  var VERSION = '1.1.32';
 
   /* ============================================================
      НАСТРОЙКИ
@@ -202,7 +202,7 @@
        Ждём, пока страница устоится. Полторы секунды ничего не стоят: за
        это время дальше двух экранов не улистать, а выгружать ролики,
        мимо которых ещё не прошли, незачем в любом случае. */
-    videoFreeWait: 2000,
+    videoFreeWait: 1000,
     videoFreeAhead: 2,
     /* Граница ВОЗВРАТА — ближе, чем граница выгрузки, и это не
        украшательство. С одной границей на оба решения ролик, стоящий у
