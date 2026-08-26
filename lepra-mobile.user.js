@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Lepra Mobile
 // @namespace    lepra.mobile
-// @version      1.1.40
+// @version      1.1.49
 // @description  Мобильная адаптация leprosorium.ru для iOS Safari
 // @author       neokrasav4ik
 // @homepageURL  https://github.com/neokrasav4ik/lepra-mobile
@@ -118,7 +118,7 @@
     return;
   }
 
-  var VERSION = '1.1.40';
+  var VERSION = '1.1.49';
 
   /* ============================================================
      НАСТРОЙКИ
@@ -458,6 +458,113 @@
     logoVector: true,
     crestVector: true,
     crestChips: 88,
+
+    /* НАСТРОЙКА: элластик-скролл — текст поджимается, проезжая мимо
+       прыгалок.
+
+       Замысел. Строки НЕ переразбиваются: раскладка не участвует
+       вовсе. Каждое слово получает свой узел, и поджатие строки
+       раскладывается на смещение плюс масштаб по горизонтали —
+       transform раскладку не вызывает, браузеру остаётся отрисовка.
+
+       Почему слова, а не буквы. Пробовали и то и другое на устройстве.
+       По счётчику буквы выходили дешевле (0.21 мс против 0.23), а на
+       глаз — дёргались. Счётчик мерил только время JS и не видел ни
+       перерисовки глифов, ни работы композитора, которых у букв вчетверо
+       больше. На iOS прокрутка идёт вне главного потока: кнопки прибиты
+       композитором и едут ровно, а поджатие считает JS, и чем больше
+       работы в главном потоке, тем заметнее расходятся текст и кнопки.
+       Со словами расхождения нет.
+       У слов есть и два бесплатных преимущества: узлов вдвое меньше, и
+       поиск по странице продолжает находить текст — слово целиком
+       лежит в одном узле.
+
+       will-change здесь тоже пробовали и не взяли. На двух сотнях
+       мелких узлов он заводит под каждый свой слой: записи стилей
+       дешевеют, а композитору достаётся сотня слоёв вместо одного, и
+       картинка начинает дёргаться. Окупается он на единицах элементов,
+       не на сотнях.
+
+       elasticReach — ширина запретной полосы, отсчитанная от правого
+       края ЭКРАНА. Не от края тела: прыгалки стоят у края экрана, а
+       между ними и текстом лежат поля страницы, и отсчёт от тела давал
+       бы на узком теле вылет вдвое меньше заданного.
+       Значок с отступом занимает пятьдесят пикселей. Ставим чуть
+       меньше: текст слегка заезжает под края значка — там всё равно
+       прозрачно, — а поджатие при этом не бросается в глаза. На
+       устройстве шестьдесят два оказались перебором.
+       elasticBand — высота полосы, в которой эффект работает.
+       elasticFall — крутизна схода к краям полосы. Меньше единицы —
+       положе и мягче.
+       elasticRamp — насколько поджатие жмётся к правому краю строки.
+       Единица растекается по всей строке ровно, тройка собирает почти
+       всё у самого края.
+       elasticMin — предел сжатия одного слова.
+       elasticNear — за сколько экранов готовить комментарии.
+       elasticBudget — сколько тел готовить за один заход. Подготовка
+       стоит единицы миллисекунд, и на быстром броске в поле зрения
+       въезжает десяток тел разом; без ограничения это ровно тот провал
+       кадра, ради которого всё и мерили.
+
+       Числа подобраны на устройстве, не на стенде. */
+    elastic: false,
+    elasticReach: 51,
+    elasticBand: 211,
+    elasticFall: 0.6,
+    elasticRamp: 0.5,
+    elasticMin: 0.5,
+    elasticNear: 2,
+    elasticBudget: 1,
+    /* elasticEvery — сколько миллисекунд между заходами подготовки.
+       Триста оказались слишком редко: при быстрой прокрутке окно за
+       это время уезжает почти на весь запас, а завернуть успевается
+       одно тело — подготовка попросту не догоняет, и эффекта не видно.
+       Полтораста дают вдвое больше заворотов при той же цене каждого.
+       Меньше — плавнее по виду, но чаще платим за заворот. */
+    elasticEvery: 150,
+    /* elasticKeep — насколько дальше границы подготовки держать уже
+       завёрнутое, экранов. Одна граница на заворот и разворот давала
+       на устройстве 210 подготовок при 159 телах: тело, стоящее ровно
+       на границе, при малейшем качании прокрутки входило и выходило.
+       elasticHold — потолок завёрнутых тел. Пока их меньше, разворотов
+       нет вовсе: при обычном чтении это значит ни одного лишнего
+       заворота за всю сессию.
+       Семьдесят оказались малы: при запасе в два экрана и мелких
+       комментариях в окно попадает под три десятка, потолок пробивался
+       постоянно, и шёл круговорот — 675 заворотов против 605
+       разворотов за сессию. Полторы сотни тел памяти стоят немного, а
+       круговорот стоил двух с половиной секунд работы. */
+    elasticKeep: 2,
+    elasticHold: 160,
+    /* elasticMaxWord — предел длины слова в знаках. Тело, где нашлось
+       слово длиннее, не заворачиваем ВОВСЕ.
+
+       Причина. Обёртка слова несёт запрет переноса — иначе inline-block
+       внутри неё дал бы точку переноса, и слова рассыпались бы по
+       слогам. Но у лепры длинные слитные строки (полные веб-адреса)
+       переносятся ПОСЕРЕДИНЕ слова, и наш запрет это отменяет: адрес
+       перестаёт переноситься и вылезает за правый край.
+
+       Вылезает не только он. Строка шире экрана делает шире и всю
+       страницу, а тогда её можно утащить вбок — при изменённом
+       масштабе это особенно заметно, потому что якорь к краям
+       теряется. Обе жалобы — одна и та же поломка.
+
+       Проще всего такие тела не трогать: комментариев с адресами
+       немного, а разбирать перенос внутри слова значило бы считать
+       ширины по знакам. Тридцать знаков при нашем кегле — это около
+       двухсот пикселей, вдвое меньше строки: обычные слова, даже самые
+       длинные, под предел не подпадают. */
+    elasticMaxWord: 30,
+    /* Предела на ЧИСЛО слов в теле здесь нет намеренно, и поднимать
+       его обратно не надо. Он был — «не заворачивать простыни, они
+       дорого обходятся», — но простыни это как раз то, ради чего
+       затевалось: на них поджатие и видно. Дешевле стало бы за счёт
+       того, что эффекта нет. Если понадобится для опыта, предел
+       возвращается одной строкой в elWrap.
+       Предел на длину ОДНОГО слова (elasticMaxWord выше) остаётся: он
+       не про цену, а про то, что наш запрет переноса ломает леприн
+       перенос посреди адреса. */
 
     /* НАСТРОЙКА: кегль девиза подлепры («Филиал дурдома…») и нижний
        предел, до которого его можно ужимать. Девиз стоит по центру и
@@ -1185,6 +1292,7 @@
        true и false, и tuneLoad их находит. */
     cardsLift:    { list: [false, true] },
     navArchive:   { bool: true },
+    elastic:      { bool: true },
     /* чем сообщать о новой пыни */
     pynSound:     { list: ['push', 'ding', 'both', 'none'] },
     /* где показывать плашку */
@@ -1380,14 +1488,58 @@
 
   /* Обёртка вокруг проходов: одна упавшая функция не должна останавливать
      остальные, а сообщение об ошибке попадает в отчёт вместо тишины. */
+  /* Часы. performance.now даёт доли миллисекунды, Date.now — только
+     целые, а кадр элластика стоит доли, и на целых числах его не
+     увидеть вовсе. Safari к тому же огрубляет performance.now до
+     миллисекунды из соображений безопасности, поэтому среднему по
+     многим вызовам верить можно, а худшему — лишь как порядку
+     величины. */
+  var nowMs = (window.performance && performance.now)
+    ? function () { return performance.now(); }
+    : function () { return Date.now(); };
+
+  /* Счёт времени по звеньям.
+
+     Заведено оттого, что «лёгкий проход 1320 мс, самый долгий 46»
+     не говорит НИЧЕГО о том, кто эти миллисекунды съел: внутри прохода
+     полтора десятка обходов. Гадать, кто именно, — это ровно те четыре
+     круга на csrf-токене, о которых написано в записке.
+
+     Мерить в guard, а не расставлять замеры по местам, — потому что
+     через него и так проходит всё: и проходы, и обработчики событий.
+     Одно место вместо полутора сотен, и ни одно звено не забудется.
+
+     Цена — два обращения к часам на вызов. Вызовов за проход десятки,
+     так что это микросекунды; в кадре элластика тоже один вызов. */
+  var guardMs = {}, guardN = {}, guardMax = {};
+
   function guard(where, fn) {
     return function () {
+      var t0 = nowMs();
       try {
         return fn.apply(this, arguments);
       } catch (e) {
         note('ОШИБКА в ' + where + ': ' + ((e && e.message) || e));
+      } finally {
+        var d = nowMs() - t0;
+        guardMs[where] = (guardMs[where] || 0) + d;
+        guardN[where] = (guardN[where] || 0) + 1;
+        if (d > (guardMax[where] || 0)) guardMax[where] = d;
       }
     };
+  }
+
+  /* Самые дорогие звенья за сессию — по суммарному времени, а не по
+     худшему разу: одна долгая сборка бывает и законной, а вот звено,
+     набравшее секунду мелкими заходами, обычно и есть виновник. */
+  function guardTop(n) {
+    var keys = [];
+    for (var k in guardMs) if (guardMs.hasOwnProperty(k)) keys.push(k);
+    keys.sort(function (a, b) { return guardMs[b] - guardMs[a]; });
+    return keys.slice(0, n).map(function (k) {
+      return k + ' ' + Math.round(guardMs[k]) + 'мс/' + guardN[k] +
+             ' (худш ' + guardMax[k].toFixed(1) + ')';
+    }).join(', ') || '—';
   }
 
   function sliceOf(nodes) { return Array.prototype.slice.call(nodes); }
@@ -2768,6 +2920,24 @@ html.lm-stuck #lm-topbar .b-icon_button_logout {
   position: relative !important; top: -1px !important;
   max-height: 32px !important; max-width: 32px !important;
   opacity: .85 !important; }
+
+/* ---- Элластик-скролл ----
+   Двойная обёртка вокруг слова, и обе половины нужны. Внутренней нужен
+   inline-block: к строчному узлу transform не применяется вовсе. Но
+   inline-block создаёт возможность переноса между соседями, и слова на
+   краю строки начали бы рассыпаться по слогам — от этого внешняя, с
+   запретом переноса.
+   Выключку по базовой линии задаём явно: у inline-block она считается
+   иначе, чем у строчного узла, и без этого строки съезжали бы по
+   вертикали при завороте.
+   will-change тут НЕТ намеренно: на сотнях мелких узлов он заводит под
+   каждый свой слой, и картинка начинает дёргаться. Проверено на
+   устройстве. */
+.lm-el_w { white-space: nowrap !important; }
+.lm-el_c {
+  display: inline-block !important;
+  vertical-align: baseline !important;
+  transform-origin: left center !important; }
 
 /* ---- Логотип фигурами вместо картинки ----
    Растр не удаляем и не подменяем — гасим по классу, который ставит
@@ -7713,6 +7883,11 @@ html.lm-dark .lm-crown {
   box-sizing: border-box !important;
   overflow: auto !important; }
 .lm-set_win {
+  /* Свой отсчёт — для номера версии в углу: без него absolute уехал бы
+     к затемнению, которое лежит на всю страницу. Вписан сюда, а не
+     отдельным правилом, чтобы не плодить второй .lm-set_win — дубли
+     селекторов проверка перед выдачей и ловит. */
+  position: relative !important;
   /* Ширину задаём долей экрана, а не пикселями. Раньше стояло 380: при
      стопроцентном масштабе это ровно экран, а при 90% окно раскладки
      становится 437 — и та же цифра выглядела узкой колонкой посреди
@@ -7925,6 +8100,15 @@ html.lm-dark .lm-crown {
    четырёх пунктов читался сплошным блоком. 6 разводит их настолько,
    чтобы взгляд цеплялся за пункт, и настолько мало, чтобы попап не
    вырос на лишний ряд по высоте. */
+/* Номер версии в углу окна настроек. Поверх содержимого, но нажатий не
+   ловит: под ним лежит кнопка закрытия, и перехватывать её тап было бы
+   обидно. */
+.lm-set_ver {
+  position: absolute !important; top: 6px !important; right: 9px !important;
+  font-size: 9px !important; line-height: 1 !important;
+  color: rgb(168, 166, 166) !important;
+  pointer-events: none !important; z-index: 2 !important; }
+
 .lm-set_row {
   display: flex !important; align-items: center !important;
   gap: 8px !important; margin-bottom: 6px !important; }
@@ -12298,6 +12482,16 @@ html .comments .comment.new .c_i {
     var win = document.createElement('div');
     win.className = 'lm-set_win';
 
+    /* Номер версии в углу. Мелко и без подписи: он нужен ровно затем,
+       чтобы при разборе отчёта было видно, какая сборка стоит на
+       телефоне, — а спрашивать об этом каждый раз отдельно накладно.
+       Кладём в само окно, а не в заголовок: заголовков в попапе
+       несколько, и любой из них уехал бы при прокрутке. */
+    var ver = document.createElement('div');
+    ver.className = 'lm-set_ver';
+    ver.textContent = VERSION;
+    win.appendChild(ver);
+
     /* --- верх: уплотнения --- */
     var top = setBlock(null);
     top.classList.add('lm-set_top');
@@ -12575,6 +12769,34 @@ html .comments .comment.new .c_i {
     var lab = setBlock('Икспириментальное');
     lab.appendChild(setToggle('pynVote', 'Голосовалка в пыне'));
     lab.appendChild(setToggle('pynReply', 'Ответики в пыне'));
+    /* Элластик-скролл. Свой слушатель после setToggle — он срабатывает
+       вторым, когда CFG уже переписан. Выключение обязано развернуть
+       уже завёрнутое: обёртки сами по себе безвредны, но пока они
+       стоят, слова остаются отдельными узлами, а поиск по странице
+       ищет по узлам. */
+    var elRow = setToggle('elastic', 'elastiq-scroll');
+    elRow.querySelector('.lm-set_switch')
+      .addEventListener('click', function () {
+        if (CFG.elastic) {
+          guard('watchElastic', watchElastic)();
+          /* Наблюдатель о том, что уже пересекается, второй раз не
+             сообщает: он рассказывает про ИЗМЕНЕНИЕ пересечения. После
+             выключения список подъехавших остался, а очередь на заворот
+             опустела — и включение обратно не давало эффекта, пока
+             экран-полтора не проедут и не появятся новые тела.
+             Кладём в очередь всё, что и так уже на глазах. */
+          for (var n = 0; n < elNear.length; n++) {
+            var ns = elState.get(elNear[n]);
+            if ((!ns || (!ns.wrapped && !ns.skip)) &&
+                elQueue.indexOf(elNear[n]) < 0) elQueue.push(elNear[n]);
+          }
+          elWatchAt = 0;                 /* и подписку — не откладывая */
+          guard('elRefresh', elRefresh)();
+        } else {
+          elUnwrapAll();
+        }
+      });
+    lab.appendChild(elRow);
     win.appendChild(lab);
 
     var foot = document.createElement('div');
@@ -16954,8 +17176,522 @@ html .comments .comment.new .c_i {
   }
 
   /* ============================================================
-     7. МЕДИА
-     ============================================================ */
+     6.7. ЭЛЛАСТИК-СКРОЛЛ
+     ============================================================
+
+     Текст поджимается, проезжая мимо прыгалок, и распрямляется, когда
+     проехал. Разбор замысла и почему слова, а не буквы — в CFG.elastic.
+
+     Устройство в трёх частях:
+       ЗАВОРОТ — слова получают свои узлы. Дорого (единицы миллисекунд
+         на тело), поэтому делается заранее, пока тело подъезжает, и не
+         больше одного тела за заход.
+       ПЛАН — координаты слов, снятые ОДИН раз. Дальше каждый кадр
+         работает только с числами: ни одного обращения к раскладке.
+       КАДР — пересчёт множителей и запись transform. Обходов DOM тут
+         нет, и это не мелочь: правило «прокрутка не должна запускать
+         обходов» никто не отменял.
+
+     Тела те же, что у эмодзи (.p_body, .c_body), и это удобно: обёртки
+     не спорят, а дополняют друг друга. */
+
+  var EL_SEL = '.p_body, .c_body';
+  var elState = new WeakMap();
+  var elReady = [];
+  /* Тела, которые уже завёрнуты. Ведём отдельно от окна: окно узкое, а
+     знать, сколько завёрнуто всего, надо для потолка. */
+  var elLeft = [];
+  var elCheckAt = 0;
+  /* Счётчики раздельные, и это не педантизм. «Подготовка» одним числом
+   складывала заворот, разворот и сборку описи — три разных дела с
+   разной ценой и разными причинами. Пока они в одной куче, по отчёту
+   не понять, что именно чинить. */
+  var elStat = {
+    frames: 0, ms: 0, max: 0, words: 0, wordsMax: 0, skipped: 0,
+    wrapN: 0, wrapMs: 0, wrapMax: 0,
+    unwrapN: 0, unwrapMs: 0, unwrapMax: 0,
+    queued: 0
+  };
+
+
+  /* Множитель размера: прыгалки едут за масштабом страницы, и полоса с
+     вылетом должны ехать вместе с ними — иначе при уменьшенном
+     масштабе значок вырос, а зона осталась прежней. */
+  function elScale() { return jumpNow() / CFG.jumpSize; }
+
+  /* Наше ли это место. Нужно наблюдателю за узлами: разворот возвращает
+     в тело простые текстовые узлы, и по самому узлу не понять, чьи они.
+
+     Раньше тут был подъём на шесть предков — и он врал. На стенде,
+     где текст комментария плоский, шести хватало; на живой лепре
+     внутри тела лежат цитаты, спойлеры и ссылки, текст уходит глубже,
+     проверка не доходила до тела и возвращала «не наше». Отчёт показал
+     это в лоб: 34 лёгких прохода с элластиком против одного без него.
+
+     Метим само тело классом и спрашиваем closest — он идёт до корня и
+     не зависит от того, насколько глубоко лепра завернула текст. */
+  function elOwns(node) {
+    return !!(node && node.nodeType === 1 && node.closest &&
+              node.closest('.lm-el_on'));
+  }
+
+  /* Заворот. Слово — узел с запретом переноса, внутри него узел,
+     который двигаем. Двойная обёртка не прихоть: transform не
+     применяется к строчным узлам вовсе, значит внутреннему нужен
+     inline-block, а inline-block создаёт возможность переноса между
+     соседями — без внешнего запрета слова рассыпались бы на краю
+     строки по слогам.
+
+     Сперва СОБИРАЕМ узлы, потом правим: замена узла на набор узлов
+     сбивает обходчик. Та же грабля, что с эмодзи, и то же лекарство.
+
+     Готовые обёртки эмодзи не разбираем, а помечаем своим классом —
+     тогда эмодзи едет вместе со строкой. Не пометить значило бы
+     оставить его стоять на месте, разорвав поджатую строку. */
+  function elWrap(body) {
+    var st = elState.get(body);
+    if (st && (st.wrapped || st.skip)) return 0;
+
+    var walker = document.createTreeWalker(body, NodeFilter.SHOW_TEXT, {
+      acceptNode: function (n) {
+        var p = n.parentNode;
+        if (!p || p.nodeType !== 1) return NodeFilter.FILTER_REJECT;
+        if (EMO_SKIP.test(p.tagName)) return NodeFilter.FILTER_REJECT;
+        if (p.className === 'lm-el_c') return NodeFilter.FILTER_REJECT;
+        return NodeFilter.FILTER_ACCEPT;
+      }
+    });
+    var list = [], n;
+    while ((n = walker.nextNode())) if (/\S/.test(n.nodeValue || '')) list.push(n);
+
+    /* Длинное слитное слово — повод не трогать тело вовсе. Разбор
+       причины у CFG.elasticMaxWord: наш запрет переноса отменяет
+       леприн перенос посередине адреса, и строка лезет за край экрана,
+       утаскивая за собой всю страницу. Проверяем ДО первой правки:
+       откатывать половину заворота было бы вдвое дороже. */
+    var max = CFG.elasticMaxWord | 0;
+    if (max > 0) {
+      for (var q = 0; q < list.length; q++) {
+        var parts = (list[q].nodeValue || '').split(/\s+/);
+        for (var z = 0; z < parts.length; z++)
+          if (parts[z].length > max) {
+            elState.set(body, { wrapped: false, skip: true, plan: null });
+            return 0;
+          }
+      }
+    }
+
+    var made = 0;
+    list.forEach(function (node) {
+      if (!node.parentNode) return;
+      var out = document.createDocumentFragment();
+      node.nodeValue.split(/(\s+)/).forEach(function (piece) {
+        if (!piece) return;
+        if (/^\s+$/.test(piece)) {
+          out.appendChild(document.createTextNode(piece));
+          return;
+        }
+        var w = document.createElement('span');
+        w.className = 'lm-el_w';
+        var c = document.createElement('span');
+        c.className = 'lm-el_c';
+        c.textContent = piece;
+        w.appendChild(c);
+        out.appendChild(w);
+        made++;
+      });
+      node.parentNode.replaceChild(out, node);
+    });
+
+    var emo = body.querySelectorAll('.lm-emo');
+    for (var i = 0; i < emo.length; i++)
+      if (emo[i].className.indexOf('lm-el_c') < 0) {
+        emo[i].className += ' lm-el_c';
+        made++;
+      }
+
+    body.classList.add('lm-el_on');
+    elState.set(body, { wrapped: true, plan: null });
+    return made;
+  }
+
+  /* Разворот — схлопыванием на месте, а НЕ восстановлением сохранённой
+     разметки. Разница принципиальная: внутри наших обёрток к этому
+     моменту могут лежать чужие узлы — обёртки эмодзи прежде всего.
+     Восстановление строки стёрло бы их, а хозяин остался бы помеченным
+     как «эмодзи уже завёрнуты», и второй раз их никто бы не завернул.
+     Ошибка была бы тихой и всплыла бы через неделю. */
+  function elUnwrap(body) {
+    var st = elState.get(body);
+    if (!st || !st.wrapped) return;
+    var ut0 = nowMs();
+    var cells = body.querySelectorAll('.lm-el_c');
+    for (var i = 0; i < cells.length; i++) {
+      var c = cells[i];
+      c.style.transform = '';
+      if (c.className.indexOf('lm-emo') >= 0) {
+        /* Чужая обёртка: снимаем только свою пометку. */
+        c.className = c.className.replace(/\s*lm-el_c\s*/, ' ').trim();
+        continue;
+      }
+      while (c.firstChild) c.parentNode.insertBefore(c.firstChild, c);
+      c.parentNode.removeChild(c);
+    }
+    var words = body.querySelectorAll('.lm-el_w');
+    for (var j = 0; j < words.length; j++) {
+      var w = words[j];
+      while (w.firstChild) w.parentNode.insertBefore(w.firstChild, w);
+      w.parentNode.removeChild(w);
+    }
+    body.normalize();
+    elState.set(body, { wrapped: false, plan: null });
+    /* Метку снимаем ОТЛОЖЕННО, а не здесь же.
+
+       Наблюдатель за узлами разбирает записи микрозадачей — то есть
+       после того, как разворот доработает. Снятая сразу метка к этому
+       моменту уже не стоит, closest её не находит, и все наши же
+       вставки текста считаются чужими. Отчёт показал это без всяких
+       догадок: «проход назначали 76 раз, последний из-за: текст в
+       lm-el_w» при ровно семидесяти шести разворотах. Число в число.
+
+       При завороте порядок обратный — метка ставится в конце и к
+       разбору записей уже на месте, — поэтому промахивался только
+       разворот, и половину беды я не видел.
+
+       setTimeout, а не микрозадача: нужна именно следующая макрозадача,
+       после того как наблюдатель отработает. */
+    setTimeout(function () {
+      var cur = elState.get(body);
+      if (!cur || !cur.wrapped) body.classList.remove('lm-el_on');
+    }, 0);
+    var udt = nowMs() - ut0;
+    elStat.unwrapN++; elStat.unwrapMs += udt;
+    if (udt > elStat.unwrapMax) elStat.unwrapMax = udt;
+  }
+
+  /* План. Строки собираются по вертикали: у слов одной строки совпадает
+     верх. Промежутки между словами попадают в план ОТДЕЛЬНЫМИ записями
+     без узла — их не видно, но ширина их в накопительной сумме
+     участвовать обязана, иначе поджатая строка расползается по
+     пробелам. */
+  function elPlan(body) {
+    var br = body.getBoundingClientRect();
+    var cells = body.querySelectorAll('.lm-el_c');
+    var lines = [], cur = null, prevRight = null;
+    for (var i = 0; i < cells.length; i++) {
+      var r = cells[i].getBoundingClientRect();
+      if (!r.width && !r.height) continue;
+      var x = r.left - br.left, y = Math.round(r.top - br.top);
+      if (!cur || Math.abs(cur.y - y) > 3) {
+        cur = { y: y, h: r.height, items: [], end: 0, live: false };
+        lines.push(cur);
+        prevRight = null;
+      }
+      if (prevRight !== null && x - prevRight > 0.5)
+        cur.items.push({ el: null, x: prevRight, w: x - prevRight });
+      cur.items.push({ el: cells[i], x: x, w: r.width });
+      prevRight = x + r.width;
+      cur.end = prevRight;
+    }
+    elState.set(body, {
+      wrapped: true,
+      plan: {
+        top: br.top + scrollTopNow(), h: br.height, w: br.width,
+        /* Просвет от правого края тела до края экрана. Без него вылет
+           считался бы от края ТЕЛА, а прыгалки стоят у края ЭКРАНА, и
+           между ними поля страницы. На узком теле это давало вылет
+           вдвое меньше заданного — эффект был, но заметно слабее, чем
+           настраивали. */
+        gap: Math.max(0, window.innerWidth - br.right),
+        lines: lines
+      }
+    });
+    return lines.length;
+  }
+
+  /* Сход к краям полосы. Косинус даёт мягкий вход и выход; без него
+     слова щёлкают на границе. Показатель делает кривую круче или
+     положе. */
+  function elFall(d, half) {
+    if (d >= half || half <= 0) return 0;
+    var k = 0.5 + 0.5 * Math.cos(Math.PI * d / half);
+    return Math.pow(k, CFG.elasticFall);
+  }
+
+  /* Кадр. Ни одного обращения к раскладке: всё считается по плану. */
+  function elApply() {
+    if (!elReady.length) return;
+    var nav = document.getElementById('lm-nav');
+    if (!nav) return;
+    var t0 = nowMs();
+    var f = elScale();
+    var reach = CFG.elasticReach * f;
+    var half = CFG.elasticBand * f / 2;
+    var mid = window.innerHeight / 2;
+    var top = scrollTopNow();
+    var words = 0;
+
+    for (var b = 0; b < elReady.length; b++) {
+      var st = elState.get(elReady[b]);
+      if (!st || !st.plan) continue;
+      var plan = st.plan;
+      var bodyTop = plan.top - top;
+      /* Тело целиком мимо полосы — дальше считать нечего. */
+      if (bodyTop > mid + half || bodyTop + plan.h < mid - half) {
+        if (!plan.live) continue;
+        plan.live = false;
+      } else {
+        plan.live = true;
+      }
+      /* Докуда строке можно тянуться. Вылет задан от края ЭКРАНА, а
+         тело кончается раньше — на ширину полей; разницу вычитаем. У
+         тела, кончающегося дальше зоны, вычитать нечего. */
+      var edge = plan.w - Math.max(0, reach - plan.gap);
+
+      for (var l = 0; l < plan.lines.length; l++) {
+        var line = plan.lines[l];
+        var k = elFall(Math.abs(bodyTop + line.y + line.h / 2 - mid), half);
+        var need = k > 0 ? Math.max(0, line.end - edge) * k : 0;
+
+        if (!need && !line.live) continue;
+        var items = line.items, i;
+
+        if (!need) {
+          line.live = false;
+          for (i = 0; i < items.length; i++)
+            if (items[i].el) items[i].el.style.transform = '';
+          continue;
+        }
+        line.live = true;
+
+        /* Вес: чем правее слово, тем больше поджатия на него придётся. */
+        var sum = 0, wgt = [];
+        for (i = 0; i < items.length; i++) {
+          var c = (items[i].x + items[i].w / 2) / Math.max(1, line.end);
+          var p = Math.pow(c < 0 ? 0 : c, CFG.elasticRamp);
+          wgt.push(p);
+          sum += p * items[i].w;
+        }
+        if (sum <= 0) continue;
+        var share = need / sum;
+
+        var acc = items[0].x;
+        for (i = 0; i < items.length; i++) {
+          var it = items[i];
+          var s = 1 - wgt[i] * share;
+          if (s < CFG.elasticMin) s = CFG.elasticMin;
+          if (s > 1) s = 1;
+          if (it.el) {
+            it.el.style.transform =
+              'translateX(' + (acc - it.x).toFixed(2) + 'px) scaleX(' + s.toFixed(3) + ')';
+            words++;
+          }
+          acc += it.w * s;
+        }
+      }
+    }
+
+    var dt = nowMs() - t0;
+    elStat.frames++; elStat.ms += dt; elStat.words = words;
+    if (words > elStat.wordsMax) elStat.wordsMax = words;
+    if (dt > elStat.max) elStat.max = dt;
+  }
+
+  /* Подготовка по мере подъезда. Идёт не в кадре, а своим чередом:
+     заворот с замером стоят единицы миллисекунд, и торопиться им
+     некуда — запас elasticNear на это и рассчитан. */
+  /* Опись тел с их местом в документе.
+
+     Зачем отдельная опись, а не обход при каждой подготовке. Тел на
+     длинном треде тысячи, и снять с каждого прямоугольник — это
+     десятки миллисекунд. Делать это по нескольку раз в секунду во
+     время прокрутки нельзя, а знать, кто подъезжает, надо. Поэтому
+     координаты снимаются разом и редко, а подготовка потом работает
+     по числам.
+
+     Опись устаревает от всего, что меняет высоты: уплотнения, формы
+     ответа, фильтров, догрузки. Помечаем её несвежей в лёгком проходе
+     — он как раз и назначается на такие случаи, — но пересобираем не
+     сразу, а не чаще раза в полторы секунды: подряд идущие изменения
+     иначе собирали бы её десяток раз кряду. */
+  /* Кто подъезжает к экрану — спрашиваем у IntersectionObserver, а не
+     считаем сами.
+
+     Здесь была опись: координаты всех тел, снятые разом и редко. Она
+     не работала, и не из-за порогов, а по устройству. Абсолютные
+     отсчёты устаревают от всего, что меняет высоты, — лепра дособирает
+     тред, разворачиваются ветки, доезжают картинки, — и чем дальше по
+     треду, тем больше накопленная ошибка. Отчёт мерил её прямо:
+     расхождение доходило до 449 пикселей, то есть два комментария
+     мимо. Работало только в начале треда, где смещение ещё мало, — что
+     со стороны и выглядело как «поджимаются только короткие».
+
+     Наблюдатель этой болезни не подвержен: он не хранит чисел вовсе, а
+     сообщает о пересечении в тот момент, когда оно случилось, и делает
+     это вне главного потока. Запас задаётся полями (rootMargin) — те же
+     elasticNear экранов, только теперь их держит браузер.
+
+     Повторная подписка на тот же наблюдатель по стандарту бесплатна,
+     поэтому меток «уже подписан» не ставим: в записке есть отдельная
+     запись о том, чем такие метки кончаются при пересборке. */
+  var elSeen = new WeakSet();      /* тела, за которыми уже следим */
+  var elQueue = [];                /* подъехавшие, ждут заворота */
+  var elNear = [];                 /* сейчас в окне */
+  var elWatched = 0;
+  var elIO = null;
+
+  function elWatchBodies() {
+    if (!CFG.elastic || !POST_PATH.test(location.pathname)) return;
+    if (!('IntersectionObserver' in window)) return;
+    var host = root();
+    if (!host) return;
+
+    if (!elIO) {
+      var pad = Math.round(window.innerHeight * CFG.elasticNear);
+      elIO = new IntersectionObserver(function (entries) {
+        for (var i = 0; i < entries.length; i++) {
+          var e = entries[i], b = e.target;
+          if (e.isIntersecting) {
+            if (elNear.indexOf(b) < 0) elNear.push(b);
+            var st = elState.get(b);
+            if ((!st || (!st.wrapped && !st.skip)) && elQueue.indexOf(b) < 0)
+              elQueue.push(b);
+          } else {
+            var k = elNear.indexOf(b);
+            if (k >= 0) elNear.splice(k, 1);
+            var q = elQueue.indexOf(b);
+            if (q >= 0) elQueue.splice(q, 1);
+          }
+        }
+      }, { rootMargin: pad + 'px 0px ' + pad + 'px 0px', threshold: 0 });
+    }
+
+    var list = host.querySelectorAll(EL_SEL);
+    for (var i = 0; i < list.length; i++) {
+      if (elSeen.has(list[i])) continue;
+      elSeen.add(list[i]);
+      elWatched++;
+      elIO.observe(list[i]);
+    }
+  }
+
+  function elUnwrapAll() {
+    for (var i = 0; i < elLeft.length; i++) elUnwrap(elLeft[i]);
+    elLeft = [];
+    elReady = [];
+    elQueue = [];
+  }
+
+  var elWatchAt = 0;
+
+  function elRefresh() {
+    if (!CFG.elastic || !POST_PATH.test(location.pathname)) return;
+    /* Подписка — раз в пару секунд, а не каждый заход.
+
+       Она перебирает ВСЕ тела на странице: восемьсот штук против
+       WeakSet. Заходов за сессию набралось 1794, то есть полтора
+       миллиона проверок, и отчёт назвал цену прямо — elRefresh 9127 мс,
+       больше всего в списке и вдесятеро больше самого заворота. Это и
+       был нагрев.
+       Новые тела приходят с догрузкой, а на неё назначается лёгкий
+       проход, который подписку и зовёт. Здесь она нужна только на
+       случай, если добавление прошло мимо наблюдателя за узлами. */
+    var tw = Date.now();
+    if (tw - elWatchAt > 2000) { elWatchAt = tw; elWatchBodies(); }
+
+    /* Заворот — по одному телу за заход, из очереди подъехавших.
+       Очередь наполняет наблюдатель, порядок в ней — порядок появления
+       на глазах, что как раз и нужно. */
+    var budget = Math.max(1, CFG.elasticBudget | 0);
+    while (budget > 0 && elQueue.length) {
+      var body = elQueue.shift();
+      var st = elState.get(body);
+      if (st && (st.wrapped || st.skip)) continue;
+      budget--;
+      var t0 = nowMs();
+      if (!elWrap(body)) { elStat.skipped++; continue; }
+      elPlan(body);
+      var dt = nowMs() - t0;
+      elStat.wrapN++; elStat.wrapMs += dt;
+      if (dt > elStat.wrapMax) elStat.wrapMax = dt;
+      elLeft.push(body);
+    }
+
+    /* Отсчёты планов обновляем по своим же прямоугольникам, и только
+       для тех, кто в окне: их единицы, а не сотни. Пять раз в секунду
+       — чаще незачем, реже начинает копиться ошибка от догрузки.
+       Между обновлениями место считается от прокрутки, а она
+       относительных расстояний не меняет. */
+    var check = Date.now() - elCheckAt > 200;
+    if (check) elCheckAt = Date.now();
+
+    var top = scrollTopNow();
+    var next = [];
+    for (var i = 0; i < elNear.length; i++) {
+      var b2 = elNear[i], s2 = elState.get(b2);
+      if (!s2 || !s2.wrapped || !s2.plan) continue;
+      if (check) {
+        var r = b2.getBoundingClientRect();
+        if (Math.abs(s2.plan.h - r.height) > 1 ||
+            Math.abs(s2.plan.w - r.width) > 1) elPlan(b2);
+        else s2.plan.top = r.top + top;
+      }
+      next.push(b2);
+    }
+    elReady = next;
+
+    /* Разворот — только по потолку и по одному за заход. Берём с начала
+       списка: в конце лежит то, что завернули мгновением раньше.
+
+       Сам список чистим ТОЛЬКО когда он подошёл к потолку. Раньше
+       чистка шла каждый заход: полторы сотни записей на семьсот
+       пятьдесят заходов — сто с лишним тысяч проверок ни за чем, и
+       именно они остались в elRefresh после того, как ушло всё
+       остальное. Пока до потолка далеко, разворачивать всё равно
+       нечего, а мёртвые записи никому не мешают. */
+    var hold = Math.max(8, CFG.elasticHold | 0);
+    if (elLeft.length > hold) {
+      for (var q2 = 0; q2 < elLeft.length; q2++) {
+        var ts = elState.get(elLeft[q2]);
+        if (!ts || !ts.wrapped) { elLeft.splice(q2, 1); q2--; }
+      }
+    }
+    if (elLeft.length > hold) {
+      for (var k2 = 0; k2 < elLeft.length; k2++) {
+        if (elNear.indexOf(elLeft[k2]) >= 0) continue;
+        elUnwrap(elLeft[k2]);
+        elLeft.splice(k2, 1);
+        break;
+      }
+    }
+  }
+
+  /* Ход. Кадр вешается на прокрутку через requestAnimationFrame: чаще
+     кадра считать бессмысленно, реже — заметно. */
+  var elPending = false, elPrepAt = 0;
+
+  function watchElastic() {
+    if (watchElastic.on || !CFG.elastic) return;
+    watchElastic.on = true;
+    window.addEventListener('scroll', function () {
+      if (elPending) return;
+      elPending = true;
+      requestAnimationFrame(function () {
+        elPending = false;
+        guard('elApply', elApply)();
+        /* Подготовка — с той же прокрутки, но втрое реже кадра и ПОСЛЕ
+           него: сперва отдаём кадр, потом, если осталось время до
+           следующего, готовим подъезжающее. Собственного таймера
+           заводить незачем — когда не крутят, готовить нечего. */
+        var t = Date.now();
+        if (t - elPrepAt > Math.max(40, CFG.elasticEvery | 0)) {
+          elPrepAt = t;
+          guard('elRefresh', elRefresh)();
+        }
+      });
+    }, { passive: true });
+  }
+
 
   /* Раньше здесь был [class*="media_player"] — поиск по подстроке в атрибуте,
      самый медленный вид селектора, и он выполнялся при каждой прокрутке
@@ -20074,8 +20810,45 @@ html .comments .comment.new .c_i {
                 было, «по узлу …» — что сработало и по какому. */
              'возврат назад: ' + (backOn() ? 'ведём' : 'не ведём') +
                ' | ' + (backLog || '—'),
+             /* Элластик-скролл. Средний кадр — по многим кадрам, ему
+                верить можно; худший Safari огрубляет до миллисекунды,
+                и он годится лишь как порядок величины. Подготовку
+                печатаем рядом не для красоты: худшие кадры и стоимость
+                подготовки на устройстве совпадали число в число, и
+                только это показало, что просадки дают заворот с
+                замером, а не сам пересчёт поджатия. */
+             'элластик: ' + (!CFG.elastic ? 'выключен' :
+               !POST_PATH.test(location.pathname) ? 'не на этой странице' :
+               'тел ' + elReady.length + ' в окне, ' + elLeft.length +
+                 ' завёрнуто, следим за ' + elWatched +
+                 ' | кадр ' +
+                 (elStat.frames ? (elStat.ms / elStat.frames).toFixed(2) : '—') +
+                 'мс, худший ' + elStat.max.toFixed(1) +
+                 ', кадров ' + elStat.frames +
+                 /* Слов печатаем МАКСИМУМ за сессию, а не сколько их
+                    сейчас. Отчёт снимают на стоящей странице, а в покое
+                    в полосе может не оказаться ни одного тела — и в двух
+                    отчётах подряд стоял ноль, ничего не означавший. */
+                 ' | слов до ' + elStat.wordsMax),
+             /* Заворот, разворот и опись — тремя числами, а не одной
+                «подготовкой». Дела разные, цена разная, и чинить их
+                надо порознь: заворот лечится порогом длины и запасом,
+                разворот — потолком, опись — размером порции. */
+             (!CFG.elastic || !POST_PATH.test(location.pathname) ? '' :
+               '  заворот ' + Math.round(elStat.wrapMs) + 'мс/' + elStat.wrapN +
+                 ' (худш ' + elStat.wrapMax.toFixed(1) + ')' +
+                 ' | разворот ' + Math.round(elStat.unwrapMs) + 'мс/' + elStat.unwrapN +
+                 ' (худш ' + elStat.unwrapMax.toFixed(1) + ')' +
+                 ' | очередь ' + elQueue.length +
+                 (elStat.skipped ? ' | пропущено тел ' + elStat.skipped : '')),
              'лёгких проходов: ' + lightRuns + ' | суммарно ' + lightMs +
                'мс | самый долгий ' + lightWorst + 'мс',
+             /* Кто именно съел это время. Без разбивки строка выше
+                говорит, что беда есть, но не говорит, где она. */
+             '  проход назначали: ' + moWakes + ' раз | последний из-за: ' +
+               (moLast || '—'),
+             '  дороже всего: ' + guardTop(4),
+             '  и следом: ' + guardTop(8).split(', ').slice(4).join(', '),
              /* Эмодзи: обойдено мест и завёрнуто знаков. Строка нужна
                 прежде всего затем, чтобы отличить «не сработало» от
                 «нечего было заворачивать»: ноль найденных при нуле
@@ -20818,6 +21591,11 @@ html .comments .comment.new .c_i {
        поворотом устройства. */
     guard('jumpVars', jumpVars)();
     guard('ensureNav', ensureNav)();
+    /* Элластик-скролл. Подписка ставится один раз и сама себя стережёт;
+       подготовка идёт здесь же, при каждом полном проходе, и своим
+       чередом — в кадре ей делать нечего. */
+    guard('watchElastic', watchElastic)();
+    guard('elRefresh', elRefresh)();
     guard('watchRefreshButton', watchRefreshButton)();
     guard('cfBuild', cfBuild)();
     guard('watchReply', watchReply)();
@@ -20919,6 +21697,11 @@ html .comments .comment.new .c_i {
        дешёвый: обойдённые тела помечены, и повторный заход до них не
        доходит вовсе. */
     guard('fixEmoji', fixEmoji)();
+    /* Догруженные тела надо взять под наблюдение: лёгкий проход и
+       назначается ровно на добавление узлов. Подписка на уже
+       наблюдаемое по стандарту бесплатна, поэтому проход дешёвый и
+       идёт без всяких меток. */
+    guard('elWatchBodies', elWatchBodies)();
     /* Тред лепра дособирает после загрузки, и формы в конце к первому
        полному проходу может ещё не быть. Проход сам уходит ни с чем,
        если уже отработал. */
@@ -21018,6 +21801,7 @@ html .comments .comment.new .c_i {
      наблюдатель за изменениями — он срабатывает только когда есть что
      обрабатывать. */
   var mutationTimer = null;
+  var moWakes = 0, moLast = '';
 
   function scheduleLightPass() {
     if (mutationTimer) return;
@@ -21064,9 +21848,47 @@ html .comments .comment.new .c_i {
     if (watchDom.obs) watchDom.obs.disconnect();
     watchDom.at = target;
     watchDom.obs = new MutationObserver(function (records) {
-      for (var i = 0; i < records.length; i++)
-        if (records[i].addedNodes && records[i].addedNodes.length)
+      for (var i = 0; i < records.length; i++) {
+        var added = records[i].addedNodes;
+        if (!added || !added.length) continue;
+        /* Свои обёртки прохода не будят. Элластик-скролл заворачивает
+           слова в узлы и разворачивает обратно, и без этой проверки
+           каждый заворот назначал бы лёгкий проход — то есть проход
+           шёл бы непрерывно всё время прокрутки.
+           Смотрим на КАЖДЫЙ добавленный узел, а не на первый: разворот
+           возвращает вперемешку текст и чужие обёртки эмодзи. Если
+           среди добавленного есть хоть что-то не наше — проход
+           назначаем, как и раньше. */
+        for (var j = 0; j < added.length; j++) {
+          var n = added[j];
+          if (n.nodeType === 1 && /\blm-el_[wc]\b/.test(n.className || '')) continue;
+          /* Проверяем и сам узел-хозяин, и его предков.
+
+             Одного closest мало, и это стоило ещё одного захода.
+             Разворот сперва переносит содержимое обёртки наружу, а
+             ПОТОМ саму обёртку выбрасывает. Наблюдатель разбирает
+             записи позже, когда обёртка уже вне документа, — а у
+             отсоединённого узла closest не находит ничего, сколько
+             бы меток ни стояло на теле. Отсюда и «текст в lm-el_w»
+             в отчёте: место было наше, но доказать это через предков
+             стало нечем. Смотрим на класс самого хозяина. */
+          if (n.nodeType === 3 &&
+              (/\blm-el_[wc]\b/.test((records[i].target &&
+                                       records[i].target.className) || '') ||
+               elOwns(records[i].target))) continue;
+          /* Кто назначил проход. Строка «проходов 41» говорит, что беда
+             есть, но не говорит, чья она: наши обёртки, догрузка лепры
+             или что-то третье. Запоминаем узел и его место — по правилу
+             «печатать не только значение, но и источник». */
+          moWakes++;
+          moLast = (n.nodeType === 3 ? 'текст' : (n.tagName || '?').toLowerCase() +
+                     (n.className ? '.' + String(n.className).split(' ')[0] : '')) +
+                   ' в ' + ((records[i].target && records[i].target.className) ||
+                            (records[i].target && records[i].target.id) ||
+                            (records[i].target && records[i].target.tagName) || '?');
           return scheduleLightPass();
+        }
+      }
     });
     watchDom.obs.observe(target, { childList: true, subtree: true });
   }
