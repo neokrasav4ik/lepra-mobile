@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Lepra Mobile
 // @namespace    lepra.mobile
-// @version      1.1.51
+// @version      1.1.52
 // @description  Мобильная адаптация leprosorium.ru для iOS Safari
 // @author       neokrasav4ik
 // @homepageURL  https://github.com/neokrasav4ik/lepra-mobile
@@ -118,7 +118,7 @@
     return;
   }
 
-  var VERSION = '1.1.51';
+  var VERSION = '1.1.52';
 
   /* ============================================================
      НАСТРОЙКИ
@@ -455,6 +455,23 @@
        crestChips — из скольких кусочков собирать герб. Больше —
        мельче крошка; на двадцати одном пикселе разницы между
        восемьюдесятью и полутора сотнями уже нет, а работы больше. */
+    /* НАСТРОЙКА: логотип подлепры в шапке.
+       У каждой подлепры своя картинка 64 на 64, и лежит она на чужом
+       хостинге — то есть это произвольные фотографии и коллажи, а не
+       значки: спидометр, Фрейд, Биг-Бен, QR-код. Обводить там нечего,
+       вектора не будет никогда, да и подлепр тысячи.
+       Единственное, что портит вид, — это КВАДРАТ: рядом с нашей
+       маской, у которой лучи уходят в никуда, ровный обрез выглядит
+       наклейкой. Растворяем края маской — середина картинки цела, а
+       границы нет.
+       Пиксели при этом не трогаем и трогать не можем: картинка с
+       чужого домена, и canvas от неё становится «испорченным» — ни
+       обрезать поля, ни выбить белый фон браузер не даст.
+       subLogoSoft — растворять ли края.
+       subLogoFade — с какой доли радиуса начинается растворение.
+       Меньше — мягче и размытее, больше — ближе к резкому кругу. */
+    subLogoSoft: true,
+    subLogoFade: 0.62,
     logoVector: true,
     crestVector: true,
     crestChips: 88,
@@ -2921,6 +2938,26 @@ html.lm-stuck #lm-topbar .b-icon_button_logout {
   max-height: 32px !important; max-width: 32px !important;
   opacity: .85 !important; }
 
+/* Логотип подлепры: растворяем края вместо ровного обреза.
+
+   Метим его своим классом из скрипта, а не выбираем по месту в шапке.
+   Написал было селектор через .l-header — и правило не сработало:
+   к тому моменту buildTopbar уже забрал логотип в липкую плашку, и
+   внутри .l-header его нет. Ровно эта грабля записана в записке
+   отдельным пунктом, и я наступил на неё второй раз.
+
+   Класс ставится только на подсайте (см. relayoutHeader), поэтому
+   собственному логотипу лепры на главной ничего не грозит — а он там
+   тоже b-logo и тоже картинка, если вектор выключен.
+
+   closest-side, а не farthest: картинки бывают не строго квадратными
+   (62 на 64 попадаются), и по дальней стороне круг вылезал бы за
+   короткую сторону, оставляя тот самый обрез сверху и снизу. */
+${CFG.subLogoSoft ? `img.lm-sublogo {
+  -webkit-mask-image: radial-gradient(closest-side, #000 ${Math.round(CFG.subLogoFade * 100)}%, transparent 100%) !important;
+  mask-image: radial-gradient(closest-side, #000 ${Math.round(CFG.subLogoFade * 100)}%, transparent 100%) !important;
+  border-radius: 0 !important; }` : ''}
+
 /* ---- Элластик-скролл ----
    Двойная обёртка вокруг слова, и обе половины нужны. Внутренней нужен
    inline-block: к строчному узлу transform не применяется вовсе. Но
@@ -2961,7 +2998,11 @@ html.lm-stuck #lm-topbar .b-icon_button_logout {
   line-height: 0 !important; }
 .lm-logo_vec svg {
   display: block !important; height: 100% !important; width: auto !important; }
-.lm-logo_vec__sub { height: 31px !important; opacity: .85 !important; }
+/* Рост тот же, что у логотипа подлепры рядом. Раньше стояло 31 — под
+   растр в 32, — и наша маска выглядела ужатой рядом с сорока
+   пикселями соседа. Оба значка в этой строке равны по смыслу, значит
+   должны быть равны и по росту. */
+.lm-logo_vec__sub { height: 38px !important; opacity: .85 !important; }
 
 /* Строка ссылок: всегда в одну линию и по центру, на любом масштабе. */
 .l-header_nav { order: 3 !important; flex: 0 0 100% !important;
@@ -12180,9 +12221,15 @@ html .comments .comment.new .c_i {
        с шапкой находил бы его через раз — в зависимости от того, чей
        проход отработал первым. */
     var ownLogo = document.querySelector('a.b-logo:not(.b-logo_subsite)');
-    if (ownLogo && !document.querySelector('.b-logo_subsite'))
-      vectorLogo(ownLogo);
-    if (subLogo) vectorLogo(subLogo, 'lm-logo_vec__sub');
+    if (ownLogo && !subLogo) vectorLogo(ownLogo);
+    if (subLogo) {
+      vectorLogo(subLogo, 'lm-logo_vec__sub');
+      /* Логотип подлепры метим, чтобы растворить ему края. Метка на
+         КАРТИНКЕ, а не на ссылке: правило смягчает именно рисунок, а
+         ссылка вокруг него ещё и ловит нажатие. */
+      var subPic = ownLogo && ownLogo.querySelector('img');
+      if (subPic) subPic.classList.add('lm-sublogo');
+    }
 
     /* Каждая строка шапки — самостоятельный блок. В разметке лепры они
        лежат в разных обёртках, а флекс строит строку только из соседей
