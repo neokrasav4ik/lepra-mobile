@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Lepra Mobile
 // @namespace    lepra.mobile
-// @version      1.1.52
+// @version      1.1.53
 // @description  Мобильная адаптация leprosorium.ru для iOS Safari
 // @author       neokrasav4ik
 // @homepageURL  https://github.com/neokrasav4ik/lepra-mobile
@@ -118,7 +118,7 @@
     return;
   }
 
-  var VERSION = '1.1.52';
+  var VERSION = '1.1.53';
 
   /* ============================================================
      НАСТРОЙКИ
@@ -524,12 +524,20 @@
        кадра, ради которого всё и мерили.
 
        Числа подобраны на устройстве, не на стенде. */
+    /* elasticAlways — подлепры, где элластик работает ВСЕГДА, что бы
+       ни стояло в выключателе. Список хозяев, по первому слову имени.
+       Заведено под idiod: там он к месту, а спорить с общей настройкой
+       ради одной подлепры не хочется.
+       Выключатель в попапе при этом остаётся честным — он показывает
+       общий выбор, просто здесь этот выбор ни на что не влияет; в
+       отчёте так и написано. */
+    elasticAlways: ['idiod'],
     elastic: true,
     elasticReach: 51,
     elasticBand: 211,
     elasticFall: 0.6,
     elasticRamp: 0.5,
-    elasticMin: 0.3,
+    elasticMin: 0.5,
     elasticNear: 2,
     elasticBudget: 1,
     /* elasticEvery — сколько миллисекунд между заходами подготовки.
@@ -12839,9 +12847,12 @@ html .comments .comment.new .c_i {
           }
           elWatchAt = 0;                 /* и подписку — не откладывая */
           guard('elRefresh', elRefresh)();
-        } else {
+        } else if (!elasticOn()) {
           elUnwrapAll();
         }
+        /* На подлепре из elasticAlways выключатель ничего не выключает,
+           и разворачивать нельзя: подготовка тут же завернула бы всё
+           обратно — качели на ровном месте, и телефон греется. */
       });
     lab.appendChild(elRow);
     win.appendChild(lab);
@@ -17242,6 +17253,19 @@ html .comments .comment.new .c_i {
      Тела те же, что у эмодзи (.p_body, .c_body), и это удобно: обёртки
      не спорят, а дополняют друг друга. */
 
+  /* Работает ли элластик здесь. Общий выключатель плюс список
+     подлепр, где он включён всегда (см. CFG.elasticAlways).
+     Хозяина берём из location, а не из разметки: на подсайте лепра
+     кладёт своё имя в нескольких местах, и все они переживали
+     переделки, а имя хоста не переживало ни одной. */
+  function elasticOn() {
+    if (CFG.elastic) return true;
+    var host = String(location.hostname || '').split('.')[0];
+    var list = CFG.elasticAlways || [];
+    for (var i = 0; i < list.length; i++) if (list[i] === host) return true;
+    return false;
+  }
+
   var EL_SEL = '.p_body, .c_body';
   var elState = new WeakMap();
   var elReady = [];
@@ -17588,7 +17612,7 @@ html .comments .comment.new .c_i {
   var elIO = null;
 
   function elWatchBodies() {
-    if (!CFG.elastic || !POST_PATH.test(location.pathname)) return;
+    if (!elasticOn() || !POST_PATH.test(location.pathname)) return;
     if (!('IntersectionObserver' in window)) return;
     var host = root();
     if (!host) return;
@@ -17632,7 +17656,7 @@ html .comments .comment.new .c_i {
   var elWatchAt = 0;
 
   function elRefresh() {
-    if (!CFG.elastic || !POST_PATH.test(location.pathname)) return;
+    if (!elasticOn() || !POST_PATH.test(location.pathname)) return;
     /* Подписка — раз в пару секунд, а не каждый заход.
 
        Она перебирает ВСЕ тела на странице: восемьсот штук против
@@ -17718,7 +17742,7 @@ html .comments .comment.new .c_i {
   var elPending = false, elPrepAt = 0;
 
   function watchElastic() {
-    if (watchElastic.on || !CFG.elastic) return;
+    if (watchElastic.on || !elasticOn()) return;
     watchElastic.on = true;
     window.addEventListener('scroll', function () {
       if (elPending) return;
@@ -20864,7 +20888,9 @@ html .comments .comment.new .c_i {
                 подготовки на устройстве совпадали число в число, и
                 только это показало, что просадки дают заворот с
                 замером, а не сам пересчёт поджатия. */
-             'элластик: ' + (!CFG.elastic ? 'выключен' :
+             'элластик: ' + (!elasticOn() ? 'выключен' :
+               !CFG.elastic ? 'включён по хозяину (' +
+                 String(location.hostname).split('.')[0] + '), выключатель снят' :
                !POST_PATH.test(location.pathname) ? 'не на этой странице' :
                'тел ' + elReady.length + ' в окне, ' + elLeft.length +
                  ' завёрнуто, следим за ' + elWatched +
@@ -20881,7 +20907,7 @@ html .comments .comment.new .c_i {
                 «подготовкой». Дела разные, цена разная, и чинить их
                 надо порознь: заворот лечится порогом длины и запасом,
                 разворот — потолком, опись — размером порции. */
-             (!CFG.elastic || !POST_PATH.test(location.pathname) ? '' :
+             (!elasticOn() || !POST_PATH.test(location.pathname) ? '' :
                '  заворот ' + Math.round(elStat.wrapMs) + 'мс/' + elStat.wrapN +
                  ' (худш ' + elStat.wrapMax.toFixed(1) + ')' +
                  ' | разворот ' + Math.round(elStat.unwrapMs) + 'мс/' + elStat.unwrapN +
