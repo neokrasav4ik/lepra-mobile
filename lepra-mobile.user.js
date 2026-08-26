@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Lepra Mobile
 // @namespace    lepra.mobile
-// @version      1.1.50
+// @version      1.1.51
 // @description  Мобильная адаптация leprosorium.ru для iOS Safari
 // @author       neokrasav4ik
 // @homepageURL  https://github.com/neokrasav4ik/lepra-mobile
@@ -118,7 +118,7 @@
     return;
   }
 
-  var VERSION = '1.1.50';
+  var VERSION = '1.1.51';
 
   /* ============================================================
      НАСТРОЙКИ
@@ -513,7 +513,7 @@
     elasticFall: 0.6,
     elasticRamp: 0.5,
     elasticMin: 0.3,
-    elasticNear: 1.5,
+    elasticNear: 2,
     elasticBudget: 1,
     /* elasticEvery — сколько миллисекунд между заходами подготовки.
        Триста оказались слишком редко: при быстрой прокрутке окно за
