@@ -2738,14 +2738,20 @@ html {
      CSS-шириной. Разойдутся — сразу видно, вернулось ли. */
   max-width: 100% !important;
   scroll-behavior: auto !important;
-  overscroll-behavior-y: contain !important; }
+  overscroll-behavior-y: auto !important; }
 body {
   /* Та же замена и по той же причине. Потолок тут по-прежнему нужен:
      без него широкий чужой узел растянул бы body, и overflow-x: hidden
      обрезал бы уже растянутое. */
   max-width: 100% !important; overflow-x: hidden !important;
   scroll-behavior: auto !important;
-  overscroll-behavior-y: contain !important;
+  /* TODO(допиши в голосе файла): почему тут auto, а не contain.
+     Суть, чтобы никто не «прибрался» обратно: body здесь — реальный
+     скроллер страницы (из-за overflow-x двумя строками выше окно отдаёт
+     прокрутку ему). А на корневом скроллере overscroll-behavior-y: contain
+     глушит нативный pull-to-refresh; Firefox на Android теперь это чтит,
+     и жест «потянуть вниз — обновить» пропал. auto возвращает его. */
+  overscroll-behavior-y: auto !important;
   position: relative !important;
   -webkit-text-size-adjust: 100% !important; }
 
