@@ -1,0 +1,129 @@
+name: APK
+
+# Сборка приложения. Ставится в облаке GitHub — на своей машине Android SDK
+# больше не нужен.
+#
+# Когда запускается:
+#   — руками, кнопкой Run workflow на вкладке Actions (это главный способ);
+#   — сам, когда меняется что-то в android/ или сам скрипт.
+#
+# Что отдаёт: готовый APK ФАЙЛОМ на странице Releases. Именно файлом, а не
+# «артефактом»: артефакт GitHub отдаёт архивом и только вошедшему в аккаунт,
+# то есть с телефона его не поставить. Ссылка на релиз открывается и качается
+# как обычный файл.
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, master]
+    paths:
+      - 'android/**'
+      - 'lepra-mobile.user.js'
+      - '.github/workflows/android.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Проверить, что скрипт на месте
+        run: |
+          if [ ! -f lepra-mobile.user.js ]; then
+            echo "::error::В корне репозитория нет lepra-mobile.user.js — собирать нечего"
+            exit 1
+          fi
+          V=$(grep -m1 -oP '@version\s+\K[0-9.]+' lepra-mobile.user.js)
+          echo "SCRIPT_VERSION=$V" >> $GITHUB_ENV
+          echo "Скрипт: версия $V, $(stat -c%s lepra-mobile.user.js) байт"
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Право на запуск gradlew
+        # Файлы, загруженные через сайт GitHub, теряют признак исполняемости.
+        # Без этой строки сборка падала бы на «Permission denied».
+        run: chmod +x android/gradlew
+
+      - name: Версия приложения
+        run: |
+          VN=$(grep -m1 -oP 'versionName\s*=\s*"\K[^"]+' android/app/build.gradle.kts)
+          echo "APP_VERSION=$VN" >> $GITHUB_ENV
+
+      - name: Ключ подписи
+        id: key
+        env:
+          KEYSTORE_B64: ${{ secrets.KEYSTORE_B64 }}
+        run: |
+          if [ -z "$KEYSTORE_B64" ]; then
+            echo "have=no" >> $GITHUB_OUTPUT
+            echo "::warning::Секрета KEYSTORE_B64 нет — собираю отладочную сборку. \
+            Она ставится, но НЕ обновляется поверх подписанной и живёт как отдельное приложение."
+          else
+            echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/lepra.jks"
+            echo "have=yes" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Сборка
+        working-directory: android
+        env:
+          LEPRA_KEYSTORE: ${{ runner.temp }}/lepra.jks
+          LEPRA_KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          LEPRA_KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          LEPRA_KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          if [ "${{ steps.key.outputs.have }}" = "yes" ]; then
+            ./gradlew --no-daemon assembleRelease
+          else
+            ./gradlew --no-daemon assembleDebug
+          fi
+
+      - name: Собрать имя файла
+        run: |
+          set -e
+          if [ "${{ steps.key.outputs.have }}" = "yes" ]; then
+            SRC=$(find android/app/build/outputs/apk/release -name '*.apk' | head -1)
+            OUT="Leprosorium-${APP_VERSION}-${GITHUB_RUN_NUMBER}.apk"
+          else
+            SRC=$(find android/app/build/outputs/apk/debug -name '*.apk' | head -1)
+            OUT="Leprosorium-${APP_VERSION}-${GITHUB_RUN_NUMBER}-debug.apk"
+          fi
+          if [ -z "$SRC" ]; then echo "::error::APK не нашёлся"; exit 1; fi
+          cp "$SRC" "$OUT"
+          echo "APK=$OUT" >> $GITHUB_ENV
+          echo "Готово: $OUT ($(stat -c%s "$OUT") байт)"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: apk
+          path: ${{ env.APK }}
+
+      - name: Выложить файлом на Releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="app-v${APP_VERSION}-${GITHUB_RUN_NUMBER}"
+          NOTE="Приложение ${APP_VERSION}, скрипт внутри ${SCRIPT_VERSION}.
+
+          Ставится поверх предыдущей версии, если подписана тем же ключом.
+          Первая установка: разрешить браузеру установку из этого источника."
+          gh release create "$TAG" "$APK" \
+            --title "Leprosorium ${APP_VERSION} (сборка ${GITHUB_RUN_NUMBER})" \
+            --notes "$NOTE" \
+            --latest
+
+      - name: Куда смотреть
+        run: |
+          echo "### APK готов" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Файл: **$APK**" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Скачать с телефона: вкладка **Releases** этого репозитория." >> $GITHUB_STEP_SUMMARY
