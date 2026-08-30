@@ -1,6 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- Однотонного слоя (monochrome) намеренно нет: система рисует им силуэт по
+     непрозрачности, а у нашего логотипа непрозрачно всё — вышло бы пятно в
+     форме звезды с маской, в котором не читается ничего. Без него оболочка
+     покажет обычный значок. -->
 <adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
     <background android:drawable="@drawable/ic_launcher_background" />
     <foreground android:drawable="@drawable/ic_launcher_foreground" />
-    <monochrome android:drawable="@drawable/ic_launcher_foreground" />
 </adaptive-icon>

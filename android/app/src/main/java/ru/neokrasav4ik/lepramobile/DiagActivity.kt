@@ -57,6 +57,7 @@ class DiagActivity : AppCompatActivity() {
         column.addView(report, wide())
         column.addView(button(getString(R.string.diag_copy)) { copyOut() }, wide())
         column.addView(button("Проверить обновление скрипта") { askUpdate() }, wide())
+        column.addView(button("Проверить обновление приложения") { askAppUpdate() }, wide())
         column.addView(button(getString(R.string.diag_bundled)) { toBundled() }, wide())
 
         val scroll = ScrollView(this)
@@ -95,6 +96,28 @@ class DiagActivity : AppCompatActivity() {
             runOnUiThread {
                 say(said)
                 report.text = collect()
+            }
+        }
+    }
+
+    private fun askAppUpdate() {
+        AppUpdate.check(this, force = true) { said, found ->
+            runOnUiThread {
+                report.text = collect()
+                if (found == null) {
+                    say(said)
+                } else {
+                    androidx.appcompat.app.AlertDialog.Builder(this)
+                        .setTitle("Есть версия " + found.version)
+                        .setMessage(said + ". Скачать? После загрузки нажмите на " +
+                                    "уведомление — Андроид поставит её поверх нынешней.")
+                        .setPositiveButton("Скачать") { _, _ ->
+                            AppUpdate.download(this, found)
+                            say("Качаю " + found.name)
+                        }
+                        .setNegativeButton("Потом", null)
+                        .show()
+                }
             }
         }
     }

@@ -8,8 +8,6 @@ import android.net.Uri
 import android.os.Bundle
 import android.os.Environment
 import android.os.Message
-import android.os.SystemClock
-import android.view.KeyEvent
 import android.view.View
 import android.view.ViewGroup
 import android.webkit.CookieManager
@@ -83,8 +81,6 @@ class MainActivity : AppCompatActivity() {
     private var dark = false
     private var lastFailed: String? = null
     private var headersSeen = false
-    private var volTaps = 0
-    private var volLast = 0L
     private var foreignErrors = 0
     private val chrome = Chrome()
 
@@ -132,6 +128,26 @@ class MainActivity : AppCompatActivity() {
 
         web.loadUrl(startUrl())
         ScriptStore.maybeUpdate(this)
+        AppUpdate.check(this, force = false) { _, found ->
+            if (found != null) runOnUiThread { offerUpdate(found) }
+        }
+    }
+
+    /* Предложение обновиться. Спрашиваем, а не качаем молча: человек может
+       сидеть на мобильном интернете, а APK весит мегабайты. */
+    private fun offerUpdate(f: AppUpdate.Found) {
+        if (isFinishing || isDestroyed) return
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle("Есть версия ${f.version}")
+            .setMessage("Сейчас стоит ${BuildConfig.VERSION_NAME}. Скачать?\n\n" +
+                        "После загрузки нажмите на уведомление — Андроид поставит " +
+                        "её поверх нынешней.")
+            .setPositiveButton("Скачать") { _, _ ->
+                AppUpdate.download(this, f)
+                toast("Качаю ${f.name}")
+            }
+            .setNegativeButton("Потом", null)
+            .show()
     }
 
     private fun startUrl(): String {
@@ -205,6 +221,32 @@ class MainActivity : AppCompatActivity() {
 
         web.setDownloadListener { url, agent, disposition, mime, _ ->
             download(url, agent, disposition, mime)
+        }
+
+        /* Долгий тап по картинке.
+
+           В браузере это делает сам браузер: длинное нажатие даёт меню
+           «сохранить изображение». У WebView такого меню нет вовсе — он
+           отдаёт голое окно, и всё, что в браузере «просто есть», в
+           приложении надо писать руками. Отсюда жалоба «долгий тап на
+           картинку не работает»: работать было нечему.
+
+           hitTestResult отвечает, что именно под пальцем. Нас занимают два
+           случая: картинка и картинка внутри ссылки. Всё прочее (текст,
+           ссылка, поле ввода) отдаём странице — там своё поведение, и
+           перебивать его нельзя: на длинном нажатии по тексту стоит
+           выделение. */
+        web.setOnLongClickListener {
+            val hit = web.hitTestResult
+            val url = hit.extra
+            val isImage = hit.type == WebView.HitTestResult.IMAGE_TYPE ||
+                          hit.type == WebView.HitTestResult.SRC_IMAGE_ANCHOR_TYPE
+            if (isImage && !url.isNullOrBlank()) {
+                imageMenu(url)
+                true
+            } else {
+                false
+            }
         }
 
         val pkg = WebViewCompat.getCurrentWebViewPackage(this)
@@ -494,6 +536,31 @@ class MainActivity : AppCompatActivity() {
 
     private fun toast(t: String) = Toast.makeText(this, t, Toast.LENGTH_SHORT).show()
 
+    private fun imageMenu(url: String) {
+        /* data: и blob: через DownloadManager не качаются — он умеет только
+           сетевые адреса. Врать кнопкой, которая ничего не делает, нельзя,
+           поэтому такие адреса просто не предлагаем сохранять. */
+        val saveable = url.startsWith("http://") || url.startsWith("https://")
+        val items = if (saveable)
+            arrayOf("Сохранить картинку", "Открыть в браузере", "Скопировать ссылку")
+        else
+            arrayOf("Скопировать ссылку")
+
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setItems(items) { _, which ->
+                when (items[which]) {
+                    "Сохранить картинку" -> download(url, web.settings.userAgentString, null, null)
+                    "Открыть в браузере" -> outside(Uri.parse(url))
+                    "Скопировать ссылку" -> {
+                        val cb = getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                        cb.setPrimaryClip(android.content.ClipData.newPlainText("lepra", url))
+                        toast("Ссылка скопирована")
+                    }
+                }
+            }
+            .show()
+    }
+
     private fun openDiagScreen() {
         startActivity(Intent(this, DiagActivity::class.java))
     }
@@ -533,6 +600,21 @@ class MainActivity : AppCompatActivity() {
 
         override fun onPageStarted(view: WebView, url: String, favicon: android.graphics.Bitmap?) {
             headersSeen = false
+        }
+
+        /* Колесико гасим ЗДЕСЬ, а не в onPageFinished.
+
+           onPageFinished приходит, когда догружено всё до последней
+           картинки и последнего куска видео, а лепра тянет предзагрузкой
+           десятки мегабайт роликов — отсюда жалоба «обновилось быстро, а
+           колесико крутится ещё несколько секунд». Оно и крутилось честно:
+           страница-то была готова, а загрузка нет.
+
+           onPageCommitVisible приходит в момент, когда новая страница
+           впервые нарисована на экране. Это ровно то мгновение, которое
+           человек и называет «обновилось». */
+        override fun onPageCommitVisible(view: WebView, url: String) {
+            swipe.isRefreshing = false
         }
 
         override fun onPageFinished(view: WebView, url: String) {
@@ -643,28 +725,6 @@ class MainActivity : AppCompatActivity() {
     }
 
     // ------------------------------------------------------------------
-
-    /* Тройное нажатие «громкость вниз» открывает отчёт.
-
-       Второй вход, не зависящий от лаунчера: ярлык по долгому нажатию на
-       значок показывают не все оболочки, а адресной строки, куда можно было
-       бы вписать #appdiag, в приложении нет вовсе. Остаться совсем без
-       двери в отчёт нельзя — он единственный источник цифр, когда рядом нет
-       компьютера с chrome://inspect.
-
-       Событие НЕ съедаем: громкость продолжает работать как обычно. */
-    override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
-        if (keyCode == KeyEvent.KEYCODE_VOLUME_DOWN) {
-            val now = SystemClock.uptimeMillis()
-            volTaps = if (now - volLast < 1500) volTaps + 1 else 1
-            volLast = now
-            if (volTaps >= 3) {
-                volTaps = 0
-                openDiagScreen()
-            }
-        }
-        return super.onKeyDown(keyCode, event)
-    }
 
     override fun onResume() {
         super.onResume()

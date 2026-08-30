@@ -1,6 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- Поле значка — тон страницы из сетки скрипта.
+
+     Не вкусовщина, а следствие взгляда в настоящем размере: у звезды лепры
+     половина лучей почти чёрные, половина красные. На тёмном поле пропадают
+     первые, на красном — вторые, и в обоих случаях от звезды остаётся
+     половина. Светлое поле — единственное, на котором логотип остаётся
+     собой; на нём его показывает и сама лепра. -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp" android:height="108dp"
     android:viewportWidth="108" android:viewportHeight="108">
-    <path android:fillColor="#C93825" android:pathData="M0,0h108v108h-108z" />
+    <path android:fillColor="#FDFCFA" android:pathData="M0,0h108v108h-108z" />
 </vector>

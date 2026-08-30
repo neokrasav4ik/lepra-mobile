@@ -68,8 +68,8 @@ android {
         applicationId = "ru.neokrasav4ik.lepramobile"
         minSdk = 26
         targetSdk = 36
-        versionCode = 2
-        versionName = "0.1.1"
+        versionCode = 4
+        versionName = "0.1.3"
     }
 
     signingConfigs {
