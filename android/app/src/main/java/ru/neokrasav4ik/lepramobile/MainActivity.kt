@@ -8,6 +8,8 @@ import android.net.Uri
 import android.os.Bundle
 import android.os.Environment
 import android.os.Message
+import android.os.SystemClock
+import android.view.KeyEvent
 import android.view.View
 import android.view.ViewGroup
 import android.webkit.CookieManager
@@ -51,6 +53,22 @@ class MainActivity : AppCompatActivity() {
            только он: в чужие окна (реклама, вставки с других сайтов) наш
            код не заходит вовсе. */
         val ORIGINS = setOf("https://leprosorium.ru", "https://*.leprosorium.ru")
+
+        /* Чужие ошибки в журнале. Тот же приём, что на стенде: без маски
+           наши тонут в чужих. CORS на картинках — это скрипт пробует снять
+           пиксели гертруды через canvas, и в браузере ровно то же самое.
+           Отсеянное не пропадает молча: счётчик виден в отчёте. */
+        val FOREIGN = listOf(
+            Regex("blocked by CORS policy", RegexOption.IGNORE_CASE),
+            Regex("Access to image at", RegexOption.IGNORE_CASE),
+            Regex("Failed to load resource", RegexOption.IGNORE_CASE),
+            Regex("net::ERR_", RegexOption.IGNORE_CASE),
+            Regex("attribute d: Expected", RegexOption.IGNORE_CASE),
+            Regex("<path>: Expected", RegexOption.IGNORE_CASE),
+            Regex("was preloaded using link preload", RegexOption.IGNORE_CASE),
+            Regex("Third-party cookie", RegexOption.IGNORE_CASE),
+            Regex("advertronic|mc\\.yandex|favicon", RegexOption.IGNORE_CASE),
+        )
     }
 
     private lateinit var root: FrameLayout
@@ -65,6 +83,9 @@ class MainActivity : AppCompatActivity() {
     private var dark = false
     private var lastFailed: String? = null
     private var headersSeen = false
+    private var volTaps = 0
+    private var volLast = 0L
+    private var foreignErrors = 0
     private val chrome = Chrome()
 
     private val fileChooser = registerForActivityResult(
@@ -218,25 +239,45 @@ class MainActivity : AppCompatActivity() {
             Diag.fact("X-Requested-With", "androidx.webkit не найден")
             return
         }
-        runCatching {
-            val m = cls.getMethod(
-                "setRequestedWithHeaderOriginAllowList",
-                WebSettings::class.java, java.util.Set::class.java
-            )
-            m.invoke(null, s, emptySet<String>())
-            Diag.fact("X-Requested-With", "погашен: пустой список источников")
+
+        /* Спрашиваем сам движок, знает ли он про эту возможность. Имя
+           признака берём строкой, а не постоянной: постоянной может не
+           оказаться в нашей версии библиотеки, и тогда не собралось бы. */
+        val known = runCatching {
+            WebViewFeature.isFeatureSupported("REQUESTED_WITH_HEADER_ALLOW_LIST")
+        }.fold({ if (it) "да" else "нет" }, { "спросить не вышло (" + it.javaClass.simpleName + ")" })
+
+        val notes = StringBuilder("движок знает про список источников: ").append(known)
+
+        /* Разбор по случаям — в этом весь смысл переделки. Прежняя редакция
+           писала одно «погасить не вышло» и на «метода нет в библиотеке», и
+           на «метод есть, но вызов отказал». Это разные беды с разным
+           лечением: первая чинится поднятием версии библиотеки, вторая не
+           чинится вовсе. Подпись, которая их путает, хуже отсутствующей. */
+        fun tryOne(name: String, argType: Class<*>, arg: Any): Boolean {
+            val m = runCatching { cls.getMethod(name, WebSettings::class.java, argType) }.getOrNull()
+            if (m == null) {
+                notes.append(" | ").append(name).append(": метода в библиотеке нет")
+                return false
+            }
+            val r = runCatching { m.invoke(null, s, arg) }
+            if (r.isSuccess) return true
+            val e = r.exceptionOrNull()
+            val why = (e?.cause ?: e)?.let { it.javaClass.simpleName + ": " + (it.message ?: "") }
+            notes.append(" | ").append(name).append(": вызов отказал — ").append(why)
+            return false
+        }
+
+        if (tryOne("setRequestedWithHeaderOriginAllowList", java.util.Set::class.java, emptySet<String>())) {
+            Diag.fact("X-Requested-With", "погашен списком источников | " + notes)
             return
         }
-        runCatching {
-            val m = cls.getMethod(
-                "setRequestedWithHeaderMode",
-                WebSettings::class.java, Int::class.javaPrimitiveType
-            )
-            m.invoke(null, s, 0) /* 0 — REQUESTED_WITH_HEADER_MODE_NO_HEADER */
-            Diag.fact("X-Requested-With", "погашен: режим «без заголовка»")
+        /* 0 — REQUESTED_WITH_HEADER_MODE_NO_HEADER у прежнего API. */
+        if (tryOne("setRequestedWithHeaderMode", Int::class.javaPrimitiveType!!, 0)) {
+            Diag.fact("X-Requested-With", "погашен режимом «без заголовка» | " + notes)
             return
         }
-        Diag.fact("X-Requested-With", "погасить не вышло — смотри строку запроса ниже")
+        Diag.fact("X-Requested-With", "погасить не вышло | " + notes)
     }
 
     // ------------------------------------------------------------------
@@ -254,7 +295,12 @@ class MainActivity : AppCompatActivity() {
         }
 
         val loaded = ScriptStore.load(this)
-        Diag.fact("скрипт", "${loaded.version}, ${loaded.source}, ${loaded.text.length} байт")
+        /* Байты и знаки — разные числа, и путать их дорого: подпись
+           «байт» при длине строки заставила однажды искать несуществующую
+           вторую копию скрипта. Для кириллицы разница — треть файла. */
+        val bytes = loaded.text.toByteArray(Charsets.UTF_8).size
+        Diag.fact("скрипт", "${loaded.version}, ${loaded.source}, " +
+            "$bytes байт (${loaded.text.length} знаков)")
 
         /* Порядок важен: сперва оправа объявляет о себе, потом идёт скрипт.
            Наоборот было бы поздно — скрипт читает window.lmHost при старте. */
@@ -575,8 +621,14 @@ class MainActivity : AppCompatActivity() {
         }
 
         override fun onConsoleMessage(m: ConsoleMessage): Boolean {
-            if (m.messageLevel() == ConsoleMessage.MessageLevel.ERROR)
-                Diag.log("js: ${m.message()} (${m.sourceId()}:${m.lineNumber()})")
+            if (m.messageLevel() != ConsoleMessage.MessageLevel.ERROR) return true
+            val t = m.message() ?: ""
+            if (FOREIGN.any { it.containsMatchIn(t) }) {
+                foreignErrors++
+                Diag.fact("чужих ошибок отсеяно", foreignErrors.toString())
+                return true
+            }
+            Diag.log("js: $t (${m.sourceId()}:${m.lineNumber()})")
             return true
         }
     }
@@ -591,6 +643,28 @@ class MainActivity : AppCompatActivity() {
     }
 
     // ------------------------------------------------------------------
+
+    /* Тройное нажатие «громкость вниз» открывает отчёт.
+
+       Второй вход, не зависящий от лаунчера: ярлык по долгому нажатию на
+       значок показывают не все оболочки, а адресной строки, куда можно было
+       бы вписать #appdiag, в приложении нет вовсе. Остаться совсем без
+       двери в отчёт нельзя — он единственный источник цифр, когда рядом нет
+       компьютера с chrome://inspect.
+
+       Событие НЕ съедаем: громкость продолжает работать как обычно. */
+    override fun onKeyDown(keyCode: Int, event: KeyEvent): Boolean {
+        if (keyCode == KeyEvent.KEYCODE_VOLUME_DOWN) {
+            val now = SystemClock.uptimeMillis()
+            volTaps = if (now - volLast < 1500) volTaps + 1 else 1
+            volLast = now
+            if (volTaps >= 3) {
+                volTaps = 0
+                openDiagScreen()
+            }
+        }
+        return super.onKeyDown(keyCode, event)
+    }
 
     override fun onResume() {
         super.onResume()
