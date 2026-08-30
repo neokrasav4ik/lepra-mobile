@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <!-- Только для Андроида 9 и старше: там DownloadManager без неё не может
+         положить файл в «Загрузки». С Андроида 10 разрешение не нужно. -->
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"
+        android:maxSdkVersion="28" />
+
+    <application
+        android:name=".App"
+        android:label="@string/app_name"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher"
+        android:theme="@style/Theme.Lepra"
+        android:supportsRtl="false"
+        android:usesCleartextTraffic="false"
+        android:hardwareAccelerated="true"
+        android:enableOnBackInvokedCallback="true"
+        android:allowBackup="false"
+        android:fullBackupOnly="false"
+        android:dataExtractionRules="@xml/data_extraction_rules">
+
+        <!-- allowBackup="false" — не украшение. Внутри приложения живёт чужая
+             сессия: куки лепры и наши настройки. Резервное копирование Андроида
+             унесло бы их в облако Google, а восстановление на другом аппарате
+             дало бы вход в чужой аккаунт с чужого телефона. -->
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:launchMode="singleTask"
+            android:windowSoftInputMode="adjustResize"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboard|keyboardHidden|navigation|density|uiMode|fontScale">
+
+            <!-- configChanges перечислен так длинно ради одного: при повороте
+                 и при появлении клавиатуры система НЕ пересоздаёт экран.
+                 Пересоздание означало бы перезагрузку страницы — то есть
+                 потерю места, набранного комментария и всей работы скрипта. -->
+
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+
+            <!-- Ссылки на лепру из других приложений открываются у нас. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https" android:host="leprosorium.ru" />
+                <data android:scheme="https" android:host="*.leprosorium.ru" />
+            </intent-filter>
+
+            <meta-data
+                android:name="android.app.shortcuts"
+                android:resource="@xml/shortcuts" />
+        </activity>
+
+        <activity
+            android:name=".DiagActivity"
+            android:exported="true"
+            android:label="@string/diag_title" />
+
+    </application>
+</manifest>

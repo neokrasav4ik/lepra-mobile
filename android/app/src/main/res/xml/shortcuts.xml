@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Долгое нажатие по значку приложения → «Диагностика».
+
+     Способ выбран ради невмешательства: своей кнопки поверх страницы нет,
+     раскладку скрипта ничто не трогает, а попасть в отчёт можно с любого
+     экрана. Второй вход — решётка #appdiag в адресе. -->
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut
+        android:shortcutId="diag"
+        android:enabled="true"
+        android:shortcutShortLabel="@string/diag_shortcut">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetPackage="ru.neokrasav4ik.lepramobile"
+            android:targetClass="ru.neokrasav4ik.lepramobile.DiagActivity" />
+    </shortcut>
+</shortcuts>

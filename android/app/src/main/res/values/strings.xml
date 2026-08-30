@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Leprosorium</string>
+    <string name="diag_title">Диагностика</string>
+    <string name="diag_shortcut">Диагностика</string>
+    <string name="diag_copy">Скопировать</string>
+    <string name="diag_bundled">Вернуться к встроенному скрипту</string>
+</resources>

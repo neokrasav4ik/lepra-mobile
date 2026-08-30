@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Три слоя, и порядок важен.
+
+     root      — держит тон страницы. Он виден в полосе под часами и над
+                 кнопками навигации: с Андроида 15 система рисует приложение
+                 ПОД ними, и отказаться нельзя. Белая полоса при тёмной теме
+                 читалась бы поломкой.
+     swipe     — перетяг вниз для обновления. Отступы по системным вставкам
+                 кладутся именно на него, чтобы липкая шапка скрипта встала
+                 под часами, а не за ними.
+     fullscreen — сюда WebView отдаёт видео на весь экран. Лежит ПОВЕРХ и без
+                 отступов: полноэкранному видео вставки не нужны. -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <androidx.swiperefreshlayout.widget.SwipeRefreshLayout
+        android:id="@+id/swipe"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent">
+
+        <WebView
+            android:id="@+id/web"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent" />
+
+    </androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
+
+    <FrameLayout
+        android:id="@+id/fullscreen"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="#000000"
+        android:visibility="gone" />
+
+</FrameLayout>

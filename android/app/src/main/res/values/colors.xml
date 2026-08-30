@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Тона взяты из сетки скрипта (TONES.page), а не подобраны на глаз:
+         ими закрашивается окно до первой отрисовки и системные полосы.
+         Значения ЭКРАННЫЕ — то, что видно; ночной прообраз под фильтр
+         тёмной темы живёт в скрипте и приложению не нужен. -->
+    <color name="lm_page_day">#FDFCFA</color>
+    <color name="lm_page_night">#111010</color>
+    <color name="lm_ink_day">#191714</color>
+    <color name="lm_ink_night">#EAE7E2</color>
+    <color name="lm_accent">#C93825</color>
+</resources>
