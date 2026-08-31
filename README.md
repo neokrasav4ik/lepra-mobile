@@ -5,6 +5,7 @@
 Работает тремя способами: приложением под Андроид, расширением в Safari на
 iPhone и расширением в Firefox на Андроиде. Скрипт во всех трёх один и тот же.
 
+[![Screenshots](all_github.jpg)](https://neokrasav4ik.github.io/lepra-mobile/)
 
 ## Android — приложение
 
