@@ -5,7 +5,11 @@
 Работает тремя способами: приложением под Андроид, расширением в Safari на
 iPhone и расширением в Firefox на Андроиде. Скрипт во всех трёх один и тот же.
 
-![Lepra Mobile](all_github.jpg)
+<p align="center">
+  <a href="all_github.jpg">
+    <img src="all_github.jpg" width="420" alt="Lepra Mobile">
+  </a>
+</p>
 
 ## Android — приложение
 
