@@ -6,6 +6,7 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
+import android.os.Build
 import android.os.Environment
 import android.os.Message
 import android.view.View
@@ -82,6 +83,10 @@ class MainActivity : AppCompatActivity() {
     private var lastFailed: String? = null
     private var headersSeen = false
     private var foreignErrors = 0
+    /* Текст скрипта держим для запасного пути: если штатный впрыск не
+       сработал, впрыснем его же обычным способом. */
+    private var scriptText: String? = null
+    private var rescued = false
     private val chrome = Chrome()
 
     private val fileChooser = registerForActivityResult(
@@ -249,6 +254,10 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
+        Diag.fact("система", "Android " + Build.VERSION.RELEASE +
+                  " (API " + Build.VERSION.SDK_INT + "), " +
+                  Build.MANUFACTURER + " " + Build.MODEL)
+
         val pkg = WebViewCompat.getCurrentWebViewPackage(this)
         Diag.fact("движок", if (pkg == null) "не определён"
                   else "${pkg.packageName} ${pkg.versionName}")
@@ -346,6 +355,7 @@ class MainActivity : AppCompatActivity() {
 
         /* Порядок важен: сперва оправа объявляет о себе, потом идёт скрипт.
            Наоборот было бы поздно — скрипт читает window.lmHost при старте. */
+        scriptText = loaded.text
         runCatching {
             WebViewCompat.addDocumentStartJavaScript(web, preamble(), ORIGINS)
             WebViewCompat.addDocumentStartJavaScript(web, loaded.text, ORIGINS)
@@ -561,6 +571,47 @@ class MainActivity : AppCompatActivity() {
             .show()
     }
 
+    /* Запасной впрыск.
+
+       Штатный путь — addDocumentStartJavaScript: скрипт выполняется ДО
+       разбора разметки и во всех подходящих окнах, включая скрытое окно
+       пыни. Если он не сработал (такое пришло с чужого аппарата: возможность
+       есть, регистрация прошла, а на странице пусто), впрыскиваем тот же
+       скрипт обычным способом.
+
+       Это заведомо хуже: вёрстка встаёт с задержкой, окно пыни так не
+       покрыть, и часть работы скрипта на document-start уже упущена. Но
+       десктопная лепра под лупой хуже.
+
+       Только на лепре и только раз за загрузку. Чужой адрес не впрыскиваем
+       намеренно: там нам делать нечего, и это как раз тот случай, который
+       надо УВИДЕТЬ в отчёте, а не замазать. */
+    private fun rescueScript(view: WebView, url: String) {
+        val u = runCatching { Uri.parse(url) }.getOrNull()
+        if (u == null || !ours(u)) {
+            Diag.fact("запасной впрыск", "не наш адрес, не впрыскиваем: " + url)
+            return
+        }
+        if (rescued) return
+        val text = scriptText
+        if (text == null) {
+            Diag.fact("запасной впрыск", "текста скрипта нет")
+            return
+        }
+        rescued = true
+        Diag.log("штатный впрыск не сработал, пробуем запасной")
+        view.evaluateJavascript(preamble() + "\n" + text) {
+            view.evaluateJavascript(
+                "(function(){try{return (typeof window.lmHost)+' | css: '+" +
+                "(document.getElementById('lepra-mobile-css')?'есть':'нет');}" +
+                "catch(e){return 'ошибка: '+e;}})()"
+            ) { r2 ->
+                val said = (r2 ?: "").trim('"')
+                Diag.fact("запасной впрыск", if (said.isBlank()) "нет ответа" else said)
+            }
+        }
+    }
+
     private fun openDiagScreen() {
         startActivity(Intent(this, DiagActivity::class.java))
     }
@@ -600,6 +651,17 @@ class MainActivity : AppCompatActivity() {
 
         override fun onPageStarted(view: WebView, url: String, favicon: android.graphics.Bitmap?) {
             headersSeen = false
+            rescued = false
+        }
+
+        /* Код ответа главной страницы. В журнал попадал только УХОДЯЩИЙ
+           запрос, и если после него нас уводило на другой адрес или
+           отвечали ошибкой, мы об этом не узнавали вовсе — а именно так
+           выглядит заглушка провайдера или блокировка. */
+        override fun onReceivedHttpError(
+            view: WebView, req: WebResourceRequest, resp: WebResourceResponse
+        ) {
+            if (req.isForMainFrame) Diag.log("ответ " + resp.statusCode + " на " + req.url)
         }
 
         /* Колесико гасим ЗДЕСЬ, а не в onPageFinished.
@@ -623,11 +685,24 @@ class MainActivity : AppCompatActivity() {
             /* Проверка «а встал ли скрипт» — не догадкой, а вопросом к
                странице. Ответ ложится в отчёт: с телефона это единственный
                способ отличить «скрипт не сработал» от «страница другая». */
+            /* Спрашиваем СРАЗУ и адрес, и заголовок, и размер разметки.
+               Первая же жалоба на белый экран показала, зачем это нужно:
+               по одному «lmHost undefined» нельзя отличить «впрыск не
+               сработал» от «мы вообще не на лепре», а лечится это
+               противоположным. Пустая страница видна по размеру разметки
+               сразу, чужой адрес — по самому адресу. */
             view.evaluateJavascript(
-                "(function(){try{return (typeof window.lmHost)+'/'+" +
-                "(document.getElementById('lepra-mobile-css')?'css есть':'css нет')+'/'+" +
-                "(window.lmPynRan||0);}catch(e){return 'ошибка: '+e;}})()"
-            ) { r -> Diag.fact("на странице", r?.trim('"') ?: "нет ответа") }
+                "(function(){try{return (typeof window.lmHost)" +
+                "+' | '+location.href" +
+                "+' | заголовок: '+(document.title||'—')" +
+                "+' | разметки: '+document.documentElement.outerHTML.length" +
+                "+' | css: '+(document.getElementById('lepra-mobile-css')?'есть':'нет')" +
+                "+' | пынь: '+(window.lmPynRan||0);}catch(e){return 'ошибка: '+e;}})()"
+            ) { r ->
+                val said = (r ?: "").trim('"')
+                Diag.fact("на странице", if (said.isBlank()) "нет ответа" else said)
+                if (said.startsWith("undefined")) rescueScript(view, url)
+            }
         }
 
         override fun onReceivedError(view: WebView, req: WebResourceRequest, err: WebResourceError) {
