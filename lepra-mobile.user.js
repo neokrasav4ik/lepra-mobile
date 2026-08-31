@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Lepra Mobile
 // @namespace    lepra.mobile
-// @version      2.0.6
+// @version      2.1.4
 // @description  Мобильная адаптация leprosorium.ru для iOS Safari
 // @author       neokrasav4ik
 // @homepageURL  https://github.com/neokrasav4ik/lepra-mobile
@@ -131,7 +131,7 @@
     return;
   }
 
-  var VERSION = '2.0.6';
+  var VERSION = '2.1.4';
 
   /* ============================================================
      НАСТРОЙКИ
@@ -1187,6 +1187,13 @@
        этом месте: убрать один флаг проще, чем выкорчёвывать обработчик. */
     settings: true,
 
+    /* НАСТРОЙКА: первый тап по нику показывает карточку гражданина (ту
+       же, что лепра рисует на десктопе по наведению мыши), второй —
+       уводит в профиль. Выключатель нужен на случай, если лепра
+       однажды поменяет устройство окна: тогда ник должен вернуться к
+       простому переходу одним словом, а не правкой кода. */
+    userCard: true,
+
     /* НАСТРОЙКА: какие разделы показывать в отчёте. Разделы копились под
        задачи, и почти все свои задачи пережили: подписи поста и
        комментария, шапка, поиск, профиль, фильтры — всё это давно
@@ -1209,6 +1216,7 @@
       prefs: true,           /* общие настройки: значение и откуда взято */
       votes: true,           /* голосовалки: замеры кнопок во всех местах */
       network: true,         /* сетевые запросы и перехваченные заголовки */
+      card: true,            /* щуп карточки гражданина (пока взводили) */
       pyn: true,             /* окно пыни, звук, голосование */
       floats: false,         /* плавающие колонки */
       overlaps: false,       /* наложения */
@@ -1739,6 +1747,7 @@
           var body = netBody(data);
           catchCsrf(self.lmU, body);
           self.addEventListener('load', function () {
+            if (CARD.on) cardSniff('XHR', self.lmM, self.lmU, self.status, self.responseText);
             netLog(self.lmU,
                    'XHR ' + self.lmM + ' ' + String(self.lmU).slice(0, 110) +
                    '  → ' + self.status +
@@ -1764,6 +1773,16 @@
                              (typeof input !== 'string' && input && input.body));
           catchCsrf(u, body);
           return f.apply(this, arguments).then(function (r) {
+            /* Тело читаем ТОЛЬКО с копии. Поток ответа читается один раз:
+               прочитаем оригинал — лепре достанется пустой, и мы своей
+               разведкой сломаем ту самую карточку, которую изучаем. */
+            if (CARD.on) {
+              try {
+                r.clone().text().then(function (tx) {
+                  cardSniff('fetch', m, u, r.status, tx);
+                }, function () {});
+              } catch (e2) {}
+            }
             netLog(u,
                    'fetch ' + m + ' ' + String(u).slice(0, 110) + '  → ' + r.status +
                    (h.length ? '\n     ' + h.join('\n     ') : '') +
@@ -1778,6 +1797,302 @@
   }
 
   watchNet();
+
+
+  /* ------------------------------------------------------------
+     ЩУП КАРТОЧКИ ГРАЖДАНИНА (разведка)
+
+     На десктопе наведение на ник показывает окошко со справкой: номер,
+     дата регистрации, счётчики постов и комментариев, карма с
+     голосовалкой прямо в окне. Хочется то же по тапу на телефоне.
+
+     Прежде чем что-то делать, надо знать, ОТКУДА лепра берёт содержимое
+     этого окна. В разметке страницы его нет вовсе: ни шаблона, ни
+     текстов — проверено поиском по сохранённой странице поста, слов
+     «с нами с», «подлепры», «социализм» там ноль. Значит окно собирается
+     на месте, скорее всего запросом.
+
+     Из сохранённой страницы этого не изучить в принципе: Chrome не
+     кладёт в .mhtml скрипты, а без них ни одного обработчика на странице
+     нет. Отладчик по проводу тоже не годится: в приложении нет адресной
+     строки, а компьютера может не быть под рукой вовсе. Поэтому
+     разведка живёт внутри самого скрипта и отчитывается туда же, куда и
+     всё остальное, — в панель, которую человек копирует кнопкой.
+
+     Что щуп делает. Взводится кнопкой в отладочной панели. После этого
+     первый тап по ссылке на профиль не уводит со страницы, а подделывает
+     наведение мыши и три секунды записывает четыре вещи:
+       — на какие события подписана сама лепра (если jQuery на странице
+         есть, он этот список отдаёт — и гадать не придётся);
+       — какие запросы ушли и ЧТО в них ответили, целиком: ради этого всё
+         и затевается, потому что дата последнего комментария, если она
+         вообще где-то есть, будет именно там;
+       — какие узлы появились в документе;
+       — нашлось ли на странице что-то похожее на карточку.
+
+     В обычной жизни щуп не участвует: обработчик тапа ставится только
+     при взводе, сам себя гасит через три секунды и до взвода не
+     существует. Ничего не меняет и никуда не ходит. */
+
+  var CARD = { on: false, taps: 0, who: '', events: '', net: [], nodes: [],
+               mo: null, log: [] };
+
+  /* Поля, которые в ответе занимают место, а сказать могут только одно —
+     на какой подлепре мы стоим. base_domain с полным списком адресов
+     гертруд съел в первой пробе весь показанный кусок ответа, и нужное
+     из-за него не влезло. */
+  var CARD_SKIP_KEYS = { base_domain: 1, domain: 1, attributes: 1, gertrudas: 1 };
+
+  /* Числа, похожие на время, печатаем и датой. Ради этого пробу и
+     затевали: если дата последнего комментария в ответе есть, лежать она
+     будет числом, и без перевода в календарь её не узнать. */
+  function shortVal(v) {
+    if (v === null) return 'null';
+    if (typeof v === 'number') {
+      if (v > 1000000000 && v < 4000000000)
+        return v + ' (' + new Date(v * 1000).toISOString().slice(0, 10) + ')';
+      return String(v);
+    }
+    if (typeof v === 'string')
+      return '"' + v.slice(0, 70) + (v.length > 70 ? '…' : '') + '"';
+    if (typeof v === 'boolean') return String(v);
+    if (Array.isArray(v)) return '[' + v.length + ']';
+    return '{' + Object.keys(v).length + ' полей}';
+  }
+
+  function cardJson(obj, out, prefix, depth) {
+    Object.keys(obj).forEach(function (k) {
+      if (out.length > 120) return;
+      var v = obj[k];
+      if (CARD_SKIP_KEYS[k]) { out.push(prefix + k + ': (пропущено, шум)'); return; }
+      if (v && typeof v === 'object' && !Array.isArray(v) && depth < 2) {
+        out.push(prefix + k + ':');
+        cardJson(v, out, prefix + '  ', depth + 1);
+      } else {
+        out.push(prefix + k + ': ' + shortVal(v));
+      }
+    });
+  }
+
+  /* Отдельная запись, а не netLog: тому в отчёте хватает адреса, метода и
+     размера, а здесь вся суть в теле ответа.
+
+     Сырое тело показываем только у не-JSON. У JSON вместо него опись
+     полей: двадцать килобайт ответа в панель всё равно не влезут, а
+     вопрос у нас про НАБОР полей, а не про их полный текст. */
+  function cardSniff(kind, method, url, status, text) {
+    try {
+      if (CARD.net.length > 12) return;
+      if (netSkip(url)) return;
+      var body = String(text == null ? '' : text);
+      var head = kind + ' ' + method + ' ' + String(url).slice(0, 140) +
+                 '  → ' + status + ', ' + body.length + ' знаков';
+      var data = null;
+      try { data = JSON.parse(body); } catch (e) {}
+      if (data && typeof data === 'object') {
+        var out = [];
+        cardJson(data, out, '     ', 0);
+        CARD.net.push(head + ' (JSON, поля:)\n' + out.join('\n'));
+      } else {
+        CARD.net.push(head + (body ? '\n     ' + body.slice(0, 1200) : ''));
+      }
+    } catch (e) { CARD.log.push('разбор ответа: ' + e.message); }
+  }
+
+  /* Наведение подделываем сразу пятью событиями, и это не перестраховка.
+     Чем именно лепра ловит наведение, мы не знаем: обработчик может
+     висеть на mouseover, на mouseenter (jQuery выводит его из того же
+     mouseover, разбирая relatedTarget) или на pointerover. Послать все
+     пять дешевле, чем угадывать по одному в круг.
+
+     relatedTarget обязателен: без него jQuery считает, что курсор пришёл
+     изнутри самого элемента, и mouseenter не выводит вовсе. Именно на
+     этом такие пробы обычно и заканчиваются молчанием. */
+  function fakeHover(el) {
+    var r = el.getBoundingClientRect();
+    var x = Math.round(r.left + r.width / 2);
+    var y = Math.round(r.top + r.height / 2);
+    ['pointerover', 'pointerenter', 'mouseover', 'mouseenter', 'mousemove']
+      .forEach(function (type) {
+        try {
+          var pointer = type.indexOf('pointer') === 0 && window.PointerEvent;
+          var E = pointer ? window.PointerEvent : window.MouseEvent;
+          el.dispatchEvent(new E(type, {
+            bubbles: type !== 'mouseenter' && type !== 'pointerenter',
+            cancelable: true,
+            view: window,
+            clientX: x, clientY: y,
+            relatedTarget: document.body
+          }));
+        } catch (e) { CARD.log.push('не отправилось ' + type + ': ' + e.message); }
+      });
+  }
+
+  /* На что подписана лепра. Если jQuery на странице есть, список
+     обработчиков он хранит открыто — и тогда гадать не нужно: сразу
+     видно, ловит ли она наведение на самой ссылке или делегированно на
+     документе, и под каким именем события. Пустой список на ссылке при
+     непустом на документе — это тоже ответ, а не неудача. */
+  function jqEvents(el) {
+    try {
+      var jq = window.jQuery || window.$;
+      if (!jq || !jq._data) return '(jQuery на странице нет или он без _data)';
+      var say = function (o) {
+        if (!o) return '—';
+        return Object.keys(o).map(function (k) {
+          return k + '×' + (o[k] && o[k].length || 0);
+        }).join(', ') || '—';
+      };
+      return 'на ссылке: ' + say(jq._data(el, 'events')) +
+             ' | на документе: ' + say(jq._data(document, 'events')) +
+             ' | на body: ' + say(document.body ? jq._data(document.body, 'events') : null);
+    } catch (e) { return '(не вышло: ' + e.message + ')'; }
+  }
+
+  /* Что появилось в документе. Свою же панель пропускаем: она появляется
+     последней и заняла бы весь список. */
+  function cardWatch() {
+    try {
+      CARD.mo = new MutationObserver(function (recs) {
+        recs.forEach(function (rec) {
+          sliceOf(rec.addedNodes).forEach(function (n) {
+            if (!n || n.nodeType !== 1 || CARD.nodes.length > 60) return;
+            if (n.id === 'lm-debug') return;
+            CARD.nodes.push(describe(n) + '  внутри ' +
+              (n.parentElement ? describe(n.parentElement) : '—'));
+          });
+        });
+      });
+      CARD.mo.observe(document.documentElement, { childList: true, subtree: true });
+    } catch (e) { CARD.log.push('наблюдатель не встал: ' + e.message); }
+  }
+
+  /* Само окошко ищем ПО ТЕКСТУ, а не по классу: класса мы не знаем — в
+     разметке страницы этого окна нет. «с нами с» стоит в нём наверняка
+     (видно на десктопном снимке) и ни на что другое в посте не похоже.
+     Из найденного берём самые глубокие узлы: иначе в список попадут все
+     их предки вплоть до body, а нам нужен носитель фразы. */
+  function findCard() {
+    var hits = [];
+    try {
+      hits = sliceOf(document.querySelectorAll('body *')).filter(function (el) {
+        return (el.textContent || '').indexOf('с нами с') >= 0;
+      });
+    } catch (e) {}
+    return hits.filter(function (el) {
+      return !hits.some(function (o) { return o !== el && el.contains(o); });
+    });
+  }
+
+  function reportCard(L) {
+    if (!CARD.taps) return;
+    L.push('', '--- щуп карточки ---',
+           'тапов: ' + CARD.taps + (CARD.who ? ' | ник: ' + CARD.who : ''),
+           'подписки лепры — ' + CARD.events);
+
+    L.push('', 'запросы за три секунды:');
+    if (!CARD.net.length)
+      L.push('(ни одного. Либо карточка собирается без сети — тогда всё',
+             ' нужное уже лежит на странице; либо наведение не поймано —',
+             ' тогда смотри строку подписок выше)');
+    CARD.net.forEach(function (s) { L.push(s); });
+
+    L.push('', 'появилось в документе:');
+    if (!CARD.nodes.length) L.push('(ничего)');
+    CARD.nodes.slice(0, 40).forEach(function (s) { L.push(s); });
+
+    /* Первая проба показала ДВА появившихся b-popup-user на один тап.
+       Если они копятся, а не переиспользуются, то по десятку тапов в
+       документе окажется десяток карточек — считаем их прямо тут, чтобы
+       не гадать потом. */
+    L.push('', 'коробок на странице сейчас: holder ' +
+           document.querySelectorAll('.b-popup_holder').length +
+           ', b-popup-user ' + document.querySelectorAll('.b-popup-user').length);
+
+    L.push('', 'похоже на карточку:');
+    var found = findCard();
+    if (!found.length) L.push('(не нашли)');
+    found.slice(0, 2).forEach(function (el) {
+      /* Показываем не сам носитель фразы, а его прадеда: строка «с нами с»
+         сидит в одном из полей, а увидеть надо всю коробку целиком. */
+      var box = el;
+      for (var i = 0; i < 3 && box.parentElement && box.parentElement !== document.body; i++)
+        box = box.parentElement;
+      var r = box.getBoundingClientRect();
+      L.push('узел: ' + describe(box) + '  ' +
+             Math.round(r.width) + '×' + Math.round(r.height) +
+             ' в (' + Math.round(r.left) + ',' + Math.round(r.top) + ')' +
+             ' | position: ' + (getComputedStyle(box).position || '?'));
+      L.push(box.outerHTML.replace(/<svg[\s\S]*?<\/svg>/g, '[svg]').slice(0, 2000));
+    });
+
+    if (CARD.log.length) L.push('', 'сбои щупа: ' + CARD.log.join(' | '));
+  }
+
+  /* Взвод. Обработчик ставится один раз за жизнь страницы, а работает
+     только пока взведён: иначе повторный взвод завёл бы второй такой же,
+     и один тап считался бы дважды. */
+  var cardBound = false;
+
+  function armCardProbe() {
+    closePanel();
+    CARD.on = true; CARD.taps = 0; CARD.who = ''; CARD.events = '(не смотрели)';
+    CARD.net = []; CARD.nodes = []; CARD.log = [];
+    cardHint('Щуп взведён. Тапните ник — отчёт откроется сам через три секунды.');
+
+    if (cardBound) return;
+    cardBound = true;
+    document.addEventListener('click', function (e) {
+      if (!CARD.on) return;
+      var t = e.target;
+      if (!t || !t.closest) return;
+      var a = t.closest('a[href*="/users/"]');
+      if (!a) return;
+
+      /* Переход отменяем целиком, включая обработчики лепры: уйдя на
+         профиль, мы унесли бы с собой и запись, ради которой всё это. */
+      e.preventDefault();
+      e.stopPropagation();
+      if (e.stopImmediatePropagation) e.stopImmediatePropagation();
+
+      CARD.taps++;
+      CARD.who = (a.textContent || '').trim().slice(0, 40) +
+                 (a.getAttribute('data-user_id')
+                    ? ' (#' + a.getAttribute('data-user_id') + ')' : '');
+      CARD.events = jqEvents(a);
+      cardWatch();
+      fakeHover(a);
+
+      setTimeout(function () {
+        CARD.on = false;
+        try { if (CARD.mo) CARD.mo.disconnect(); } catch (e2) {}
+        var L = ['ЩУП КАРТОЧКИ ГРАЖДАНИНА', 'Lepra Mobile v' + VERSION,
+                 'URL: ' + location.pathname];
+        reportCard(L);
+        showPanel(L.join('\n'));
+      }, 3000);
+    }, true);
+  }
+
+  /* Подсказка на время ожидания тапа. Панель к этому моменту закрыта —
+     без единого слова человек не знает, взвелось оно или нет. */
+  function cardHint(text) {
+    try {
+      var old = document.getElementById('lm-hint');
+      if (old && old.parentNode) old.parentNode.removeChild(old);
+      var h = document.createElement('div');
+      h.id = 'lm-hint';
+      h.textContent = text;
+      h.setAttribute('style',
+        'position:fixed;left:8px;right:8px;bottom:8px;z-index:2147483647;' +
+        'background:#222;color:#fff;font:13px/1.35 Verdana,sans-serif;' +
+        'padding:8px 10px;border-radius:7px;pointer-events:none');
+      document.body.appendChild(h);
+      setTimeout(function () {
+        if (h.parentNode) h.parentNode.removeChild(h);
+      }, 3000);
+    } catch (e) {}
+  }
 
   /* Писец для скрытого окна пыни — см. блок в самом начале. Отдельно от
      watchNet потому, что тот завязан на CFG и общий журнал, а здесь нужно
@@ -6625,6 +6940,146 @@ html:not(.lm-profart) body.l-profile .l-content_wrapper {
 .b-votes_popup .b_users_table_holder {
   padding-left: 24px !important; padding-right: 26px !important; }
 .b-votes_popup .b_users_table-list { max-width: none !important; }
+
+/* КАРТОЧКА ГРАЖДАНИНА (та, что у лепры по наведению на ник).
+
+   Содержимое делает лепра целиком, наше — вид. У неё карточка расписана
+   под мышь и под широкий экран: держатель шириной от 310 до 400, коробка
+   до 325, слева плавает аватар с отрицательными полями, а голосовалка
+   кармы плавает вправо от имени. На телефоне из этого получалась
+   бесформенная белая плита без рамки, где первое, что видит человек,
+   открывший справку о ком-то, — ряд кнопок голосования во всю ширину.
+
+   Собираем как остальные карточки в скрипте: та же рамка, то же
+   скругление FRAME_R, тот же фон и та же тень. Разъехаться им нельзя —
+   иначе на глаз это чужая заплатка поверх нашей вёрстки.
+
+   Раскладка. Аватар остаётся плавающим, но коробка ПЕРЕСТАЁТ быть
+   отдельным контекстом форматирования (overflow:visible): тогда рядом с
+   аватаром встают только имя и место, а всё, что ниже, идёт во всю
+   ширину. С overflow:hidden коробка вставала сбоку целиком, и полсотни
+   пикселей слева пустовали у каждой строки, включая заметку.
+
+   Голосовалку переставляет вниз tidyUserCard — разбор там же.
+
+   Слой. z-index держателя — 4, это ниже нашей липкой плашки, и карточка
+   у верхних комментариев уезжала бы под неё.
+
+   Тёмная тема отдельной работы не требует: страница переворачивается
+   целиком, а аватар нарисован инлайновым background-image и попадает
+   под общее правило обратного переворота вместе с картинками. */
+.b-popup_holder {
+  min-width: 0 !important; width: auto !important;
+  max-width: calc(100vw - 12px) !important;
+  box-sizing: border-box !important;
+  z-index: 60 !important;
+  padding: 10px !important;
+  /* Тон СТРАНИЦЫ, а не карточки, и это не описка. Карточка гражданина
+     всплывает поверх ленты комментариев, а комментарии в заводском
+     наборе набраны как раз тоном card — совпав с ними, она переставала
+     читаться отдельным предметом и выглядела дырой в разметке.
+
+     Правило на самом деле не «взять тон страницы», а «взять НЕ ТОТ тон,
+     которым набраны соседи». В заводском наборе соседи — карточки,
+     значит нам страница; в обратном наборе всё меняется местами, и
+     правило для него стоит ниже. Обе темы при этом обслуживаются одной
+     строкой: ночные значения переменных — уже прообразы под переворот. */
+  background: var(--lm-page) !important;
+  border: 1px solid var(--lm-line) !important;
+  border-radius: ${FRAME_R}px !important;
+  box-shadow: var(--lm-shadow) !important;
+  font-size: 13px !important; line-height: 1.35 !important;
+  color: var(--lm-dim) !important; }
+/* Обратный набор: там комментарии набраны тоном СТРАНИЦЫ, и карточка,
+   взявшая его же, слилась с ними ровно так, как до этого сливалась в
+   заводском. Замер обоих наборов рядом:
+     заводской  — комментарий 240,238,234 | страница 253,252,250
+     обратный   — комментарий 253,252,250 | страница 231,228,219
+   Отсюда и вывод: тон карточки обязан следовать за набором, а не быть
+   прибит к одной переменной. Вес селектора выше базового правила —
+   спор решается по специфичности, а не по порядку строк. */
+html.lm-cards2 .b-popup_holder { background: var(--lm-card) !important; }
+.b-popup_holder .b-popup_picture,
+.b-popup_holder .b-popup_picture.b-popup-user_avatar {
+  width: 44px !important; height: 44px !important;
+  margin: 1px 10px 2px 0 !important;
+  border-radius: 5px !important; float: left !important; }
+.b-popup_holder .b-popup {
+  float: none !important; overflow: visible !important;
+  display: block !important;
+  width: auto !important; max-width: none !important; min-width: 0 !important;
+  padding: 0 !important; margin: 0 !important;
+  box-sizing: border-box !important;
+  font-size: inherit !important; line-height: inherit !important;
+  color: inherit !important; }
+/* Имя — единственное, что набрано основным тоном: остальное в карточке
+   справочное и живёт приглушённым, как подписи по всему скрипту. */
+.b-popup_holder h3 {
+  max-width: none !important; margin: 0 !important;
+  font-size: 15px !important; line-height: 1.25 !important;
+  color: var(--lm-ink) !important; }
+.b-popup_holder h3 a {
+  color: inherit !important; text-decoration: none !important; }
+.b-popup_holder .b-popup-user_location,
+.b-popup_holder .b-popup-user_note {
+  display: block !important; width: auto !important;
+  margin: 0 !important; font-size: 12px !important;
+  font-style: normal !important; color: var(--lm-dim) !important; }
+.b-popup_holder .b-popup-user_note { margin: 6px 0 0 !important; }
+
+/* Счётчики и действия — двумя строками через черту, как подвал
+   карточки поста. Черта нужна: без неё справка, счётчики и действия
+   сливаются в один серый столбик. */
+/* Строкой, а не флексом, и это осторожность по делу: в обеих строках у
+   лепры есть не только ссылки — перед «написать в инбокс» стоит значок
+   конверта, а между счётчиками могут стоять разделители. Флекс сделал бы
+   из каждого такого куска отдельную ячейку и растащил бы значок с его
+   подписью. Обычный поток разложит их как текст. */
+.b-popup_holder .b-popup_stats,
+.b-popup_holder .b-popup_bottom {
+  display: block !important; white-space: normal !important;
+  margin: 8px 0 0 !important; padding: 0 !important;
+  font-size: 12px !important; }
+.b-popup_holder .b-popup_stats {
+  padding-top: 8px !important;
+  border-top: 1px solid var(--lm-line) !important; }
+.b-popup_holder .b-popup_stats a,
+.b-popup_holder .b-popup_bottom a {
+  margin: 0 12px 0 0 !important; color: var(--lm-mid) !important;
+  text-decoration: none !important;
+  border-bottom: 1px solid var(--lm-line) !important;
+  /* Переносить внутри «2 подлепры» нечего: на 320px строка ломалась
+     между числом и словом, и счётчик читался как два разных. Пусть
+     переносятся счётчики целиком. */
+  white-space: nowrap !important; }
+.b-popup_holder .b-popup-user_write,
+.b-popup_holder .b-popup_user_socialize,
+.b-popup_holder .b-user_subscription,
+.b-popup_holder .b-subsite_controls {
+  position: static !important; float: none !important;
+  margin: 0 !important; padding: 0 !important; height: auto !important; }
+
+/* Голосовалка. Шкура у кнопок общая со всеми голосовалками скрипта и
+   приезжает сама; здесь только строй и счётчик, который у лепры набран
+   отдельной коробкой в 18px и рядом с нашими кнопками стоял криво. */
+.b-popup_holder .b-user_votes_wrapper {
+  position: static !important; float: none !important;
+  width: auto !important; height: auto !important;
+  margin: 8px 0 0 !important; }
+.b-popup_holder .b-user_karma { gap: 6px !important; }
+.b-popup_holder .b-karma_controls { gap: 2px !important; }
+.b-popup_holder .b-karma_value {
+  position: static !important; width: auto !important;
+  height: auto !important; margin: 0 !important; top: auto !important;
+  text-align: left !important; font-size: inherit !important; }
+.b-popup_holder .b-karma_value_inner {
+  display: inline-flex !important;
+  align-items: center !important; justify-content: center !important;
+  height: 28px !important; min-width: 44px !important;
+  padding: 0 6px !important; margin: 0 !important;
+  box-sizing: border-box !important;
+  font-size: 13px !important; line-height: 1 !important;
+  ${PILL_OFF} }
 
 /* Пенсне — родная кнопка разворота панели заметок. У лепры это картинка
    75×75, прибитая абсолютно слева от жёлтого поля (left:0, top:-5px).
@@ -12576,6 +13031,233 @@ ${darkRules()}
       d.classList.toggle('lm-collapsed');
       e.stopPropagation();
       e.preventDefault();
+    }, true);
+  }
+
+
+  /* ============================================================
+     КАРТОЧКА ГРАЖДАНИНА ПО ТАПУ ПО НИКУ
+     ============================================================
+
+     На десктопе наведение на ник показывает окошко со справкой: аватар,
+     имя, откуда, номер, дата регистрации, счётчики постов и
+     комментариев, заметка, ссылки в инбокс и в социализм — и голосовалка
+     кармы прямо в окне. На телефоне наведения нет, и всё это было
+     недоступно: тап уводил в профиль, а ходить в профиль ради одной
+     цифры кармы — это загрузка целой страницы.
+
+     Окно строит сама лепра, и это выяснено замером, а не предположено.
+     Щуп показал: подделанное наведение заставляет её послать
+     POST /ajax/user/get/ и положить готовую разметку в .b-popup_holder,
+     который в разметке страницы уже есть пустым. Двадцать килобайт
+     ответа — почти целиком поле template с той самой разметкой.
+
+     Отсюда всё устройство. Мы НЕ рисуем своё окно и не разбираем ответ:
+     это её дело и её данные, а любая наша копия разошлась бы с
+     оригиналом на первой же правке лепры. Наша работа — три вещи:
+     вызвать наведение, поставить окно по месту и не дать ему уехать за
+     край экрана.
+
+     Голосовалка приезжает рабочей сама: karmaHandler.vote стоит прямо в
+     onclick у плюса и минуса. Ничего перехватывать не нужно.
+
+     Уход в профиль — два пути, и оба уже есть. Имя внутри карточки —
+     ссылка (её и пропускаем мимо обработчика). Повторный тап по тому же
+     нику — тоже переход: карточку человек уже увидел, значит хочет
+     дальше.
+
+     Отказ. Если карточка не появилась за CARD_WAIT — сети нет,
+     лепра поменяла разметку, наведение перестало ловиться — уходим по
+     ссылке, как было до нас. Ник, переставший работать вовсе, хуже
+     отсутствия карточки. */
+
+  /* Ссылка именно на профиль, а не на его подстраницы: /users/xxx/
+     показываем карточкой, /users/xxx/comments/ открываем как есть. */
+  var USER_HREF = /\/users\/[^\/?#]+\/?$/;
+  var CARD_EDGE = 6;
+
+  /* Сколько ждём карточку, прежде чем сдаться и уйти по ссылке. Число
+     одно на ожидание и на последнюю попытку установки, чтобы они не
+     разъехались: попытка позже отсечки бессмысленна, а отсечка раньше
+     последней попытки отменяет её работу.
+
+     Две секунды — не «на всякий случай». Запрос за карточкой везёт
+     двадцать килобайт, и на слабой связи полутора секунд ему не
+     хватало: человек тапал ник, ждал и оказывался в профиле, то есть
+     ровно там, куда карточка ходить и избавляет. Ошибиться тут дешевле
+     в сторону ожидания: лишние полсекунды на мёртвой ссылке заметнее
+     не станут, а сорванная карточка обесценивает всю затею. */
+  var CARD_WAIT = 2000;
+
+  var cardFor = null;       /* ссылка, ради которой карточка сейчас открыта */
+  var nickTapBound = false;
+
+  function nickLink(t) {
+    if (!t || !t.closest) return null;
+    var a = t.closest('a[href*="/users/"]');
+    if (!a) return null;
+    /* Имя внутри самой карточки и наша отладочная панель — мимо. */
+    if (a.closest('.b-popup_holder') || a.closest('#lm-debug')) return null;
+    if (!USER_HREF.test(a.getAttribute('href') || '')) return null;
+    return a;
+  }
+
+  function nickLogin(a) {
+    var m = /\/users\/([^\/?#]+)/.exec(a.getAttribute('href') || '');
+    try { return m ? decodeURIComponent(m[1]) : ''; } catch (e) { return m ? m[1] : ''; }
+  }
+
+  function cardBox() { return document.querySelector('.b-popup_holder'); }
+
+  /* Собрана ли карточка ИМЕННО ПРО ЭТОГО человека. Проверка по
+     data-login, а не по одному факту видимости, и это не придирка:
+     держатель у лепры один на всю страницу и переиспользуется. Без
+     сверки имени тап по второму нику полсекунды показывал бы справку
+     про первого — худший род вранья, потому что выглядит правдой.
+
+     Размер здесь НЕ меряем, и это важнее, чем кажется. В разметке
+     держатель лежит с классом hidden, то есть display:none, а класс
+     этот снимают при показе. Мерь мы размер — получился бы замкнутый
+     круг: показать нельзя, пока не видно, а видно не станет, пока не
+     покажем. Стенд на этом и поймал. Готовность — про содержимое,
+     видимость — отдельный вопрос. */
+  function cardReady(a) {
+    var h = cardBox();
+    if (!h) return false;
+    var box = h.querySelector('.b-popup-user');
+    if (!box) return false;
+    return (box.getAttribute('data-login') || '') === nickLogin(a);
+  }
+
+  /* А вот это — уже про «видно ли её человеку». */
+  function cardVisible() {
+    var h = cardBox();
+    if (!h || h.classList.contains('hidden')) return false;
+    if ((h.style.visibility || '') === 'hidden') return false;
+    var r = h.getBoundingClientRect();
+    return r.width > 40 && r.height > 20;
+  }
+
+  function hideUserCard() {
+    var h = cardBox();
+    if (h) h.style.visibility = 'hidden';
+    cardFor = null;
+  }
+
+  /* Ставим карточку под ник и вгоняем в экран.
+
+     Считаем не «куда поставить», а «на сколько сдвинуть». Держатель
+     позиционируется относительно своего предка, а какого именно —
+     знает только лепра, и на разных страницах он разный. Разница же
+     между тем, где карточка сейчас, и тем, где ей место, от системы
+     координат не зависит вовсе. Тот же приём работает в подгонке окна
+     голосовавших, и по той же причине. */
+  /* Голосовалка кармы в разметке лепры стоит ПЕРВОЙ и на десктопе
+     плавает вправо от имени. В одну колонку она из-за этого попадала
+     над именем: первое, что видел человек, открывший справку о ком-то,
+     — ряд кнопок голосования, а уже под ним, кто это. Переставляем её
+     вниз, к действиям.
+
+     Переставляем узел, а не рисуем свой. Обработчики у лепры стоят
+     инлайном в onclick и переезд переживают, а копия голосовалки
+     разошлась бы с оригиналом на первой же её правке. Тот же приём
+     работает в профиле — moveKarmaToName.
+
+     Метка на коробке обязательна: лепра пересобирает карточку на
+     каждый показ, а установка у нас идёт несколькими попытками, и без
+     метки узел ездил бы туда-сюда по пять раз за тап. */
+  function tidyUserCard(h) {
+    var box = h.querySelector('.b-popup-user');
+    if (!box || box.dataset.lmCard) return;
+    box.dataset.lmCard = '1';
+    var karma = box.querySelector('.b-user_votes_wrapper');
+    if (karma) box.insertBefore(karma, box.querySelector('.b-popup_bottom'));
+  }
+
+  function placeUserCard(a) {
+    var h = cardBox();
+    if (!h || !cardReady(a)) return false;
+    tidyUserCard(h);
+
+    /* Лепра прячет держатель классом hidden и инлайновой видимостью.
+       Наш собственный прятальщик снимаем здесь же: карточка про нужного
+       человека уже собрана, показывать её можно. */
+    h.classList.remove('hidden');
+    h.style.visibility = 'visible';
+
+    var vw = document.documentElement.clientWidth;
+    var vh = window.innerHeight || document.documentElement.clientHeight;
+    var ar = a.getBoundingClientRect();
+    var r = h.getBoundingClientRect();
+    if (!r.width) return false;
+
+    var x = Math.max(CARD_EDGE, Math.min(ar.left, vw - r.width - CARD_EDGE));
+    /* Под ником; не влезает вниз — над ником; не влезает и туда (окно
+       выше экрана) — прижимаем к верху, чтобы видно было хотя бы имя и
+       карму, а не середину справки. */
+    var y = ar.bottom + 4;
+    if (y + r.height > vh - CARD_EDGE) {
+      var up = ar.top - r.height - 4;
+      y = up >= CARD_EDGE ? up : CARD_EDGE;
+    }
+
+    var curL = parseFloat(h.style.left) || 0;
+    var curT = parseFloat(h.style.top) || 0;
+    h.style.left = Math.round(curL + (x - r.left)) + 'px';
+    h.style.top = Math.round(curT + (y - r.top)) + 'px';
+    return true;
+  }
+
+  function watchNickTap() {
+    if (nickTapBound || !CFG.userCard || !document.body) return;
+    nickTapBound = true;
+
+    document.addEventListener('click', function (e) {
+      /* Пока взведён щуп, ему и первое слово: две подделки наведения
+         подряд мешали бы друг другу, а щуп живёт три секунды. */
+      if (CARD.on) return;
+
+      var a = nickLink(e.target);
+
+      if (!a) {
+        /* Тап мимо ника и мимо карточки — закрываем. На десктопе это
+           делает уход мыши, которого на телефоне не бывает вовсе: без
+           своего закрытия карточка висела бы до перехода на другую
+           страницу. */
+        if (cardFor && e.target && e.target.closest &&
+            !e.target.closest('.b-popup_holder')) hideUserCard();
+        return;
+      }
+
+      /* Второй тап по тому же нику — пускаем в профиль обычным переходом. */
+      if (cardFor === a && cardReady(a) && cardVisible()) { cardFor = null; return; }
+
+      e.preventDefault();
+      cardFor = a;
+
+      /* Прячем прошлую карточку сразу: она про другого человека, а
+           собирается новая не мгновенно — запрос уходит в сеть. */
+      var h = cardBox();
+      if (h && !cardReady(a)) h.style.visibility = 'hidden';
+
+      fakeHover(a);
+
+      /* Несколько попыток вместо одной: сколько идёт запрос, мы не
+         знаем, а ставить окно надо после того, как лепра его собрала.
+         Каждая попытка сама проверяет, что карточка уже про нужного
+         человека, — лишняя ничего не портит. */
+      [60, 150, 300, 600, 1000, 1500].forEach(function (ms) {
+        setTimeout(function () {
+          if (cardFor === a) guard('placeUserCard', placeUserCard)(a);
+        }, ms);
+      });
+
+      setTimeout(function () {
+        if (cardFor === a && !(cardReady(a) && cardVisible())) {
+          cardFor = null;
+          location.href = a.href;
+        }
+      }, CARD_WAIT);
     }, true);
   }
 
@@ -25011,6 +25693,9 @@ ${darkRules()}
     var R = CFG.report || {};
     if (R.overflow) reportOverflow(L);
     if (R.network) reportNetwork(L);
+    /* Раздел молчит, пока щуп ни разу не взводили: в обычном отчёте ему
+       нечего сказать, а места он занял бы столько же. */
+    if (R.card) reportCard(L);
     if (R.floats) reportFloats(L);
     if (R.overlaps) reportOverlaps(L);
     if (R.media) reportMedia(L);
@@ -25460,6 +26145,10 @@ ${darkRules()}
     probe.textContent = 'ответ пыни';
     probe.onclick = pynProbe;
 
+    var card = document.createElement('button');
+    card.textContent = 'щуп карточки';
+    card.onclick = armCardProbe;
+
     var body = document.createElement('div');
     body.textContent = text;
 
@@ -25467,6 +26156,7 @@ ${darkRules()}
     p.appendChild(close);
     p.appendChild(pick);
     p.appendChild(probe);
+    p.appendChild(card);
     p.appendChild(body);
     document.body.appendChild(p);
   }
@@ -25824,6 +26514,7 @@ ${darkRules()}
     /* результаты поиска догружаются кнопкой «Ещё? Ещё!» */
     guard('shortenSearchStats', shortenSearchStats)();
     guard('watchUserCards', watchUserCards)();
+    guard('watchNickTap', watchNickTap)();
     guard('fixMyThings', fixMyThings)();
     guard('shortenSubNav', shortenSubNav)();
     guard('fitSelects', fitSelects)();
