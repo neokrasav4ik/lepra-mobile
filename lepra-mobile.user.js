@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Lepra Mobile
 // @namespace    lepra.mobile
-// @version      2.2.6
+// @version      2.3.3
 // @description  Мобильная адаптация leprosorium.ru для iOS Safari
 // @author       neokrasav4ik
 // @homepageURL  https://github.com/neokrasav4ik/lepra-mobile
@@ -131,7 +131,7 @@
     return;
   }
 
-  var VERSION = '2.2.6';
+  var VERSION = '2.3.3';
 
   /* ============================================================
      НАСТРОЙКИ
@@ -2050,9 +2050,9 @@
     CARD_JOURNAL.forEach(function (s) { L.push(s); });
   }
 
-  function reportCard(L) {
+  function reportCard(L, title) {
     if (!CARD.taps) return;
-    L.push('', '--- щуп карточки ---',
+    L.push('', '--- ' + (title || 'щуп карточки') + ' ---',
            'тапов: ' + CARD.taps + (CARD.who ? ' | ник: ' + CARD.who : ''),
            'подписки лепры — ' + CARD.events);
 
@@ -2095,6 +2095,52 @@
     });
 
     if (CARD.log.length) L.push('', 'сбои щупа: ' + CARD.log.join(' | '));
+  }
+
+  /* ОБЩИЙ ЩУП: что случилось после следующего тапа.
+
+     Щуп карточки умеет только ники: он подделывает наведение и отменяет
+     переход. Для всего остального нужен другой прибор — тот, что НЕ
+     мешает, а только смотрит: тапнул как обычно, лепра сделала своё
+     дело, а мы записали, какие узлы появились и какие запросы ушли.
+
+     Заведён по надобности: окошко «игнорировать пост / игнорировать
+     <ник> / отписаться от подлепры» лепра строит кодом, в разметке
+     страницы его нет, и назвать его класс можно было только гаданием.
+     Одно такое гадание уже стоило круга: правила, написанные по
+     догадке, не применились ни к чему. */
+  var tapProbeOn = false;
+  var tapProbeBound = false;
+
+  function armTapProbe() {
+    closePanel();
+    tapProbeOn = true;
+    CARD.net = []; CARD.nodes = []; CARD.log = []; CARD.gert = '';
+    CARD.who = ''; CARD.events = '(общий щуп: наведение не подделываем)';
+    CARD.taps = 0;
+    cardHint('Щуп по тапу взведён. Тапните что угодно — отчёт через три секунды.');
+
+    if (tapProbeBound) return;
+    tapProbeBound = true;
+    document.addEventListener('click', function (e) {
+      if (!tapProbeOn) return;
+      tapProbeOn = false;
+      CARD.on = true;            /* включает запись запросов */
+      CARD.taps++;
+      var t = e.target;
+      CARD.who = (t && t.nodeType === 1 ? describe(t) : '(не элемент)') +
+                 (t && t.closest && t.closest('a') ? ' в ссылке' : '');
+      cardWatch();
+      setTimeout(function () {
+        CARD.on = false;
+        try { if (CARD.mo) CARD.mo.disconnect(); } catch (e2) {}
+        var L = ['ЩУП ПО ТАПУ', 'Lepra Mobile v' + VERSION,
+                 'URL: ' + location.pathname,
+                 'тапнули: ' + CARD.who, ''];
+        reportCard(L, 'что появилось после тапа');
+        showPanel(L.join('\n'));
+      }, 3000);
+    }, true);
   }
 
   /* Взвод. Обработчик ставится один раз за жизнь страницы, а работает
@@ -11987,6 +12033,36 @@ html.lm-cards2:not(.lm-dark) .lm-navthing_extra
   box-shadow: 0 0 0 4px color-mix(in srgb, var(--lm-dim) 25%, transparent)
     !important; }
 
+/* Подпись значка. В строке подписи её нет — там значки стоят в ряд и
+   слов не поместилось бы; она появляется только в раскрытом столбике,
+   где место есть и где она нужнее всего.
+
+   Нужна она вот зачем: в столбике подряд идут пять одинаковых кружков
+   по 34 пикселя, и различить «из моих вещей» от «из избранного» можно
+   только по рисунку. Жалоба пришла ровно на это: человек убрал пост не
+   оттуда, откуда собирался, и решил, что кнопка не работает. */
+/* Подпись отгораживается от чужих правил, и это не перестраховка.
+
+   У лепры значки устроены как <a class="b-icon_button"><span>, где
+   спрайт висит на СПАНЕ, а не на ссылке:
+     a.b-icon_button span { width: 20px; height: 20px;
+       background-image: url("/static/i/sprite.png") }
+   Наша подпись — тоже span внутри этой ссылки, и правило досталось ей
+   целиком: коробка 20×20 и обломок спрайта под первыми буквами.
+
+   На устройстве это выглядело как серый мусор поверх слова «скрыть».
+   Стенд промолчал: он не грузит /static/i/sprite.png, картинки нет —
+   рисовать нечего. Целый класс поломок, которых стенд не увидит
+   никогда: чужой фон, подключённый по адресу, которого у нас нет. */
+.lm-lbl {
+  display: none !important;
+  width: auto !important; height: auto !important;
+  min-width: 0 !important; min-height: 0 !important;
+  margin: 0 !important; padding: 0 !important;
+  background: none !important;
+  vertical-align: baseline !important;
+  text-indent: 0 !important; }
+
 /* Столбик всплывает ВВЕРХ от точки, а не вниз: подпись стоит внизу
    поста, и раскрытый вниз столбик уехал бы под следующий.
    z-index выше ленты, но ниже наших слоёв: столбик перекрывает соседние
@@ -12038,6 +12114,126 @@ html #js-comments_holder .lm-more_box.lm-on .lm-icons > * {
   vertical-align: middle !important;
   background-position: center center !important;
   background-repeat: no-repeat !important; }
+
+/* ---- строки с подписями ----
+   Столбик становится списком: значок в своей коробке 34×34 слева,
+   слово справа, и вся строка целиком — цель для пальца. Было пять
+   кружков по 34 пикселя, стало пять строк по 168: промахнуться втрое
+   труднее, а угадывать по рисунку не нужно вовсе. */
+html .lm-more_box.lm-on .lm-icons .lm-lbl {
+  display: block !important;
+  /* Начертание задаём явно: крестик у лепры — жирная ссылка, и подпись
+     наследовала от него полужирный, стоя в ряду обычных. */
+  font-weight: normal !important;
+  font-size: 13px !important; line-height: 1 !important;
+  color: var(--lm-mid) !important;
+  white-space: nowrap !important; }
+html .lm-more_box.lm-on .lm-icons > *,
+html .dd .lm-more_box.lm-on .lm-icons > *,
+html #js-comments_holder .lm-more_box.lm-on .lm-icons > * {
+  width: auto !important; min-width: 168px !important;
+  justify-content: flex-start !important;
+  padding: 0 10px 0 0 !important;
+  border-radius: 5px !important;
+  color: var(--lm-mid) !important; }
+/* Значок остаётся в коробке 34×34: картинки тут разной природы — svg,
+   текстовый глиф, фоновый спрайт, — и по базовой линии они не совпадут
+   никогда, а по центру одинаковой коробки совпадают всегда. */
+html .lm-more_box.lm-on .lm-icons > * > svg,
+html .lm-more_box.lm-on .lm-icons > * > .b-svg-icon {
+  flex: 0 0 34px !important; margin: 0 6px 0 0 !important; }
+/* Спрайт лепры под нашим значком. Пока строка была 34 пикселя, он лежал
+   ровно под ним и его не было видно; в строке шириной 168 правило
+   background-position: center center уводит его на середину — то есть
+   прямо на подпись, обломками поверх букв. Так и вышло на устройстве.
+
+   Гасим фон там, где мы уже нарисовали свой значок, и только там: у
+   значка поста фоновая картинка — это его собственная картинка, и
+   гасить её нельзя. Признак «мы нарисовали» у нас есть — .lm-ico_host.
+   Всем остальным просто возвращаем фон в коробку значка. */
+html .lm-more_box.lm-on .lm-icons .lm-ico_host {
+  background-image: none !important; }
+html .lm-more_box.lm-on .lm-icons > * {
+  background-position: 17px center !important; }
+/* Чужая подпись у галочки «прочитано» — она встала бы второй строкой
+   рядом с нашей. */
+html .lm-more_box.lm-on .lm-icons .b-mark_as_read_control::after {
+  content: none !important; }
+/* Столбик с подписями шире прежнего, поэтому прижимаем его к правому
+   краю, а не центрируем по точке: центрированный уезжал бы за кромку
+   на постах, где точка стоит у самого края экрана. */
+html .lm-more_box.lm-on .lm-icons {
+  left: auto !important; right: -6px !important;
+  transform: none !important;
+  background: var(--lm-page) !important;
+  border: 1px solid var(--lm-line) !important;
+  border-radius: ${FRAME_R}px !important;
+  box-shadow: var(--lm-shadow) !important; }
+html .lm-more_box.lm-on .lm-icons > *:active {
+  background: var(--lm-press) !important; }
+
+/* ---- окошко по крестику ----
+   «игнорировать пост», «игнорировать <ник>», «отписаться от подлепры»,
+   «игнорировать подлепру». Лепра строит его кодом, в разметке страницы
+   его нет — имена узлов сняты щупом по тапу:
+
+     div.b-futu_controls              коробка, absolute, z-index 2
+       a.b-futu_controls_close        крестик, absolute слева
+       ul                             ПАНЕЛЬ: на ней фон и рамка
+         li.b-futu_controls_item
+           a.b-futu_controls_item_link
+             span..._link_text        строка, кегль 10, поля 5px
+
+   Прежде я написал правила по СХОДСТВУ вида — заливка 244, рамка 230,
+   серо-голубые ссылки — и попал в другой компонент: они не применились
+   ни к чему. Те правила отсюда убраны; догадка, не подтверждённая
+   именем, в этом файле не живёт.
+
+   Что чиним. Кегль 10 и строки в 15 пикселей — это мышь, а не палец:
+   поднимаем до 13 и 40. Слой 2 — ниже нашего столбика значков (28), из
+   которого окошко и вызывают: поднимаем выше. Ширину ограничиваем
+   экраном: «игнорировать idiod.leprosorium.ru» уходило за правый край.
+   Полосы у лепры двухцветные (белая сверху, серая снизу) — на нашей
+   подложке это грязь, оставляем одну черту между строками. */
+html .b-futu_controls {
+  z-index: 60 !important;
+  max-width: calc(100vw - 12px) !important;
+  box-sizing: border-box !important;
+  /* Тень панели не обрезать: у коробки overflow: hidden. */
+  overflow: visible !important; }
+html .b-futu_controls ul {
+  background: var(--lm-page) !important;
+  border: 1px solid var(--lm-line) !important;
+  border-radius: ${FRAME_R}px !important;
+  box-shadow: var(--lm-shadow) !important;
+  /* Слева место под крестик — он стоит абсолютно поверх списка. */
+  padding: 4px 4px 4px 30px !important;
+  font-size: 13px !important;
+  overflow: hidden !important; }
+html .b-futu_controls .b-futu_controls_item_link {
+  padding: 0 6px 0 0 !important; }
+html .b-futu_controls .b-futu_controls_item_link_text {
+  display: block !important;
+  border: 0 !important;
+  min-height: 40px !important; line-height: 40px !important;
+  padding: 0 6px !important;
+  border-radius: 5px !important;
+  color: var(--lm-mid) !important;
+  white-space: nowrap !important;
+  overflow: hidden !important; text-overflow: ellipsis !important; }
+html .b-futu_controls_item + .b-futu_controls_item .b-futu_controls_item_link_text {
+  border-top: 1px solid var(--lm-line) !important;
+  border-radius: 0 !important; }
+html .b-futu_controls .b-futu_controls_item_link:active .b-futu_controls_item_link_text {
+  background: var(--lm-press) !important; }
+html .b-futu_controls a,
+html .b-futu_controls_close { color: var(--lm-mid) !important; }
+/* Крестик — цель для пальца, а не значок в 20 пикселей. */
+html .b-futu_controls_close.b-post_controls_close_active {
+  width: 26px !important; height: 26px !important;
+  line-height: 26px !important; font-size: 15px !important;
+  top: 8px !important; left: 5px !important;
+  font-weight: normal !important; }
 
 /* Неактивные значки. Лепра держит в подписи обе половины каждой пары —
    «в мои вещи» и «из моих вещей», «в избранное» и «из избранного», — и
@@ -15231,6 +15427,10 @@ ${darkRules()}
     a.setAttribute('href', base + '?unread=on');
     a.title = 'только новые комментарии';
     a.innerHTML = UNREAD_SVG;
+    var lbl = document.createElement('span');
+    lbl.className = 'lm-lbl';
+    lbl.textContent = 'только новые';
+    a.appendChild(lbl);
     return a;
   }
 
@@ -15376,17 +15576,25 @@ ${darkRules()}
      Порядок важен: .b-icon_button_close должен опознаться РАНЬШЕ
      .b-controls_button, потому что крестик носит оба класса сразу, а
      .b-controls_button — это ещё и обёртка под спрайт. */
+  /* Третье поле — ПОДПИСЬ для раскрытого столбика. Она стоит здесь, а
+     не отдельным списком, нарочно: картинка и слово описывают одно и то
+     же действие, и разъехаться им негде, пока они в одной строке.
+
+     Своими словами, а не текстом лепры: у неё «пометить как
+     прочитанное» и «только новые комментарии» — на строку в 34 пикселя
+     это перебор, а смысл держится и в одном слове. Где своего слова
+     нет, берётся текст узла, как раньше брался в title. */
   var ICON_MAP = [
-    ['.b-post_my_post_controls_button_in_interest',    'interest_in'],
-    ['.b-post_my_post_controls_button_out_interest',   'interest_out'],
-    ['.b-post_my_post_controls_button_in_favourites',  'fav_in'],
-    ['.b-post_my_post_controls_button_out_favourites', 'fav_out'],
-    ['.b-icon_button_close',    'close'],
-    ['.b-mark_as_read_control', 'read'],
-    ['.b-button_share',         'share'],
-    ['.c_parent',               'parent'],
-    ['.post_icon',              'post'],
-    ['.c_icon',                 'post']
+    ['.b-post_my_post_controls_button_in_interest',    'interest_in',  'в мои вещи'],
+    ['.b-post_my_post_controls_button_out_interest',   'interest_out', 'из моих вещей'],
+    ['.b-post_my_post_controls_button_in_favourites',  'fav_in',       'в избранное'],
+    ['.b-post_my_post_controls_button_out_favourites', 'fav_out',      'из избранного'],
+    ['.b-icon_button_close',    'close',  'скрыть'],
+    ['.b-mark_as_read_control', 'read',   'прочитано'],
+    ['.b-button_share',         'share',  'поделиться'],
+    ['.c_parent',               'parent', 'к родителю'],
+    ['.post_icon',              'post',   'ссылка на пост'],
+    ['.c_icon',                 'post',   'ссылка на камент']
   ];
 
   /* Перерисовка. Меняем СОДЕРЖИМОЕ узла, а не сам узел: на узле висят
@@ -15418,6 +15626,18 @@ ${darkRules()}
         if (text && !el.title) el.title = text;
         el.classList.add('lm-ico_host');
         el.innerHTML = iconSvg(name);
+        /* Подпись — НАСТОЯЩИЙ узел, а не псевдоэлемент, и это не вкус.
+           У лепры на галочке «прочитано» уже висит своё правило
+           .b-mark_as_read_control::after { content: attr(data-caption) },
+           и наш ::after там просто не появился бы. Псевдоэлементов у
+           узла два, а желающих на них больше. */
+        var label = ICON_MAP[i][2] || text;
+        if (label) {
+          var lbl = document.createElement('span');
+          lbl.className = 'lm-lbl';
+          lbl.textContent = label;
+          el.appendChild(lbl);
+        }
       }
     }
   }
@@ -26636,6 +26856,10 @@ ${darkRules()}
     card.textContent = 'щуп карточки';
     card.onclick = armCardProbe;
 
+    var tap = document.createElement('button');
+    tap.textContent = 'щуп по тапу';
+    tap.onclick = armTapProbe;
+
     var body = document.createElement('div');
     body.textContent = text;
 
@@ -26644,6 +26868,7 @@ ${darkRules()}
     p.appendChild(pick);
     p.appendChild(probe);
     p.appendChild(card);
+    p.appendChild(tap);
     p.appendChild(body);
     document.body.appendChild(p);
   }
