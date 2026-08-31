@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Lepra Mobile
 // @namespace    lepra.mobile
-// @version      2.1.4
+// @version      2.2.6
 // @description  Мобильная адаптация leprosorium.ru для iOS Safari
 // @author       neokrasav4ik
 // @homepageURL  https://github.com/neokrasav4ik/lepra-mobile
@@ -131,7 +131,7 @@
     return;
   }
 
-  var VERSION = '2.1.4';
+  var VERSION = '2.2.6';
 
   /* ============================================================
      НАСТРОЙКИ
@@ -1835,7 +1835,57 @@
      существует. Ничего не меняет и никуда не ходит. */
 
   var CARD = { on: false, taps: 0, who: '', events: '', net: [], nodes: [],
-               mo: null, log: [] };
+               mo: null, log: [], gert: '' };
+
+  /* Поиск ключа по всему ответу, а не по известному пути. Путь мы знаем
+     (base_domain.attributes.gertrudas), но он лепринский и завтра может
+     стать другим, а имя ключа переживёт переезд с большей вероятностью,
+     чем три звена пути. */
+  function findKey(o, name, depth) {
+    if (!o || typeof o !== 'object' || (depth || 0) > 5) return null;
+    if (Object.prototype.hasOwnProperty.call(o, name)) return o[name];
+    var keys = Object.keys(o);
+    for (var i = 0; i < keys.length; i++) {
+      var hit = findKey(o[keys[i]], name, (depth || 0) + 1);
+      if (hit != null) return hit;
+    }
+    return null;
+  }
+
+  /* Список гертруд подлепры приезжает в том же ответе, что и карточка.
+     В описи полей он глушится как шум — строка на несколько килобайт, —
+     но сам по себе список интересен: это все картинки шапки, которые
+     подлепра показывает по очереди, и посчитать их иначе нечем.
+
+     Адреса печатаем целиком и все: список нужен, чтобы по нему можно
+     было скачать, а обрезанный для этого бесполезен. Потолок стоит
+     только на случай, если у какой-то подлепры их окажутся сотни. */
+  function gertrudaLine(data) {
+    var raw = findKey(data, 'gertrudas');
+    if (typeof raw !== 'string' || !raw) return '';
+    var list = raw.split(',').map(function (s) { return s.trim(); })
+                  .filter(function (s) { return s; });
+    var hosts = {};
+    var ext = {};
+    list.forEach(function (u) {
+      var m = /^https?:\/\/([^\/]+)/.exec(u);
+      if (m) hosts[m[1]] = (hosts[m[1]] || 0) + 1;
+      var e = /\.([a-z0-9]{3,4})(?:$|\?)/i.exec(u);
+      if (e) ext[e[1].toLowerCase()] = (ext[e[1].toLowerCase()] || 0) + 1;
+    });
+    var say = function (o) {
+      return Object.keys(o).map(function (k) { return k + ' × ' + o[k]; }).join(', ');
+    };
+    var out = ['гертруд в списке: ' + list.length +
+                 ' (строка ' + raw.length + ' знаков)',
+               'хозяин: ' + (say(hosts) || '—'),
+               'вид файлов: ' + (say(ext) || '—'),
+               'подлепра: ' + location.hostname,
+               ''];
+    list.slice(0, 250).forEach(function (u) { out.push(u); });
+    if (list.length > 250) out.push('… и ещё ' + (list.length - 250));
+    return out.join('\n');
+  }
 
   /* Поля, которые в ответе занимают место, а сказать могут только одно —
      на какой подлепре мы стоим. base_domain с полным списком адресов
@@ -1892,6 +1942,7 @@
       if (data && typeof data === 'object') {
         var out = [];
         cardJson(data, out, '     ', 0);
+        if (!CARD.gert) CARD.gert = gertrudaLine(data);
         CARD.net.push(head + ' (JSON, поля:)\n' + out.join('\n'));
       } else {
         CARD.net.push(head + (body ? '\n     ' + body.slice(0, 1200) : ''));
@@ -1984,6 +2035,21 @@
     });
   }
 
+  /* Отдельный раздел: все тапы по никам за сессию. Стоит рядом со
+     щупом, но живёт своей жизнью — щуп нужен для разведки, а это для
+     жалоб вида «иногда криво». */
+  function reportCardTaps(L) {
+    L.push('', '--- карточка гражданина: все тапы ---');
+    if (!CARD_JOURNAL.length) {
+      L.push('(ни одного тапа по нику за эту сессию)');
+      return;
+    }
+    L.push('последняя установка: ' + (cardLog || '—'));
+    L.push(cssProbe());
+    L.push('');
+    CARD_JOURNAL.forEach(function (s) { L.push(s); });
+  }
+
   function reportCard(L) {
     if (!CARD.taps) return;
     L.push('', '--- щуп карточки ---',
@@ -1996,6 +2062,8 @@
              ' нужное уже лежит на странице; либо наведение не поймано —',
              ' тогда смотри строку подписок выше)');
     CARD.net.forEach(function (s) { L.push(s); });
+
+    if (CARD.gert) L.push('', '--- гертруды подлепры ---', CARD.gert);
 
     L.push('', 'появилось в документе:');
     if (!CARD.nodes.length) L.push('(ничего)');
@@ -2037,7 +2105,7 @@
   function armCardProbe() {
     closePanel();
     CARD.on = true; CARD.taps = 0; CARD.who = ''; CARD.events = '(не смотрели)';
-    CARD.net = []; CARD.nodes = []; CARD.log = [];
+    CARD.net = []; CARD.nodes = []; CARD.log = []; CARD.gert = '';
     cardHint('Щуп взведён. Тапните ник — отчёт откроется сам через три секунды.');
 
     if (cardBound) return;
@@ -6969,9 +7037,37 @@ html:not(.lm-profart) body.l-profile .l-content_wrapper {
    целиком, а аватар нарисован инлайновым background-image и попадает
    под общее правило обратного переворота вместе с картинками. */
 .b-popup_holder {
-  min-width: 0 !important; width: auto !important;
+  /* Ширина ОПРЕДЕЛЁННАЯ, а не по содержимому, и это не вкусовщина.
+
+     У лепры держатель тянется по содержимому (width:auto, то есть
+     shrink-to-fit), а внутри него коробка со справкой стоит рядом с
+     плавающим аватаром и образует свой контекст форматирования. В такой
+     паре каждый пересчёт раскладки отнимает у коробки ещё немного места
+     под обтекание — и ширина ползёт вниз при каждом замере.
+
+     Журнал с устройства показал это в чистом виде: минус 14 пикселей на
+     каждом заходе установки, ровно и без остановки — 291, 277, 263, 249.
+     Мы же сами эти пересчёты и вызываем: каждая установка меряет
+     карточку.
+
+     Определённая ширина обрывает круг: считать по содержимому больше
+     нечего, и замер ничего не меняет. Заодно карточка перестаёт быть
+     разной у разных людей — на телефоне это скорее к лучшему: окно
+     справки одного размера читается спокойнее прыгающего.
+
+     340 — чуть уже десктопных 310..400, чтобы на 360-пиксельном экране
+     оставались поля; на узком экране потолок ужимает её сам. */
+  min-width: 0 !important; width: 340px !important;
   max-width: calc(100vw - 12px) !important;
   box-sizing: border-box !important;
+  /* Систему координат закрепляем сами. У лепры держатель absolute, но
+     полагаться на это нельзя: у нас полсотни правил, разбирающих
+     десктопную раскладку, ставят position:static и inset:auto по
+     широким спискам, и достаточно одному из них однажды дотянуться
+     сюда, чтобы left и top перестали значить что бы то ни было. Тогда
+     карточка встаёт туда, куда её положит поток, — и это ровно то, что
+     выглядит как «карточка в подвале страницы». */
+  position: absolute !important;
   z-index: 60 !important;
   padding: 10px !important;
   /* Тон СТРАНИЦЫ, а не карточки, и это не описка. Карточка гражданина
@@ -6999,6 +7095,17 @@ html:not(.lm-profart) body.l-profile .l-content_wrapper {
    прибит к одной переменной. Вес селектора выше базового правила —
    спор решается по специфичности, а не по порядку строк. */
 html.lm-cards2 .b-popup_holder { background: var(--lm-card) !important; }
+/* Ожидание установки. Между тем мгновением, когда лепра собрала и
+   показала карточку, и тем, когда мы переставили её под ник, проходит
+   кадр-другой — и в этот зазор человек видит карточку на чужом месте, а
+   потом её переезд. Это и есть «рисуется дёргано».
+
+   Гасим ПРОЗРАЧНОСТЬЮ, а не видимостью, и не по прихоти: видимость
+   лепра ставит себе сама (style.visibility = 'visible'), и такая запись
+   затирает нашу вместе с пометкой важности. Прозрачности она не
+   касается. Раскладку прозрачность не отменяет — мерить узел можно как
+   обычно. */
+.b-popup_holder.lm-card_wait { opacity: 0 !important; pointer-events: none !important; }
 .b-popup_holder .b-popup_picture,
 .b-popup_holder .b-popup_picture.b-popup-user_avatar {
   width: 44px !important; height: 44px !important;
@@ -12311,6 +12418,13 @@ ${darkRules()}
   injectCss();
   document.addEventListener('DOMContentLoaded', injectCss);
 
+  /* Таблицу возвращает и каждый проход — см. вызов в pass(). Стоит это
+     одного поиска по id, а спасает от целого класса бед: если страница
+     когда-нибудь заменит голову или снесёт наш узел (так делают
+     перерисовки на месте), без этого скрипт остался бы работать при
+     полностью мёртвом оформлении, и выглядело бы это как «часть правил
+     почему-то не применяется». */
+
   /* ============================================================
      3. ПОЧИНКА ПЕРЕПОЛНЕНИЯ
      Отлавливает то, что не попало в правила по имени: чужие стили
@@ -12445,7 +12559,31 @@ ${darkRules()}
   var NOTE_HINT = 'Место для заметок';
   var NOTE_HINT_RE = /^Место для заметок\.\s*Заметки могут быть видны/i;
 
-  function noteEl() { return document.querySelector('#js-usernote, .b-user_note'); }
+  /* Заметка ПРОФИЛЯ, и только она.
+
+     Ровно тот же id лепра ставит заметке внутри карточки гражданина —
+     той, что всплывает по тапу на ник. На странице поста профиля нет
+     вовсе, и querySelector находил единственный #js-usernote: в
+     карточке. Дальше починщик шёл вверх по её предкам и навязывал им
+     инлайном position:static, max-width:none, display:block и float:none
+     — то есть разбирал карточку на части ровно так же, как разбирает
+     десктопную колонку профиля.
+
+     Стоило это трёх жалоб подряд, и все три объясняются одной этой
+     строкой: карточка «уезжала в подвал» (position:static — координаты
+     перестают значить что-либо), «рисовалась без наших стилей»
+     (max-width:none и прочее инлайном, а инлайн с пометкой не
+     перебивается таблицей) и «прыгала при построении» (проход правил
+     геометрию уже после того, как мы её поставили).
+
+     Поэтому: всё, что лежит внутри всплывающей карточки, для этого
+     починщика не существует. */
+  function noteEl() {
+    var all = document.querySelectorAll('#js-usernote, .b-user_note');
+    for (var i = 0; i < all.length; i++)
+      if (!all[i].closest('.b-popup_holder, .b-popup')) return all[i];
+    return null;
+  }
 
   function noteText(el) {
     return (el.textContent || '').replace(/\u00a0/g, ' ').replace(/\s+/g, ' ').trim();
@@ -12516,6 +12654,13 @@ ${darkRules()}
       if (el === document.body ||
           el.classList.contains('l-i-wrapper') ||
           el.classList.contains('b-user_block')) break;
+      /* Второй заслон на том же месте. Первый (в noteEl) не пускает
+         сюда заметку из карточки вовсе; этот останавливает подъём, если
+         карточка однажды окажется предком профильной заметки — скажем,
+         на странице профиля, где заметка есть и там и там. Два дешёвых
+         сравнения против целого класса бед. */
+      if (el.classList.contains('b-popup_holder') ||
+          el.classList.contains('b-popup')) break;
       /* h2 оставляем флексом: в нём имя и голосовалка стоят рядом,
          а display:block свёл бы их в две строки */
       if (el.tagName !== 'H2')
@@ -13090,6 +13235,7 @@ ${darkRules()}
   var CARD_WAIT = 2000;
 
   var cardFor = null;       /* ссылка, ради которой карточка сейчас открыта */
+  var cardAt = null;        /* куда и какого размера её поставили в прошлый раз */
   var nickTapBound = false;
 
   function nickLink(t) {
@@ -13107,7 +13253,168 @@ ${darkRules()}
     try { return m ? decodeURIComponent(m[1]) : ''; } catch (e) { return m ? m[1] : ''; }
   }
 
-  function cardBox() { return document.querySelector('.b-popup_holder'); }
+  /* Держателей на странице может оказаться НЕ ОДИН, и это выяснилось
+     жалобой: после перехода в пост по фильтру «только новые» карточка
+     стала появляться в подвале страницы, причём по любому нику.
+
+     querySelector отдаёт первый по разметке. Если лепра наполняет не
+     его, а другой — где-нибудь в конце документа, — то мы ставим по
+     месту один держатель, а человек видит другой, и видит его там, где
+     тот стоит сам: внизу страницы.
+
+     Отсюда правило: держатель выбирается ПО СОДЕРЖИМОМУ, а не по
+     порядку. Сначала тот, в котором лежит справка про нужного
+     человека; если такого нет — любой наполненный; пустой — только
+     последним доводом, потому что прятать и показывать всё равно надо
+     что-то. */
+  function cardBox(a) {
+    var all = document.querySelectorAll('.b-popup_holder');
+    if (!all.length) return null;
+    var i;
+    if (a) {
+      var login = nickLogin(a);
+      for (i = 0; i < all.length; i++) {
+        var box = all[i].querySelector('.b-popup-user');
+        if (box && (box.getAttribute('data-login') || '') === login) return all[i];
+      }
+    }
+    for (i = 0; i < all.length; i++)
+      if (all[i].querySelector('.b-popup-user')) return all[i];
+    return all[0];
+  }
+
+  /* Свойства, которые карточке навязываются на месте.
+
+     Зачем это вообще. Отчёт с устройства показал невозможное: пробному
+     узлу с классом .b-popup_holder достаётся наш потолок 381px, а
+     настоящему держателю в том же документе — none. Один документ, один
+     класс, разный ответ. Так бывает, когда у настоящего узла стоит
+     инлайновый стиль (а инлайн с пометкой важности не перебивается
+     ничем из таблицы) или когда до него дотягивается правило, которого
+     нет у пустышки. Спорить с этим из таблицы нельзя в принципе.
+
+     Значения при этом НЕ переезжают в код: они по-прежнему живут в
+     правиле .b-popup_holder, а сюда попадают снятыми с пробного узла.
+     Правишь вид — правишь одно место, как и раньше; здесь только
+     список имён и принуждение.
+
+     Список короткий нарочно: сюда входит лишь то, без чего карточка
+     перестаёт быть карточкой — размер, подложка, рамка, поля и тон.
+     Мелочи внутри (заголовок, счётчики, голосовалка) остаются за
+     Про `width` тут была отдельная история. Пока ширина задавалась
+     содержимым, брать её с пустышки было нельзя: у пустой коробки
+     выходит 22 пикселя из полей и рамки, и я едва не сплющил карточку в
+     столбик — поймал стенд. Теперь в правиле стоит определённая ширина,
+     одна на всех, и пустышке достаётся ровно то же число, что настоящей
+     карточке. Значит навязывать её не только можно, но и нужно: иначе
+     чужое инлайновое width:auto вернёт нам храповик. */
+  var CARD_FORCE = [
+    'width', 'max-width', 'min-width', 'box-sizing', 'padding',
+    'background-color', 'border-top-width', 'border-top-style', 'border-top-color',
+    'border-right-width', 'border-right-style', 'border-right-color',
+    'border-bottom-width', 'border-bottom-style', 'border-bottom-color',
+    'border-left-width', 'border-left-style', 'border-left-color',
+    'border-radius', 'box-shadow', 'font-size', 'line-height', 'color',
+    'overflow', 'z-index'
+  ];
+
+  /* Пустышка, одетая нашим же правилом. Она и есть образец: что
+     досталось ей — то и навязываем держателю. */
+  function cardModel() {
+    var probe = document.createElement('div');
+    probe.className = 'b-popup_holder';
+    probe.setAttribute('style',
+      'position:absolute !important; left:-9999px !important; top:-9999px !important;' +
+      ' visibility:hidden !important');
+    document.body.appendChild(probe);
+    var cs = getComputedStyle(probe), out = {};
+    CARD_FORCE.forEach(function (n) { out[n] = cs.getPropertyValue(n); });
+    probe.parentNode.removeChild(probe);
+    return out;
+  }
+
+  function forceCardSkin(h) {
+    var model;
+    try { model = cardModel(); } catch (e) { return 0; }
+    var n = 0;
+    CARD_FORCE.forEach(function (name) {
+      var want = model[name];
+      if (!want) return;
+      if (getComputedStyle(h).getPropertyValue(name) === want) return;
+      h.style.setProperty(name, want, 'important');
+      n++;
+    });
+    return n;
+  }
+
+  /* Жива ли наша таблица и доходит ли она до карточки.
+
+     Заведено по жалобе: карточка нарисовалась без наших правил, а в
+     отчёте стояло «при потолке none» — то есть правило до неё не
+     дошло. По одному этому числу нельзя отличить «таблицу снесли» от
+     «правило перебили для этого узла». Проба отвечает: подкладываем
+     пустой узел с тем же классом и смотрим, что достаётся ему.
+     Узел живёт доли миллисекунды и стоит один пересчёт стилей. */
+  function cssProbe() {
+    var st = document.getElementById('lepra-mobile-css');
+    var size = st ? Math.round((st.textContent || '').length / 1024) + 'КБ' : '—';
+    var mw = '?';
+    try {
+      var probe = document.createElement('div');
+      probe.className = 'b-popup_holder';
+      probe.setAttribute('style',
+        'left:-9999px !important; top:-9999px !important; visibility:hidden !important');
+      document.body.appendChild(probe);
+      mw = getComputedStyle(probe).maxWidth;
+      probe.parentNode.removeChild(probe);
+    } catch (e) { mw = 'проба не вышла: ' + e.message; }
+    return 'наша таблица: ' + (st ? 'есть ' + size : 'НЕТ') +
+           ' | пробному узлу достаётся max-width: ' + mw;
+  }
+
+  /* Что вышло на последней установке — одной строкой в отчёт. Строка
+     заведена не для красоты: этот разбор уже стоил круга догадок, и
+     если карточка снова уедет, следующий отчёт ответит числами, а не
+     предположениями. */
+  var cardLog = '';
+
+  /* ЖУРНАЛ КАРТОЧКИ.
+
+     Строка «что вышло в последний раз» отвечала не на те вопросы. Жалобы
+     звучат как «первый раз прыгает», «один раз уехало», «каждый раз всё
+     уже» — то есть речь о ПОСЛЕДОВАТЕЛЬНОСТИ заходов, а последний из них
+     как раз всегда хороший: тем он и последний.
+
+     Поэтому пишем каждый заход установки, включая те, что ушли ни с чем.
+     По столбику ширин сразу видно, сужается карточка от захода к заходу
+     или нет, и на каком именно она это делает. */
+  var CARD_JOURNAL = [];
+  var cardTapN = 0;
+  var cardT0 = 0;
+
+  /* Повторы схлопываем. Заходов на тап семь, и когда всё хорошо, пять
+     из них говорят одно и то же — журнал ради этих пяти строк
+     перестаёт читаться, а нужен он как раз для чтения. Считаем их
+     числом, а строку оставляем одну. */
+  function cardNote(s) {
+    if (CARD_JOURNAL.length > 140) return;
+    var last = CARD_JOURNAL[CARD_JOURNAL.length - 1];
+    if (last) {
+      var bare = function (x) { return String(x).replace(/^\s*\+\d+мс /, '')
+                                                .replace(/ ×\d+$/, ''); };
+      if (bare(last) === bare(s)) {
+        var n = /×(\d+)$/.exec(last);
+        CARD_JOURNAL[CARD_JOURNAL.length - 1] =
+          (n ? last.replace(/×\d+$/, '×' + (+n[1] + 1)) : last + ' ×2');
+        return;
+      }
+    }
+    CARD_JOURNAL.push(s);
+  }
+
+  /* Время от тапа, а не от загрузки страницы: сравнивать надо заходы
+     внутри одного тапа. */
+  function cardMs() { return cardT0 ? (Date.now() - cardT0) : 0; }
 
   /* Собрана ли карточка ИМЕННО ПРО ЭТОГО человека. Проверка по
      data-login, а не по одному факту видимости, и это не придирка:
@@ -13122,7 +13429,7 @@ ${darkRules()}
      покажем. Стенд на этом и поймал. Готовность — про содержимое,
      видимость — отдельный вопрос. */
   function cardReady(a) {
-    var h = cardBox();
+    var h = cardBox(a);
     if (!h) return false;
     var box = h.querySelector('.b-popup-user');
     if (!box) return false;
@@ -13130,18 +13437,28 @@ ${darkRules()}
   }
 
   /* А вот это — уже про «видно ли её человеку». */
-  function cardVisible() {
-    var h = cardBox();
+  function cardVisible(a) {
+    var h = cardBox(a);
     if (!h || h.classList.contains('hidden')) return false;
+    /* Ожидающая установки карточка человеку не видна, сколько бы ни
+       говорила разметка. Без этой проверки второй тап по нику, сделанный
+       в те доли секунды, пока карточка гаснет, уводил бы в профиль —
+       хотя человек ещё ничего не увидел. */
+    if (h.classList.contains('lm-card_wait')) return false;
     if ((h.style.visibility || '') === 'hidden') return false;
     var r = h.getBoundingClientRect();
     return r.width > 40 && r.height > 20;
   }
 
+  /* Прячем ВСЕ держатели, а не выбранный. Если их два, спрятанным
+     должен оказаться тот, который видно, а какой из них видно — как раз
+     и было предметом ошибки. */
   function hideUserCard() {
-    var h = cardBox();
-    if (h) h.style.visibility = 'hidden';
+    sliceOf(document.querySelectorAll('.b-popup_holder')).forEach(function (h) {
+      h.style.setProperty('visibility', 'hidden', 'important');
+    });
     cardFor = null;
+    cardAt = null;
   }
 
   /* Ставим карточку под ник и вгоняем в экран.
@@ -13175,21 +13492,63 @@ ${darkRules()}
   }
 
   function placeUserCard(a) {
-    var h = cardBox();
-    if (!h || !cardReady(a)) return false;
-    tidyUserCard(h);
+    var h = cardBox(a);
+    if (!h) { cardNote('  +' + cardMs() + 'мс держателя нет'); return false; }
+    if (!cardReady(a)) {
+      cardNote('  +' + cardMs() + 'мс не готова (в держателе ' +
+        (h.querySelector('.b-popup-user')
+           ? 'справка про ' + (h.querySelector('.b-popup-user').getAttribute('data-login') || '?')
+           : 'пусто') + ')');
+      return false;
+    }
+    /* Таблица — прямо здесь, а не «когда-нибудь на следующем проходе».
+       Между потерей оформления и ближайшим проходом помещается целый
+       тап, и именно в этот зазор человек увидел бы карточку голой.
+       Стоит один поиск по id. */
+    injectCss();
 
-    /* Лепра прячет держатель классом hidden и инлайновой видимостью.
-       Наш собственный прятальщик снимаем здесь же: карточка про нужного
-       человека уже собрана, показывать её можно. */
+    /* Одежду навязываем ОДИН раз на сборку, а не на каждую попытку.
+       Установок у нас несколько подряд (запрос идёт неизвестно сколько),
+       и снимать образец с пробного узла по пять раз — это пять лишних
+       пересчётов стиля на ровном месте. Метку ставит tidyUserCard; до
+       неё карточка считается свежей. */
+    var box = h.querySelector('.b-popup-user');
+    var fresh = !(box && box.dataset.lmCard);
+    tidyUserCard(h);
+    var forced = fresh ? forceCardSkin(h) : 0;
+
+    /* Класс hidden снимаем сразу: без него у держателя display:none, а
+       у такого узла нет геометрии, и мерить нечего.
+
+       А вот ВИДИМОСТЬ включаем только в самом конце, поставив карточку
+       на место. Раньше она включалась здесь, до замеров, и человек
+       успевал увидеть карточку там, куда её положила лепра, — а потом
+       её переезд. Это и есть «рисуется дёргано, перерисовывается и
+       подгоняется». Узел с visibility:hidden раскладку проходит как
+       обычно, поэтому мерить его можно, а видно его при этом не будет. */
     h.classList.remove('hidden');
-    h.style.visibility = 'visible';
+
+    /* Систему координат закрепляем ДО замера, и порядок тут решает всё.
+
+       Раньше эта строка стояла после замера, и получалось вот что: мерим
+       держатель, пока он стоит в потоке; потом делаем его absolute — от
+       чего он переезжает; потом применяем сдвиг, посчитанный по старому
+       замеру. В отчёте с устройства это видно числом: «промах 38291 → 0».
+       Тридцать восемь тысяч пикселей мимо на первой попытке КАЖДЫЙ раз,
+       и вытягивала дело только поправка. А там, где поправка почему-либо
+       не срабатывала, карточка так и оставалась в подвале.
+
+       Инлайн с пометкой, а не правило: спор двух !important с одинаковым
+       весом селектора решается порядком строк, а порядок ломает первая
+       же перестановка разделов. Инлайновое !important не перебивает
+       ничто. */
+    h.style.setProperty('position', 'absolute', 'important');
 
     var vw = document.documentElement.clientWidth;
     var vh = window.innerHeight || document.documentElement.clientHeight;
     var ar = a.getBoundingClientRect();
     var r = h.getBoundingClientRect();
-    if (!r.width) return false;
+    if (!r.width) { cardNote('  +' + cardMs() + 'мс ширина ноль'); return false; }
 
     var x = Math.max(CARD_EDGE, Math.min(ar.left, vw - r.width - CARD_EDGE));
     /* Под ником; не влезает вниз — над ником; не влезает и туда (окно
@@ -13201,10 +13560,103 @@ ${darkRules()}
       y = up >= CARD_EDGE ? up : CARD_EDGE;
     }
 
+    /* Пишем с пометкой важности. Инлайновый стиль проигрывает
+       авторскому !important — то есть одно чужое правило с
+       `left: auto !important` молча обесценивает всю нашу арифметику, и
+       снаружи это выглядит не поломкой, а тем, что карточка «сама
+       уезжает». С пометкой перебить нас нечем. */
+    var put = function (name, v) {
+      h.style.setProperty(name, Math.round(v) + 'px', 'important');
+    };
+
     var curL = parseFloat(h.style.left) || 0;
     var curT = parseFloat(h.style.top) || 0;
-    h.style.left = Math.round(curL + (x - r.left)) + 'px';
-    h.style.top = Math.round(curT + (y - r.top)) + 'px';
+    put('left', curL + (x - r.left));
+    put('top', curT + (y - r.top));
+
+    /* Проверка и одна поправка.
+
+       Сдвиг по разнице верен только тогда, когда left и top УЖЕ были
+       длиной. Если там стояло auto, держатель до сих пор стоял на своём
+       месте в потоке, и первая же запись переносит его в другую систему
+       отсчёта — промах выходит на всю страницу, вплоть до подвала.
+       После первой записи значения точно длины, поэтому вторая поправка
+       попадает ровно, и второй раз проверять незачем.
+
+       Это дешевле и надёжнее, чем разбираться, какой у держателя предок
+       и какие у него рамки: предка выбирает лепра, и он разный на
+       разных страницах. */
+    /* Ничего не изменилось — уходим молча. Установок несколько подряд,
+       и вторая-пятая обычно считают ровно то же самое: писать те же
+       числа заново значит дёргать карточку без причины. */
+    /* Сверяемся не только с прошлым расчётом, но и с тем, где карточка
+       СЕЙЧАС. Лепра доставляет содержимое и правит положение сама, уже
+       после нашей установки; поверив одному лишь прошлому расчёту, мы бы
+       молча пропустили её отъезд — и это ровно тот случай «один раз
+       уехало в подвал, потом опять нормально». */
+    if (cardAt && cardAt.h === h && Math.abs(cardAt.x - x) < 1 &&
+        Math.abs(cardAt.y - y) < 1 && Math.abs(cardAt.w - r.width) < 1 &&
+        Math.abs(cardAt.hgt - r.height) < 1 &&
+        Math.abs(r.left - x) < 1 && Math.abs(r.top - y) < 1) {
+      h.classList.remove('lm-card_wait');
+      h.style.setProperty('visibility', 'visible', 'important');
+      cardNote('  +' + cardMs() + 'мс без изменений, ' +
+               Math.round(r.width) + '×' + Math.round(r.height));
+      return true;
+    }
+
+    var r2 = h.getBoundingClientRect();
+    var miss1 = Math.round(Math.max(Math.abs(r2.left - x), Math.abs(r2.top - y)));
+    if (miss1 > 1) {
+      put('left', parseFloat(h.style.left) + (x - r2.left));
+      put('top', parseFloat(h.style.top) + (y - r2.top));
+    }
+    var r3 = h.getBoundingClientRect();
+    cardAt = { h: h, x: x, y: y, w: r3.width, hgt: r3.height };
+    /* Показываем ровно теперь: карточка одета, поставлена и проверена. */
+    h.classList.remove('lm-card_wait');
+    h.style.setProperty('visibility', 'visible', 'important');
+
+    var all = document.querySelectorAll('.b-popup_holder');
+    var idx = 0;
+    for (var k = 0; k < all.length; k++) if (all[k] === h) idx = k + 1;
+    /* Что печатаем и зачем. Прошлый отчёт показал «промах 274 → 274»
+       и ширину во весь экран — и на этом разбор встал, потому что по
+       двум числам нельзя отличить «держатель распрямили в поток» от
+       «наши координаты перебило чужое правило». Теперь в строке есть и
+       то и другое: чем он позиционируется на самом деле, что мы просили
+       и что вышло, и где он лежит в разметке. */
+    var cs = getComputedStyle(h);
+
+    /* Ширины изнутри: коробка справки и аватар. Если сужается держатель,
+       а коробка нет — виноват потолок снаружи; если сужается коробка —
+       ищем внутри. Без этих двух чисел «стало уже» неразличимо. */
+    var popEl = h.querySelector('.b-popup');
+    var avaEl = h.querySelector('.b-popup_picture');
+    cardNote('  +' + cardMs() + 'мс ' +
+             Math.round(r3.width) + '×' + Math.round(r3.height) +
+             ' (было ' + Math.round(r.width) + '×' + Math.round(r.height) + ')' +
+             ' коробка ' + (popEl ? Math.round(popEl.getBoundingClientRect().width) : '—') +
+             ' аватар ' + (avaEl ? Math.round(avaEl.getBoundingClientRect().width) : '—') +
+             ' | потолок ' + cs.maxWidth +
+             ' | промах ' + miss1 + '→' +
+             Math.round(Math.max(Math.abs(r3.left - x), Math.abs(r3.top - y))) +
+             (forced ? ' | навязано ' + forced : ''));
+
+    cardLog = 'держателей ' + all.length + ', ставим ' + idx +
+              ' | ' + cs.position +
+              ' | просили (' + Math.round(x) + ',' + Math.round(y) + ')' +
+              ' вышло (' + Math.round(r3.left) + ',' + Math.round(r3.top) + ')' +
+              ' | промах ' + miss1 + ' → ' +
+              Math.round(Math.max(Math.abs(r3.left - x), Math.abs(r3.top - y))) +
+              ' | ' + Math.round(r3.width) + '×' + Math.round(r3.height) +
+              ' при потолке ' + cs.maxWidth +
+              ' | навязано свойств ' + forced +
+              ' | внутри ' + (h.parentElement ? describe(h.parentElement) : '—') +
+              (h.getAttribute('style')
+                 ? '\n  свой стиль держателя: ' +
+                   h.getAttribute('style').slice(0, 200)
+                 : '');
     return true;
   }
 
@@ -13223,22 +13675,51 @@ ${darkRules()}
         /* Тап мимо ника и мимо карточки — закрываем. На десктопе это
            делает уход мыши, которого на телефоне не бывает вовсе: без
            своего закрытия карточка висела бы до перехода на другую
-           страницу. */
-        if (cardFor && e.target && e.target.closest &&
-            !e.target.closest('.b-popup_holder')) hideUserCard();
+           страницу.
+
+           Спрашиваем РАЗМЕТКУ, открыта ли карточка, а не свою память о
+           том, ради кого её открывали. Память теряется в нескольких
+           местах (переход в профиль, отказ, смена человека), и на
+           жалобу «один раз не закрылось тапом мимо» это первый
+           подозреваемый: карточка висит, а cardFor уже пуст. */
+        if (!e.target || !e.target.closest) return;
+        if (e.target.closest('.b-popup_holder')) return;
+        var open = sliceOf(document.querySelectorAll('.b-popup_holder'))
+          .some(function (el) {
+            if (el.classList.contains('hidden')) return false;
+            if ((el.style.visibility || '') === 'hidden') return false;
+            return el.getBoundingClientRect().width > 40;
+          });
+        if (open) { cardNote('  +' + cardMs() + 'мс закрыли тапом мимо'); hideUserCard(); }
         return;
       }
 
       /* Второй тап по тому же нику — пускаем в профиль обычным переходом. */
-      if (cardFor === a && cardReady(a) && cardVisible()) { cardFor = null; return; }
+      if (cardFor === a && cardReady(a) && cardVisible(a)) {
+        cardNote('  +' + cardMs() + 'мс второй тап — уходим в профиль');
+        cardFor = null; return;
+      }
 
       e.preventDefault();
-      cardFor = a;
 
       /* Прячем прошлую карточку сразу: она про другого человека, а
-           собирается новая не мгновенно — запрос уходит в сеть. */
-      var h = cardBox();
-      if (h && !cardReady(a)) h.style.visibility = 'hidden';
+         новая собирается не мгновенно — запрос уходит в сеть. Прятать
+         надо ДО того, как мы запомним нового: hideUserCard заодно
+         забывает, ради кого карточка была открыта. */
+      if (!cardReady(a)) hideUserCard();
+      cardFor = a;
+
+      cardT0 = Date.now();
+      cardNote('тап ' + (++cardTapN) + ': ' + nickLogin(a) +
+               ', держателей ' + document.querySelectorAll('.b-popup_holder').length +
+               ', экран ' + document.documentElement.clientWidth);
+
+      /* Гасим все держатели до установки: лепра сейчас соберёт карточку
+         и покажет её сама, на своём месте. Снимет метку тот заход
+         установки, который поставит её под ник. */
+      sliceOf(document.querySelectorAll('.b-popup_holder')).forEach(function (el) {
+        el.classList.add('lm-card_wait');
+      });
 
       fakeHover(a);
 
@@ -13246,14 +13727,19 @@ ${darkRules()}
          знаем, а ставить окно надо после того, как лепра его собрала.
          Каждая попытка сама проверяет, что карточка уже про нужного
          человека, — лишняя ничего не портит. */
-      [60, 150, 300, 600, 1000, 1500].forEach(function (ms) {
+      /* Последняя попытка стоит уже ПОСЛЕ отсечки ожидания: лепра
+         иногда правит положение сама, доставив содержимое, и без
+         позднего захода карточка осталась бы там, куда она её увела.
+         Заход дешёвый — если ничего не изменилось, он молча уходит. */
+      [60, 150, 300, 600, 1000, 1500, 2400].forEach(function (ms) {
         setTimeout(function () {
           if (cardFor === a) guard('placeUserCard', placeUserCard)(a);
         }, ms);
       });
 
       setTimeout(function () {
-        if (cardFor === a && !(cardReady(a) && cardVisible())) {
+        if (cardFor === a && !(cardReady(a) && cardVisible(a))) {
+          cardNote('  +' + cardMs() + 'мс отказ — уходим по ссылке');
           cardFor = null;
           location.href = a.href;
         }
@@ -25695,6 +26181,7 @@ ${darkRules()}
     if (R.network) reportNetwork(L);
     /* Раздел молчит, пока щуп ни разу не взводили: в обычном отчёте ему
        нечего сказать, а места он занял бы столько же. */
+    if (R.card) reportCardTaps(L);
     if (R.card) reportCard(L);
     if (R.floats) reportFloats(L);
     if (R.overlaps) reportOverlaps(L);
@@ -26439,6 +26926,12 @@ ${darkRules()}
        поддоменов куку — и на странице, где его в разметке не окажется,
        возьмётся оттуда. */
     guard('ajaxCsrf', ajaxCsrf)();
+    /* Таблица стилей — первой в проходе и в каждом проходе. Один поиск
+       по id, а страхует от беды, которую иначе ищут глазами: если что-то
+       на странице заменит голову или снесёт наш узел, скрипт продолжит
+       работать при мёртвом оформлении, и это выглядит как «часть правил
+       почему-то не применяется», а не как поломка. */
+    guard('injectCss', injectCss)();
     guard('threadSnap', threadSnap)();
     guard('ensureThemeToggle', ensureThemeToggle)();
     guard('setThemeColor', setThemeColor)();
@@ -26562,6 +27055,13 @@ ${darkRules()}
   }
 
   function lightBody() {
+    /* Таблица стилей — первой и здесь, а не только в полном проходе.
+       Лёгкий проход назначается ровно на добавление узлов, то есть на
+       перерисовку списка комментариев при смене фильтра — а именно
+       после неё пришла жалоба, что карточка рисуется без наших правил.
+       Стоит один поиск по id и возвращает оформление в тот же кадр,
+       в котором его потеряли. */
+    guard('injectCss', injectCss)();
     /* Догруженные комментарии и посты приходят со своими эмодзи. Проход
        дешёвый: обойдённые тела помечены, и повторный заход до них не
        доходит вовсе. */
