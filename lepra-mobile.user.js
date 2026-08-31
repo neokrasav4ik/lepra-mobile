@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Lepra Mobile
 // @namespace    lepra.mobile
-// @version      2.0.5
+// @version      2.0.6
 // @description  Мобильная адаптация leprosorium.ru для iOS Safari
 // @author       neokrasav4ik
 // @homepageURL  https://github.com/neokrasav4ik/lepra-mobile
@@ -131,7 +131,7 @@
     return;
   }
 
-  var VERSION = '2.0.5';
+  var VERSION = '2.0.6';
 
   /* ============================================================
      НАСТРОЙКИ
@@ -4124,6 +4124,19 @@ svg.lm-tab_ico {
    лечится противоположным. */
 .lm-tab__two {
   height: 44px !important; }
+/* Узкий вид той же кнопки: подпись в строку, рост как у соседей.
+
+   Ставится не всегда, а по замеру — разбор у tabFitThings. Здесь только
+   вид: столбик из двух слов разворачивается в строку, и высота падает с
+   44 до 30, то есть до роста «Пыни» и «Магазина». Ряд выключен по низу, и
+   при одинаковом росте все пять предметов встают на одну линию.
+
+   Зазор 4, а не пробел: слова лежат отдельными узлами (так их сделал
+   tabSplitThings ради столбика), и пробела между ними нет вовсе. */
+.lm-tab__two.lm-tab__one { height: 30px !important; }
+.lm-tab__two.lm-tab__one .lm-tab_w {
+  flex-direction: row !important; gap: 4px !important;
+  align-items: baseline !important; }
 .lm-tab__two i {
   display: flex !important; align-items: center !important; }
 .lm-tab_w {
@@ -4851,7 +4864,12 @@ html.lm-tabs #js-header_search_form .b-icon_button_search { order: 2 !important;
   background: var(--lm-page) !important;
   border-color: var(--lm-line) !important;
   color: var(--lm-ink) !important;
-  border-radius: 5px !important; }
+  border-radius: 5px !important;
+  /* Высота ряда, а не своя. Лепра держит поле в 24 пикселя при кнопке и
+     таблетках в 28 и добавляет ему margin-bottom: 2px — поле оказывалось
+     на четыре пикселя ниже соседей и ещё на два сдвинуто вниз. В ряду из
+     трёх предметов разной высоты глазу не за что зацепиться. */
+  height: 28px !important; margin: 0 !important; }
 
 .post .p_body, .comment .c_body {
   /* Кегль настройкой — разбор у CFG.bodyFont. Запасное значение в var()
@@ -5348,6 +5366,21 @@ ${indentRules()}
 .b-comments_controls > a.active,
 .b-comments_controls.lm-cf__on .lm-cf_more {
   ${PILL_ON} }
+/* Кнопка «плюс» в форме меток — единственная в этом ряду, у кого есть
+   СВОЯ ширина: лепра держит на ней width: 22px. Со шкурой таблетки, где
+   поля 0 10px и border-box, внутри остаётся ровно ноль:
+
+     22 − 10 − 10 − 2 (обводка) = 0
+
+   Плюс рисуется в коробке нулевой ширины и вылезает из неё влево —
+   отсюда «плюсик встал криво». Никакой ошибки в шкуре нет, ей просто
+   досталась чужая ширина.
+
+   Делаем квадрат по высоте ряда и центруем содержимое. Правило стоит
+   НИЖЕ шкуры намеренно: вес у селекторов одинаковый, и решает порядок. */
+.b-post_tags .b-icon_button_add {
+  width: 28px !important; padding: 0 !important;
+  justify-content: center !important; }
 /* Число в таблетке. Полужирное — по эскизу (.bar .f b): подпись
    говорит, ЧТО за фильтр, число — сколько там всего, и второе читается
    чаще первого. */
@@ -6223,6 +6256,31 @@ input[type="radio"], input[type="checkbox"] {
   flex: 0 0 auto !important; }
 .b-inbox_write_link .b-svg-icon svg { display: block !important; }
 .b-inbox_write { width: 100% !important; box-sizing: border-box !important; }
+/* Коробка органов письма («удалить письмо», кто читает, переслать).
+
+   У лепры она плавает СПРАВА от письма в свободном поле десктопа и поднята
+   на шестьдесят пикселей вверх, чтобы встать вровень с его началом:
+
+     .b-inbox_controls { float: right; width: 212px;
+                         margin: -60px 10px -1px 0;
+                         background: #fff; position: relative; z-index: 2 }
+
+   На телефоне плавать некуда — коробка падает под пост, а подъём остаётся.
+   Белая заливка вместе с z-index накрывает подпись письма, и выглядит это
+   как обрезанная подпись. Обрезки при этом нет вовсе: подпись целая и лежит
+   под коробкой — замер дал подпись 551…598 при коробке от 557.
+
+   Снимаем плавание, ширину и подъём разом и перерисовываем своей карточкой:
+   это орган управления, а не декорация, — убрать его нельзя, а оставить
+   чужим белым прямоугольником поперёк подписи тем более. */
+.b-inbox_controls {
+  float: none !important; clear: both !important;
+  position: static !important; z-index: auto !important;
+  width: auto !important; box-sizing: border-box !important;
+  margin: 0 0 18px !important; padding: 10px 12px !important;
+  background: var(--lm-card) !important;
+  border: 1px solid var(--lm-line) !important;
+  border-radius: ${FRAME_R}px !important; }
 
 /* ============ ПРОФИЛЬ ============ */
 /* Блок пользователя был жёстко 1200px с минимумом 800px, плюс шесть
@@ -6713,7 +6771,16 @@ html:not(.lm-profart) body.l-profile .l-content_wrapper {
 /* календарь архива */
 .b-archive_calendar, .b-archive_calendar table {
   width: 100% !important; max-width: 100% !important;
-  box-sizing: border-box !important; }
+  box-sizing: border-box !important;
+  /* Поля по 10 с боков — лепровские, из встроенной таблицы. Вместе с нашей
+     шириной в 100% они всегда дают переполнение на двадцать пикселей, и за
+     дело берётся общий починщик: он успевает не всегда, и календарь то
+     стоит вровень с колонкой (12…381), то съезжает влево на десять
+     (2…371). Три замера подряд дали оба исхода — то есть это гонка, а не
+     раскладка, и лечить её надо причиной, а не порогом.
+
+     Снимаем поля: ширина в 100% и боковые поля вместе не живут никогда. */
+  margin-left: 0 !important; margin-right: 0 !important; }
 /* ---- Календарь архива ----
    Свёрстан на 280 пикселей: коробка 280, ячейка дня ровно сорок,
    подсказка снизу опять 280. В 393 это влезает, но оставляет справа
@@ -6739,14 +6806,42 @@ html:not(.lm-profart) body.l-profile .l-content_wrapper {
   background: var(--lm-card) !important;
   border: 1px solid var(--lm-line) !important;
   border-radius: ${FRAME_R}px !important; }
-/* Выбор месяца и года — два переключателя в строку, теми же таблетками. */
+/* Выбор месяца и года — два переключателя в строку, теми же таблетками.
+
+   Числа сняты со стенда ПОСЛЕ того, как он научился отдавать встроенную
+   таблицу лепры. До этого ряд выглядел собранным, а на устройстве
+   разъезжался — и виновата была не вёрстка, а неполная страница на стенде.
+
+   Что лежит во встроенной таблице и ломает ряд:
+
+     .b-calendar_controls    { background: #f4f4f4; display: block;
+                               border-bottom: 1px solid #e2e2e2 }
+     .b-calendar_controls li { display: inline-block; width: 50%;
+                               text-align: center; padding: 10px 0 }
+     li:not(:last-child)::after { content: ""; border-right: 1px solid #e2e2e2;
+                               position: absolute; right: 0; height: 100% }
+
+   Две половины по 50% плюс пробел между ними в строку не влезают — вторая
+   уезжает вниз, и получаются два переключателя друг под другом, каждый по
+   центру своей половины. Черта от ::after при этом остаётся висеть в
+   пустоте посреди ряда: на десктопе она делила две колонки, а делить ей
+   больше нечего.
+
+   Снимаем ширину, центровку и поля у половинок, черту гасим, серую заливку
+   ряда и полосу под ним — тоже: карточка календаря и так одна поверхность,
+   а #f4f4f4 не из нашей сетки. */
 .b-calendar_controls {
   display: flex !important; flex-wrap: wrap !important;
   gap: 6px !important; margin: 0 0 8px !important; padding: 0 !important;
-  list-style: none !important; }
+  list-style: none !important;
+  background: transparent !important; border-bottom: 0 !important; }
 .b-calendar_controls li {
   display: block !important; float: none !important;
+  width: auto !important; text-align: left !important;
+  position: static !important;
   margin: 0 !important; padding: 0 !important; }
+.b-calendar_controls li::after,
+.b-calendar_controls li::before { content: none !important; display: none !important; }
 .b-calendar_controls .threshold_select_button {
   display: inline-flex !important; align-items: center !important;
   height: 28px !important; padding: 0 10px !important;
@@ -6760,7 +6855,12 @@ html:not(.lm-profart) body.l-profile .l-content_wrapper {
 .b-calendar_month_header, .b-calendar_month_days {
   display: grid !important;
   grid-template-columns: repeat(7, 1fr) !important;
-  width: auto !important; }
+  width: auto !important;
+  /* Серая полоса под шапкой недели — из той же встроенной таблицы
+     (#f4f4f4 при обводке #e2e2e2). В карточке она лишняя: подписи дней и
+     так набраны dim и мельче, этого хватает, чтобы отличить их от чисел. */
+  background: transparent !important;
+  border: 0 !important; padding: 0 !important; }
 .b-calendar_month_header .b-calendar_day,
 .b-calendar_month_days .b-calendar_day {
   width: auto !important; box-sizing: border-box !important;
@@ -15487,6 +15587,40 @@ ${darkRules()}
     a.classList.add('lm-tab__two');
   }
 
+  /* Узкая кнопка «Мои вещи» — ПО ЗАМЕРУ, а не по числу.
+
+     Просьба звучала как «если счётчик меньше десяти, пусть кнопка будет
+     вровень с соседями». Замер показал, что цифры тут ни при чём: между
+     «1» и «9» разницы ноль пикселей, а между экранами вся задача. Одна
+     строка стоит 95 пикселей против 67, и на 393 эти двадцать восемь есть
+     при любом числе, а на 347 их нет даже при единице:
+
+       экран 393, одна строка: 1, 9, 10, 99, 1538 — влезает всё
+       экран 347, одна строка: шире экрана на 17…40 при тех же числах
+
+     Порог по числу дал бы ровно то, чего просили избежать: на узком
+     экране ряд развалился бы, и решала бы цифра, а не место.
+
+     Примета «влезло» выбрана тоже замером, и не с первого раза. Ряд
+     вылезает за СВОЮ коробку всегда — 375 против 369 даже там, где на
+     экране всё хорошо, потому что у ряда свои поля. Судить надо по
+     документу против экрана: он растёт только тогда, когда предметам
+     действительно некуда деться.
+
+     Ставим узкий вид, смотрим документ, не влезло — снимаем. Тот же
+     приём, что у подгона поиска. */
+  function tabFitThings() {
+    var things = document.querySelector('#js-header_nav_my_things');
+    if (!things || !things.classList.contains('lm-tab__two')) return;
+    var root = document.documentElement;
+
+    things.classList.add('lm-tab__one');
+    /* Чтение сразу после записи класса: раскладка пересчитается
+       синхронно, отдельного ожидания не нужно. */
+    var over = root.scrollWidth > root.clientWidth + 1;
+    if (over) things.classList.remove('lm-tab__one');
+  }
+
   /* Разметка ряда. Классы ставим сами, а не выбираем ссылки по адресу в
      правилах: адрес у избранного и инбокса лепра однажды уже меняла, и
      правило, привязанное к нему, отвалилось бы молча. */
@@ -15672,6 +15806,11 @@ ${darkRules()}
     buildTopbar();
     buildSubsiteBand();
     syncTopbarVars();
+    /* Замер ширины — последним: до этого ряд ещё не тот, что увидит
+       человек (поиск переезжает, значки расставляются), и мерить его
+       раньше значит мерить не то. Зовётся при каждой пересборке шапки,
+       то есть и на повороте экрана. */
+    guard('tabFitThings', tabFitThings)();
     guard('watchNavPin', watchNavPin)();
     if (watchNavPin.remake) guard('navRemake', watchNavPin.remake)();
 
