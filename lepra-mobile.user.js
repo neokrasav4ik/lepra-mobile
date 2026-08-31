@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Lepra Mobile
 // @namespace    lepra.mobile
-// @version      2.3.4
+// @version      2.3.5
 // @description  Мобильная адаптация leprosorium.ru для iOS Safari
 // @author       neokrasav4ik
 // @homepageURL  https://github.com/neokrasav4ik/lepra-mobile
@@ -131,7 +131,7 @@
     return;
   }
 
-  var VERSION = '2.3.4';
+  var VERSION = '2.3.5';
 
   /* ============================================================
      НАСТРОЙКИ
@@ -12135,6 +12135,12 @@ html #js-comments_holder .lm-more_box.lm-on .lm-icons > * {
   justify-content: flex-start !important;
   padding: 0 10px 0 0 !important;
   border-radius: 5px !important;
+  /* Зазор строки — ноль, и это не мелочь: расстояние между значком и
+     словом задаёт коробка значка (34 пикселя на 20 картинки, поля по
+     семь), одна на все строки. Стоило одной строке получить свой gap со
+     стороны — у галочки «прочитано» он был 8 пикселей, — и её подпись
+     встала на восемь правее остальных. Замер: подпись на 47 вместо 39. */
+  gap: 0 !important;
   color: var(--lm-mid) !important; }
 /* Значок остаётся в коробке 34×34: картинки тут разной природы — svg,
    текстовый глиф, фоновый спрайт, — и по базовой линии они не совпадут
