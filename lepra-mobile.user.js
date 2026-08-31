@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Lepra Mobile
 // @namespace    lepra.mobile
-// @version      2.3.3
+// @version      2.3.4
 // @description  Мобильная адаптация leprosorium.ru для iOS Safari
 // @author       neokrasav4ik
 // @homepageURL  https://github.com/neokrasav4ik/lepra-mobile
@@ -131,7 +131,7 @@
     return;
   }
 
-  var VERSION = '2.3.3';
+  var VERSION = '2.3.4';
 
   /* ============================================================
      НАСТРОЙКИ
@@ -15437,6 +15437,26 @@ ${darkRules()}
   /* Значки лежат в двух обёртках .b-post_controls с разными метриками.
      Собираем их в один свой контейнер: так они становятся соседями по
      флекс-боксу и выравниваются по центру гарантированно. */
+  /* Текст узла БЕЗ нашей подписи.
+
+     Отбор значков в обойму идёт по правилу «в узле нет текста»: у
+     значка его и не бывает, а у ссылки со словами — бывает. Подпись,
+     которую мы теперь дописываем к значкам, это правило ломает: узел
+     разом обзаводится текстом и перестаёт считаться значком.
+
+     Поймалось на галочке «прочитано» — она просто пропала из столбика,
+     и заметил это Ден, а не я. Считаем текст по детям, пропуская свои
+     подписи: строчная замена тут не годится, слово подписи может
+     встретиться и в настоящем тексте узла. */
+  function textBesidesLabel(el) {
+    var s = '';
+    sliceOf(el.childNodes).forEach(function (n) {
+      if (n.nodeType === 1 && n.classList && n.classList.contains('lm-lbl')) return;
+      s += n.textContent || '';
+    });
+    return s.trim();
+  }
+
   function groupFooterIcons(ddi) {
     /* Только span: у галочки «прочитано» тот же класс b-post_controls,
        но это самостоятельная ссылка. Разбирая её как обёртку, скрипт
@@ -15455,7 +15475,7 @@ ${darkRules()}
       if (el.classList.contains('c_user')) return false;
       if (!/^(A|SPAN)$/.test(el.tagName)) return false;
       if (!el.querySelector('svg')) return false;
-      return !(el.textContent || '').trim();      /* только значки без текста */
+      return !textBesidesLabel(el);              /* только значки без текста */
     });
 
     if (!boxes.length && !loose.length) return;
