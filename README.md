@@ -8,7 +8,7 @@ iPhone и расширением в Firefox на Андроиде. Скрипт 
 <p align="center">
   <a href="all_github.jpg">
     <img src="all_github.jpg" alt="Lepra Mobile"
-         style="max-width:40%; max-height:40%">
+         style="max-width:40%; max-height:20%">
   </a>
 </p>
 
