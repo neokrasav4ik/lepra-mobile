@@ -7,6 +7,7 @@ import android.graphics.Typeface
 import android.os.Bundle
 import android.view.ViewGroup
 import android.webkit.CookieManager
+import android.content.Intent
 import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.ScrollView
@@ -59,6 +60,7 @@ class DiagActivity : AppCompatActivity() {
         column.addView(button("Проверить обновление скрипта") { askUpdate() }, wide())
         column.addView(button("Проверить обновление приложения") { askAppUpdate() }, wide())
         column.addView(button(getString(R.string.diag_bundled)) { toBundled() }, wide())
+        column.addView(button("Открыть лепру БЕЗ скрипта") { withoutScript() }, wide())
 
         val scroll = ScrollView(this)
         scroll.addView(
@@ -69,6 +71,27 @@ class DiagActivity : AppCompatActivity() {
             )
         )
         setContentView(scroll)
+    }
+
+    /* Опыт, который отвечает на главный вопрос одним нажатием: виноват ли
+       наш впрыск.
+
+       Жалоба: белый экран, страница остаётся about:blank, запрос при этом
+       уходит, ошибок нет ни одной, движок жив, а в Chrome на том же
+       телефоне лепра открывается. Единственное, чем наше окно отличается
+       от Chrome, — впрыск скрипта на 1,88 МБ ДО разбора страницы.
+       Проверяется это ровно так: открыть без него.
+
+       Заодно это и выход из положения: человек остаётся с рабочим сайтом,
+       пусть и десктопным, вместо белизны. Режим держится до перезапуска
+       приложения — насовсем ничего не выключаем. */
+    private fun withoutScript() {
+        MainActivity.safeMode = true
+        Diag.log("опыт: открываем лепру без скрипта")
+        val i = Intent(this, MainActivity::class.java)
+        i.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+        startActivity(i)
+        finish()
     }
 
     private fun wide() = LinearLayout.LayoutParams(
