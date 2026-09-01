@@ -32,8 +32,13 @@
      заработают все старые Андроиды разом, а не только наше приложение.
      Этот файл — обход, пока такого звена нет. -->
 <network-security-config>
-    <domain-config includeSubdomains="true">
-        <domain>leprosorium.ru</domain>
+    <!-- includeSubdomains стоит на <domain>, а НЕ на <domain-config>.
+         Сперва я поставил его на обёртку: разборщик такой атрибут молча
+         пропускает, и правило накрыло бы один голый leprosorium.ru без
+         подлепр. Поймал линт, и хорошо: тихо полуработающая настройка
+         доверия — худший исход из возможных. -->
+    <domain-config>
+        <domain includeSubdomains="true">leprosorium.ru</domain>
         <trust-anchors>
             <certificates src="system" />
             <certificates src="@raw/globalsign_root_r46" />
