@@ -876,6 +876,70 @@ class MainActivity : AppCompatActivity() {
             return true
         }
 
+        /* ОТКАЗ ПО СЕРТИФИКАТУ — и молчание, которое стоило трёх кругов.
+
+           Этого обработчика не было, а умолчание WebViewClient на отказ по
+           сертификату вызывает handler.cancel() МОЛЧА: навигация
+           обрывается, onPageStarted не приходит, onReceivedError не
+           приходит, кода ответа нет. Снаружи это выглядит буквально как
+           «запрос ушёл и ничего не вернулось» — та самая запись в журнале,
+           из-за которой я успел обвинить и провайдера, и вес впрыска, и
+           смерть движка.
+
+           Почему это бьёт по нам, а не по браузерам: с Андроида 7
+           приложение по умолчанию доверяет ТОЛЬКО системным
+           удостоверяющим центрам, а Chrome и Файрфокс доверяют ещё и тем,
+           что человек поставил себе сам. Если лепра отдаёт цепочку,
+           опирающуюся на такой центр, в браузере она откроется, а у нас
+           нет — что здесь и наблюдается.
+
+           Загрузку всё равно НЕ пропускаем. handler.proceed() тут был бы
+           не починкой, а снятием защиты с чужой сессии, которая лежит
+           внутри приложения. Наше дело — назвать причину; решение
+           принимает человек. */
+        override fun onReceivedSslError(
+            view: WebView, handler: android.webkit.SslErrorHandler, error: android.net.http.SslError
+        ) {
+            val why = when (error.primaryError) {
+                android.net.http.SslError.SSL_NOTYETVALID -> "сертификат ещё не действует"
+                android.net.http.SslError.SSL_EXPIRED -> "сертификат просрочен"
+                android.net.http.SslError.SSL_IDMISMATCH -> "имя в сертификате не совпадает"
+                android.net.http.SslError.SSL_UNTRUSTED -> "удостоверяющий центр неизвестен"
+                android.net.http.SslError.SSL_DATE_INVALID -> "неверная дата в сертификате"
+                else -> "сертификат отвергнут (код " + error.primaryError + ")"
+            }
+            val c = error.certificate
+            val who = runCatching {
+                "кем выдан: " + (c.issuedBy?.dName ?: "—") +
+                " | кому: " + (c.issuedTo?.dName ?: "—") +
+                " | годен: " + c.validNotBeforeDate + " … " + c.validNotAfterDate
+            }.getOrDefault("сведений о сертификате нет")
+            Diag.fact("отказ по сертификату", why + " | " + error.url)
+            Diag.fact("сертификат", who)
+            Diag.log("отказ по сертификату: " + why + " на " + error.url)
+            handler.cancel()
+            /* Часы телефона — первое, что стоит проверить при «просрочен»
+               и «ещё не действует»: сбитая дата даёт ровно эти два кода. */
+            val clock = java.text.SimpleDateFormat("dd.MM.yyyy HH:mm", java.util.Locale.US)
+                .format(java.util.Date())
+            showPlain("Сертификат лепры не принят",
+                why + ". Адрес: " + (error.url ?: HOME) + ". " + who +
+                ". Часы телефона: " + clock + ". " +
+                "В браузере лепра при этом открывается потому, что браузеры доверяют ещё и " +
+                "тем удостоверяющим центрам, которые вы поставили себе сами, а приложения " +
+                "с Андроида 7 — только системным.")
+        }
+
+        /* Запрос клиентского сертификата умолчание тоже отменяет молча.
+           Лепра его не спрашивает, но если однажды спросит — пусть это
+           будет видно, а не выглядит очередной пустой страницей. */
+        override fun onReceivedClientCertRequest(
+            view: WebView, request: android.webkit.ClientCertRequest
+        ) {
+            Diag.log("у нас просят клиентский сертификат: " + request.host)
+            request.cancel()
+        }
+
         override fun onReceivedError(view: WebView, req: WebResourceRequest, err: WebResourceError) {
             if (!req.isForMainFrame) return
             lastFailed = req.url.toString()
