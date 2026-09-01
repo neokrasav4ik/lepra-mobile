@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Lepra Mobile
 // @namespace    lepra.mobile
-// @version      2.6.2
+// @version      2.7.1
 // @description  Мобильная адаптация leprosorium.ru для iOS Safari
 // @author       neokrasav4ik
 // @homepageURL  https://github.com/neokrasav4ik/lepra-mobile
@@ -131,7 +131,7 @@
     return;
   }
 
-  var VERSION = '2.6.2';
+  var VERSION = '2.7.1';
 
   /* ============================================================
      НАСТРОЙКИ
@@ -976,6 +976,28 @@
        человеку, которому это не нужно, надо дать это выключить. */
     chainPull: true,
 
+    /* НАСТРОЙКА: короткая подпись комментария.
+
+       Замер по простыне в 395 комментариев: подпись занимает 68
+       пикселей у всех до единого — 27 335 из 112 226, то есть ЧЕТВЕРТЬ
+       всей длины, тогда как на текст уходит 71%. Две трети подписи —
+       не разговор.
+
+       Почему нельзя просто свести всё в одну строку: не влезает. В
+       строку целиком (голосовалка, ник, звание, дата, ответ, точка)
+       помещается 15% комментариев; без звания — 40%. А вот голосовалка,
+       ник и шеврон помещаются у 100% — включая самое тесное место
+       простыни, где ветка ушла на восемнадцатый уровень (подвал 290
+       пикселей), а ник длиной в 153 («Сын_маминой_подруги»). Отсюда и
+       состав короткой строки: он не выбран, он посчитан.
+
+       Раскрытие одностороннее: тап по строке показывает нынешнюю
+       подпись целиком и УБИРАЕТ шеврон — свернуть обратно нельзя.
+       Так и задумано: человек попросил показать, ему показали, и
+       обратный ход отнимал бы место ради того, чем никто не
+       пользуется. */
+    shortFooter: true,
+
     /* НАСТРОЙКА: кегль полей ввода в формах комментария, с поправкой на
        масштаб страницы. Числа те же и по той же причине, что у поля
        поиска (см. searchFocusFont): шестнадцать — это требование к
@@ -1409,6 +1431,7 @@
     cardsLift:    { list: [false, true] },
     navArchive:   { bool: true },
     chainPull:    { bool: true },
+    shortFooter:  { bool: true },
     elastic:      { bool: true },
     /* чем сообщать о новой пыни */
     pynSound:     { list: ['push', 'ding', 'both', 'none'] },
@@ -2349,7 +2372,8 @@
     userRow: new Marks(),   /* пункт списка граждан размечен */
     offscreen: new Marks(), /* ролик под наблюдением «уехал за экран» */
     vlink:   new Marks(),   /* ссылка под роликом поставлена */
-    emoji:   new Marks()    /* эмодзи внутри обёрнуты */
+    emoji:   new Marks(),   /* эмодзи внутри обёрнуты */
+    struck:  new Marks()    /* зачёркнутое внутри перерисовано */
   };
 
   /* Обход в глубину с отсечением поддеревьев. querySelectorAll возвращает
@@ -5683,9 +5707,15 @@ ${indentRules()}
    вплотную за стрелкой ответа.
    Исключением, а не перебиванием: у правила уже есть список изъятий, и
    держать их в одном месте вернее, чем заводить ниже по файлу ещё
-   одно правило потяжелее. */
-.comment .c_footer > *:not(.b-comment_thread_collapse):not(.ddi):not(.lm-fline):not(.lm-more_box):not(script):not(style),
-.comment .c_footer .lm-fline > *:not(.b-comment_thread_collapse):not(.lm-more_box):not(script):not(style),
+   одно правило потяжелее.
+
+   Шеврон короткой подписи (.lm-fchev) — ровно тот же случай, и он же
+   доказал, что оговорка выше не теоретическая: в первой сборке шеврон
+   встал вплотную за ником вместо правого края, потому что его
+   margin-left: auto проиграл здешнему margin: 0. Один класс против
+   здешних четырёх плюс четыре :not() — не спор вовсе. */
+.comment .c_footer > *:not(.b-comment_thread_collapse):not(.ddi):not(.lm-fline):not(.lm-more_box):not(.lm-fchev):not(script):not(style),
+.comment .c_footer .lm-fline > *:not(.b-comment_thread_collapse):not(.lm-more_box):not(.lm-fchev):not(script):not(style),
 .comment .ddi > *:not(.b-comment_thread_collapse):not(script):not(style) {
   display: inline-block !important;
   padding: 1px 0 !important; margin: 0 !important; }
@@ -6475,6 +6505,65 @@ input[type="radio"], input[type="checkbox"] {
    кнопок, а не сам текст. Начертание каждой лепра оставляет говорящим
    (Bold жирным, Irony красным) — его не трогаем, только тон. */
 .b-textarea_editor_button { color: var(--lm-dim) !important; }
+
+/* Зачёркивание — своя кнопка в леприной полосе.
+
+   Набрана не ссылкой, а span: у лепры кнопки полосы это <a href="#">,
+   и наша, будь она ссылкой, спорила бы разом с двумя вещами — с общими
+   правилами на a (там снят подчёрк, и черту пришлось бы отвоёвывать) и
+   с решёткой в адресе, по которой у нас открывается отладочная панель.
+   Span ничего этого не умеет по природе.
+
+   Кегль и семейство — inherit от самой полосы: у лепры они заданы ей,
+   а не кнопкам (замер: и полоса, и кнопки 10px verdana), и через
+   inherit наша кнопка сама пойдёт за полосой, если лепра когда-нибудь
+   поменяет кегль. Сокращённая запись font: тут взята НАРОЧНО, ровно за
+   то, за что её обычно опасаются: она сбрасывает и начертание, и
+   кегль — то есть отдаёт и то и другое полосе целиком.
+
+   Подпись зачёркнута, потому что у лепры каждая подпись показывает
+   собой то, что делает: Bold жирный, Italic курсивом, Irony красная. */
+.lm-strike {
+  color: var(--lm-dim) !important;
+  font: inherit !important;
+  text-decoration: line-through !important;
+  -webkit-text-decoration-color: var(--lm-dim) !important;
+  text-decoration-color: var(--lm-dim) !important;
+  text-decoration-thickness: 1px !important;
+  margin: 0 4px 0 0 !important; padding: 0 !important;
+  cursor: pointer !important;
+  -webkit-tap-highlight-color: transparent !important;
+  touch-action: manipulation !important;
+  -webkit-user-select: none !important; user-select: none !important; }
+/* Отклик на нажатие — тоном, а не подложкой: соседки подложки не имеют,
+   и прямоугольник под одной кнопкой в такой строке читался бы поломкой. */
+.lm-strike:active { color: var(--lm-ink) !important; }
+/* Зачёркнутое в тексте — своя черта вместо шрифтовой. Разбор в
+   разделе 6.6: наложение U+0336 рисуется шрифтом по каждому знаку
+   отдельно и на телефоне сходится в пунктир из обрубков. Мы метки из
+   разметки убираем и проводим черту сами — сплошную и в наш волосок.
+
+   Тон черты НЕ приглушаем, в отличие от ника ушедшего: там полутон
+   говорил «человека больше нет», а тут зачёркнутое написано, чтобы его
+   прочли, — это шутка или поправка, и прятать её незачем. */
+.lm-struck {
+  text-decoration: line-through !important;
+  text-decoration-thickness: 1px !important; }
+
+/* Страница нового поста: там ряд у нас flex с зазором 6/4, и своя
+   отбивка кнопки сложилась бы с зазором. Кегль — тринадцать, как у
+   соседок: сама полоса там 12.8, и inherit дал бы рассогласование на
+   две десятых, заметное на общей базовой линии.
+
+   Одиннадцатая подпись там В СТРОКУ НЕ ВЛЕЗАЕТ, и это посчитано: 339
+   пикселей подписей плюс десять зазоров по четыре — 379 против 369
+   ширины. Перенос был заложен в этот ряд с самого начала (обрезать в
+   такой панели нечего), так что Strike уходит на вторую строку. Зазор
+   до трёх ужимать не стал: 369 в 369 — это впритык без остатка, а
+   значит на другом кегле, другом масштабе или другом телефоне оно
+   всё равно перенесётся, только уже необъяснимо. В форме комментария,
+   где кегль 10, все одиннадцать стоят в одну строку. */
+.lm-np .lm-strike { margin: 0 !important; font-size: 13px !important; }
 
 /* Загрузчик картинки. У лепры и кнопка «прикреплю», и панель выбора
    файла позиционированы абсолютно внутри контейнера, у которого своей
@@ -11967,6 +12056,50 @@ html.lm-dark .lm-crown {
   min-width: 0 !important; }
 .comment .c_footer .lm-fline__2 { margin-top: 1px !important; }
 
+/* ---- Короткая подпись комментария ----
+
+   В покое видно голосовалку, ник и шеврон; всё прочее — дата, звание,
+   ответ, точка — появляется по тапу и больше не прячется. Разбор
+   замысла и числа, на которых он стоит, — у CFG.shortFooter.
+
+   Строк в подвале становится три, но одновременно видны никогда не
+   две: короткая ИЛИ нынешние две. Прятать нынешние правилом при классе
+   на подвале, а не разбирать их, — потому что раскрытие тогда это
+   ровно снятие класса, и собирать заново нечего.
+
+   Ник в короткой строке ужимается многоточием, а не переносится, — но
+   до этого не доходит: замер показал, что голосовалка с ником влезают
+   всегда. Многоточие тут на случай ника длиннее всех виденных. */
+.comment .c_footer .lm-fshort {
+  display: flex !important; align-items: center !important;
+  flex: 1 1 100% !important; gap: 0 6px !important;
+  line-height: 1.15 !important; min-width: 0 !important;
+  /* Цель для пальца — вся строка, а не шеврон в 26 пикселей: между
+     ником и шевроном лежит пустое место, и отдавать его впустую при
+     таком дефиците ширины было бы расточительно. */
+  cursor: pointer !important;
+  -webkit-tap-highlight-color: transparent !important; }
+.comment .c_footer.lm-fshort_on .lm-fline__1,
+.comment .c_footer.lm-fshort_on .lm-fline__2 { display: none !important; }
+.comment .c_footer .lm-fshort .c_user {
+  overflow: hidden !important; text-overflow: ellipsis !important;
+  white-space: nowrap !important; min-width: 0 !important; }
+
+/* Шеврон. Прижат вправо своим margin-left: auto — тем же приёмом, что
+   и точка в нынешней подписи; в строке из трёх участников это ставит
+   его на край без единого числа. */
+.lm-fchev {
+  margin-left: auto !important;
+  width: 26px !important; height: 26px !important;
+  display: inline-flex !important; align-items: center !important;
+  justify-content: center !important; flex: 0 0 auto !important;
+  color: var(--lm-mid) !important; }
+.lm-fchev svg { width: 18px !important; height: 18px !important;
+  display: block !important; }
+/* Нажатие подсвечивает шеврон, а не всю строку: подложка во всю ширину
+   под голосовалкой и ником читалась бы как выделение комментария. */
+.comment .c_footer .lm-fshort:active .lm-fchev { color: var(--lm-ink) !important; }
+
 /* Название подлепры во второй строке. Рамку рисует сама лепра
    (.b-post_domain: рамка в пиксель, скругление 3, поля по два) —
    трогать её незачем, но нужно не дать ссылке сжаться при переносе и
@@ -12800,6 +12933,66 @@ ${darkRules()}
    не хватало на светлой карточке 250, на новой карточке 240 читается
    заметно лучше — но если и этого окажется мало, лечить надо будет
    отдельным признаком, а не возвратом свечения. */
+
+/* ============ ДЕАКТИВИРОВАННЫЙ ГРАЖДАНИН ============
+   Лепра помечает ушедшего одним классом на нике:
+   .b-removed_user { text-decoration: line-through } — без !important и
+   весом в один класс. Наше правило подписи снимает у ников
+   подчёркивание (.dd .ddi a.c_user, .comment .c_footer a.c_user —
+   text-decoration: none !important, вес 0-3-1) и заодно съедало эту
+   черту. То есть признак пропадал не «где-то», а на всех восьмидесяти
+   ников этой страницы разом: скрипт показывал ушедшего живым.
+
+   Про вес правила стоит сказать отдельно, потому что починка дважды
+   была неверной, и оба раза молча. Написать .b-removed_user { …
+   !important } не помогает: !important спорит с !important, а решает
+   вес селектора, и одного класса (0-1-0) против 0-3-1 мало. Написать
+   a.c_user.b-removed_user — тоже не помогает, и это уже ошибка счёта:
+   тут два класса и тип, 0-2-1, всё ещё меньше.
+
+   Дальше был соблазн назвать спорщиков поимённо. Щуп p14 их и назвал:
+   он вешает метку ушедшего на каждый ник девяти страниц стенда и
+   перечисляет НАШИ правила, которые красят ник или правят черту и
+   весят не меньше. На тред их оказалось ровно два (.comment .c_footer
+   a.c_user и .dd .ddi a.c_user), но стоило проверить остальные
+   страницы — и вылезли ещё два: президент в навигационной штуке и
+   ник в постраничной навигации «моих вещей». Перечисление не сходится:
+   каждый новый раздел набора добавляет к списку, а забытый спорщик
+   молча возвращает ушедшему вид живого.
+
+   Поэтому вес поднят не контекстом, а повтором класса. Четыре класса
+   — 0-4-0. Это больше всего, что у нас есть по нику (тяжелейшее наше
+   правило — .b-users_list_users .b-list_item h5 a.c_user, 0-4-1, и
+   оно правит только кегль), и не зависит ни от одного контекста.
+   Приём известный и нарочно некрасивый: он должен читаться как
+   «здесь вес взят силой», а не как случайно длинный селектор.
+   Проверка та же p15 — метка на каждый ник восьми страниц, черта
+   должна оказаться на всех до единого.
+
+   Вид — не леприн. У лепры черта идёт цветом самого ника и на
+   полужирном читается жирной; у нас имя уходит в полутон вместе с
+   чертой: ушедший тише живого, но имя остаётся именем — оно
+   по-прежнему единственный ответ на «кто», и снимать с него вес было
+   бы уже потерей, а не приглушением. Толщина в 1px — тот же волосок,
+   что у всех линий набора. */
+.b-removed_user.b-removed_user.b-removed_user.b-removed_user {
+  color: var(--lm-dim) !important;
+  text-decoration: line-through !important;
+  /* Тон черты — отдельным свойством ПОСЛЕ сокращённой записи: она
+     сбрасывает его в currentColor, и порядок здесь несущий. Вебкитная
+     пара — ради старых сафари, где свойство жило только с приставкой. */
+  -webkit-text-decoration-color: var(--lm-dim) !important;
+  text-decoration-color: var(--lm-dim) !important;
+  text-decoration-thickness: 1px !important; }
+
+/* Строка родословной в притяжении нити ника лепры не содержит — она
+   набирается нами из data-user_login, и класс на неё вешает pullAssemble. */
+.lm-prow b.lm-dead {
+  color: var(--lm-dim) !important;
+  text-decoration: line-through !important;
+  -webkit-text-decoration-color: var(--lm-dim) !important;
+  text-decoration-color: var(--lm-dim) !important;
+  text-decoration-thickness: 1px !important; }
 `;
 
   function injectCss() {
@@ -15188,6 +15381,13 @@ ${darkRules()}
       ((el.querySelector('.c_footer a[href*="/users/"]') || {}).textContent || '?').trim();
   }
 
+  /* Ушёл ли автор комментария. Спрашиваем разметку лепры, а не свою
+     память: признак висит на самом нике в подвале, и другого источника
+     у него нет. */
+  function pullDead(el) {
+    return !!el.querySelector('.c_footer .b-removed_user');
+  }
+
   /* Лепра начинает почти каждый ответ с ника адресата: «larichev, ты
      первый начал». В строке этот ник — чистый повтор: кому отвечают,
      уже сказано лесенкой и строкой выше. Срезаем и отдаём место
@@ -15514,6 +15714,7 @@ ${darkRules()}
       d.style.opacity = '0';
       d.style.transform = 'translateY(-26px)';
       var nick = document.createElement('b');
+      if (pullDead(el)) nick.className = 'lm-dead';
       nick.textContent = pullNick(el) + ':';
       var txt = document.createElement('i');
       txt.textContent = pullText(el, i > 0 ? pullNick(rows[i - 1]) : '');
@@ -16607,6 +16808,103 @@ ${darkRules()}
     footer.appendChild(r2);
   }
 
+  /* ---- Короткая подпись ----
+
+     Замысел и числа — у CFG.shortFooter. Здесь только устройство.
+
+     Короткая строка СВОЯ, третья: нынешние две мы не разбираем вовсе, а
+     прячем правилом при классе на подвале. Раскрытие тогда — это
+     вернуть два узла на место и снять класс, а не собрать подпись
+     заново. Разница не в красоте: подпись собирают четыре прохода
+     (даты, значки, обойма, деление на строки), и повторять их работу
+     задом наперёд означало бы держать их всех в голове при каждой
+     будущей правке.
+
+     Куда возвращать голосовалку и ник, помним ссылками на СОСЕДА
+     (voteAt, nickAt), а не порядком в списке: в первой строке рядом с
+     ником стоит .c_show_user нулевой ширины, и «в конец» поставило бы
+     ник не туда, где он был. */
+  var CHEV_SVG =
+    '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor"' +
+    ' stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"' +
+    ' aria-hidden="true"><path d="M5 8 L10 13 L15 8"/></svg>';
+
+  function shortFooter(footer) {
+    if (!CFG.shortFooter) return;
+    if (footer.querySelector('.lm-fshort')) return;
+    var r1 = footer.querySelector('.lm-fline__1');
+    var r2 = footer.querySelector('.lm-fline__2');
+    if (!r1 || !r2) return;
+    var nick = r1.querySelector('.c_user');
+    /* Без ника коротить нечего: подпись и так пуста, а строка из одной
+       голосовалки и шеврона объясняла бы только саму себя. */
+    if (!nick) return;
+    var vote = r2.querySelector('.vote');
+
+    var row = document.createElement('span');
+    row.className = 'lm-fline lm-fshort';
+    var chev = document.createElement('span');
+    chev.className = 'lm-fchev';
+    chev.setAttribute('role', 'button');
+    chev.innerHTML = CHEV_SVG;
+
+    row.lmBack = {
+      vote: vote, voteIn: vote && vote.parentNode, voteAt: vote && vote.nextSibling,
+      nick: nick, nickIn: nick.parentNode, nickAt: nick.nextSibling
+    };
+
+    footer.insertBefore(row, r1);
+    if (vote) row.appendChild(vote);
+    row.appendChild(nick);
+    row.appendChild(chev);
+    footer.classList.add('lm-fshort_on');
+  }
+
+  /* Раскрытие одностороннее: короткая строка уходит совсем, вместе с
+     шевроном. Обратного хода нет нарочно — разбор у CFG.shortFooter. */
+  function openFooter(footer) {
+    var row = footer.querySelector('.lm-fshort');
+    if (!row) return;
+    var b = row.lmBack || {};
+    if (b.vote && b.voteIn) b.voteIn.insertBefore(b.vote, b.voteAt);
+    if (b.nick && b.nickIn) b.nickIn.insertBefore(b.nick, b.nickAt);
+    footer.classList.remove('lm-fshort_on');
+    if (row.parentNode) row.parentNode.removeChild(row);
+  }
+
+  var shortTapBound = false;
+
+  function watchShortFooter() {
+    if (shortTapBound || !document.body) return;
+    shortTapBound = true;
+    document.addEventListener('click', function (e) {
+      if (!e.target || !e.target.closest) return;
+      var row = e.target.closest('.lm-fshort');
+      if (!row) return;
+      /* Голосовалка и ник в этой же строке живут своей жизнью: по ним
+         голосуют и открывают карточку гражданина. Раскрытие ловит
+         промахи мимо них — то есть пустое место и сам шеврон. */
+      if (e.target.closest('.vote, a')) return;
+      e.preventDefault();
+      var foot = row.closest('.c_footer');
+      if (foot) openFooter(foot);
+    });
+  }
+
+  /* Переключатель в настройках. Включили — короткие строки строятся на
+     всех подписях сразу; выключили — раскрываются все до единой.
+     Метка seen.footer тут ни при чём: она про сборку подписи, а не про
+     её вид, и трогать её нельзя — иначе повторный заход прогонит по
+     подписи все четыре прохода второй раз. */
+  function applyShortFooter() {
+    var host = commentsHost();
+    if (!host) return;
+    sliceOf(host.querySelectorAll('.c_footer')).forEach(function (f) {
+      if (CFG.shortFooter) shortFooter(f);
+      else openFooter(f);
+    });
+  }
+
   function compactCommentFooters() {
     var host = commentsHost();
     if (!host) return;
@@ -16618,7 +16916,11 @@ ${darkRules()}
       vectorIcons(foot);
       groupCommentIcons(foot);
       splitCommentFooter(foot);
+      /* Строго последним: короткая строка забирает узлы из тех двух,
+         которые делает splitCommentFooter. */
+      shortFooter(foot);
     });
+    guard('watchShortFooter', watchShortFooter)();
   }
 
   /* Голосовалка лежит соседом подписи, а не внутри неё: у лепры это два
@@ -18524,10 +18826,21 @@ ${darkRules()}
     other.appendChild(setToggle('videoLink', 'Ссылка «Link» под видео-роликом'));
     /* Свой слушатель после setToggle — он сработает вторым, когда CFG
        уже переписан (та же причина, что у карточек и архива). */
-    var pullRow = setToggle('chainPull', 'Двойной тап собирает ветку');
-    pullRow.querySelector('.lm-set_switch')
-      .addEventListener('click', function () { applyChainPull(); });
-    other.appendChild(pullRow);
+    /* Строка «Двойной тап собирает ветку» отсюда убрана, и это не
+       забывчивость. Ден: «она включена по умолчанию всегда» — то есть
+       переключателем никто не пользовался, а место в коротком столбце
+       настроек стоит дорого. Ключ chainPull остался в CFG и в TUNE:
+       сохранённые настройки читаются как читались, и вернуть строку —
+       это три строки кода, а не раскопки.
+
+       Оговорка, которую надо помнить: вместе со строкой ушла и
+       единственная возможность вернуть зум по двойному тапу на
+       комментарии — его гасит touch-action у html.lm-pullable. Если
+       кто-нибудь на это пожалуется, строку придётся вернуть. */
+    var shortRow = setToggle('shortFooter', 'Сокращённые подписи комментариев');
+    shortRow.querySelector('.lm-set_switch')
+      .addEventListener('click', function () { applyShortFooter(); });
+    other.appendChild(shortRow);
 
     var navRow = setToggle('navSticky', 'Планка навигации при скролле');
     navRow.querySelector('.lm-set_switch')
@@ -23112,6 +23425,259 @@ ${darkRules()}
   }
 
   /* ============================================================
+     6.2. ЗАЧЁРКНУТЫЙ ТЕКСТ
+     ============================================================
+
+     В полосе оформления у лепры десять кнопок: Bold, Italic, Underline,
+     x², x₂, Irony, Link, Image, Spoiler, Code. Зачёркивания среди них
+     нет. Добавляем одиннадцатую.
+
+     ТЕГА НЕТ, И ЭТО ПРОВЕРЕНО. Первая сборка ставила <s>…</s>, потому
+     что разметку лепра понимает тегами и зачёркивание казалось таким
+     же. Ден проверил на живой лепре три варианта разом — <s>, <strike>,
+     <del> — не прошёл ни один: чистилка их выбрасывает. Стендом это не
+     берётся вовсе, чистилка серверная, а среди снятых страниц
+     зачёркнутого текста нет ни одного.
+
+     Поэтому черта рисуется НЕ разметкой, а самим текстом: после каждого
+     знака ставится U+0336, COMBINING LONG STROKE OVERLAY. Это не
+     обходной приём и не хитрость — так зачёркивают на лепре и так
+     зачёркивают всюду, где разметки нет вовсе. Чистилке тут нечего
+     выбрасывать: букв она не трогает.
+
+     Отсюда три свойства, которых у тега не было.
+
+     1. НЕЧЕГО ВСТАВЛЯТЬ В ПУСТОТУ. Тег можно поставить парой и писать
+        между половинками; наложение живёт только на знаке. Значит без
+        выделения кнопка берёт СЛОВО ПЕРЕД КУРСОРОМ — то самое, которое
+        только что набрали. На телефоне это не поблажка, а главный ход:
+        выделять пальцем возню, а «зачеркнуть только что набранное»
+        делается одним тапом.
+
+     2. КНОПКА СТАЛА ПЕРЕКЛЮЧАТЕЛЕМ. Наложение видно в самом тексте,
+        поэтому его же можно и снять: если в куске уже есть метки —
+        убираем. Двойной тап отменяет ошибочный первый, и учиться этому
+        не надо.
+
+     3. ПЕРЕНОСЫ СТРОК ПРОПУСКАЕМ. Наложение на \n рисует черту в
+        никуда. Пробелы, наоборот, зачёркиваем — иначе черта рвётся
+        между словами, а нужна сплошная.
+
+     Суррогатные пары идут целиком: наложение ставится после ПАРЫ, а не
+     после её половины, иначе вместо зачёркнутого смайлика выйдет мусор.
+
+     Кнопка ставится ПОСЛЕДНЕЙ в полосе, и это не про удобство, а про
+     безопасность. Обработчики своим кнопкам лепра вешает своим
+     скриптом, и по какому признаку — неизвестно: по классу, по порядку
+     среди детей, по индексу в выборке. Если по порядку, то вставка в
+     середину сдвинула бы всю таблицу, и Bold начал бы вставлять
+     подчёркивание — поломка тихая и очень неприятная. Приписка в конец
+     не может сдвинуть ничего. По той же причине у нашей кнопки СВОЙ
+     класс, а не леприн: под их выборку она не попадает вовсе.
+
+     Тонкость с пальцем. Нажатие на что угодно вне поля забирает фокус,
+     а с ним на айосе уезжает клавиатура и теряется место набора.
+     Поэтому mousedown у кнопки отменяется — фокус остаётся в поле, и
+     тап проходит как вставка, а не как «поле закрылось, а потом что-то
+     вставилось». Выделение при этом переживает даже потерю фокуса
+     (textarea его помнит), так что вставка верна в обоих случаях.
+
+     Вставка — через execCommand('insertText'), а не записью в value.
+     Разница в отмене: запись в value стирает историю поля, и человек
+     после случайного нажатия не может вернуть набранное. execCommand
+     кладёт правку в ту же историю, что и клавиатура. Он объявлен
+     устаревшим, но замены для «вставить с сохранением отмены» не
+     существует, поэтому рядом лежит запасной путь на setRangeText. */
+
+  /* Записан кодом, а не знаком: сам знак невидим — в исходнике он
+     слился бы с соседней кавычкой, и любая правка рядом ставила бы его
+     под удар молча. */
+  var STRIKE_MARK = '\u0336';
+
+  /* Разбор куска на знаки С УЧЁТОМ суррогатных пар, попутно снимая
+     старые наложения: они мешают и при снятии, и при повторной
+     постановке (иначе на знаке копилось бы по две метки). */
+  function strikeChars(s) {
+    var out = [];
+    for (var i = 0; i < s.length;) {
+      var c = s.charCodeAt(i), ch;
+      if (c >= 0xD800 && c <= 0xDBFF && i + 1 < s.length) { ch = s.substr(i, 2); i += 2; }
+      else { ch = s.charAt(i); i += 1; }
+      if (ch !== STRIKE_MARK) out.push(ch);
+    }
+    return out;
+  }
+
+  /* holdA / holdB — «этот край не подрезать». Ставятся мостом: пробел,
+     переброшенный к уже зачёркнутому соседу, обязан получить метку,
+     иначе моста и не выйдет. */
+  function strikeOn(s, holdA, holdB) {
+    var cs = strikeChars(s);
+    /* Края с пробелами наложения не получают. Внутренние пробелы —
+       получают: без них черта рвалась бы между словами, а нужна
+       сплошная. Разница видна на выделении пальцем: айос почти всегда
+       прихватывает пробел за словом, и без этой оговорки за фразой
+       торчал бы хвостик черты. */
+    var a = 0, b = cs.length - 1;
+    if (!holdA) while (a <= b && /\s/.test(cs[a])) a++;
+    if (!holdB) while (b >= a && /\s/.test(cs[b])) b--;
+    return cs.map(function (ch, i) {
+      if (i < a || i > b) return ch;
+      /* Перенос строки не зачёркиваем и внутри — черта ушла бы в пустоту. */
+      return (ch === '\n' || ch === '\r') ? ch : ch + STRIKE_MARK;
+    }).join('');
+  }
+
+  function strikeOff(s) { return strikeChars(s).join(''); }
+
+  /* Несёт ли знак на месте i метку. Метка стоит СЛЕДОМ за знаком, а у
+     суррогатной пары — следом за парой. */
+  function strikeAt(v, i) {
+    if (i < 0 || i >= v.length) return false;
+    var c = v.charCodeAt(i);
+    if (c >= 0xD800 && c <= 0xDBFF) return v.charAt(i + 2) === STRIKE_MARK;
+    return v.charAt(i + 1) === STRIKE_MARK;
+  }
+
+  /* Границы куска доводим до целых знаков: резать между знаком и его
+     меткой нельзя — отрезанная метка повисла бы на чужом знаке. Влево
+     отступаем до основы, вправо забираем хвостовую метку с собой. */
+  function strikeWhole(v, s, e) {
+    while (s > 0 && v.charAt(s) === STRIKE_MARK) s--;
+    while (e < v.length && v.charAt(e) === STRIKE_MARK) e++;
+    return [s, e];
+  }
+
+  /* Поле этой формы. Идём вверх от полосы, а не ищем по всей странице:
+     форм на треде две (постоянная внизу и всплывающая по «ответить»), и
+     поиск по документу отдал бы чужое поле. Три ступени — с запасом:
+     полоса и поле лежат соседями внутри form. */
+
+  /* Поле этой формы. Идём вверх от полосы, а не ищем по всей странице:
+     форм на треде две (постоянная внизу и всплывающая по «ответить»), и
+     поиск по документу отдал бы чужое поле. Три ступени — с запасом:
+     полоса и поле лежат соседями внутри form. */
+  function strikeField(row) {
+    var p = row.parentElement;
+    for (var i = 0; i < 3 && p; i++) {
+      var ta = p.querySelector('textarea');
+      if (ta) return ta;
+      p = p.parentElement;
+    }
+    return null;
+  }
+
+  /* Что берём, если выделения нет: слово перед курсором. Слово — это
+     всё непробельное подряд, кончающееся на курсоре. Метки в счёт длины
+     входят наравне с буквами, поэтому уже зачёркнутое слово берётся
+     целиком и снимается целиком. */
+  function strikeWordBefore(v, at) {
+    var i = at;
+    while (i > 0 && !/\s/.test(v.charAt(i - 1))) i--;
+    return i;
+  }
+
+  function strikeInsert(ta) {
+    if (!ta) return;
+    var v = ta.value;
+    var s = ta.selectionStart, e = ta.selectionEnd;
+    if (s == null) { s = e = v.length; }
+
+    /* Без выделения берём слово перед курсором. Нет и слова (начало
+       строки, пробел слева) — делать нечего: тап ничего не портит. */
+    if (s === e) {
+      s = strikeWordBefore(v, e);
+      if (s === e) return;
+    }
+
+    var r = strikeWhole(v, s, e);
+    s = r[0]; e = r[1];
+
+    /* МОСТ ЧЕРЕЗ ПРОБЕЛ. Слова зачёркивают по одному — тап, тап, — и
+       без моста черта рвалась бы ровно между ними: пробел-то ничей.
+       Поэтому если по ту сторону соседнего пробела уже зачёркнуто,
+       пробел уходит под черту вместе с нашим куском. Правило
+       симметричное, works и влево и вправо, и оно же чинит обратный
+       случай: сняли черту со слова — примыкающий пробел, оказавшись
+       внутри куска, чистится вместе с ним и хвостика не оставляет.
+
+       Слева проверяем НЕ «несёт ли метку знак перед пробелом», а прямо
+       «стоит ли метка вплотную к пробелу»: метка идёт следом за своим
+       знаком, значит у зачёркнутого соседа она и есть последний знак
+       перед пробелом. Первая попытка считала на знак левее и мост молча
+       не наводила — поймано замером «слово за словом». */
+    var holdA = false, holdB = false;
+    if (s > 1 && v.charAt(s - 1) === ' ' &&
+        v.charAt(s - 2) === STRIKE_MARK) { s -= 1; holdA = true; }
+    if (v.charAt(e) === ' ' && strikeAt(v, e + 1)) { e += 1; holdB = true; }
+    r = strikeWhole(v, s, e);
+    s = r[0]; e = r[1];
+
+    var sel = v.slice(s, e);
+    /* Переключатель: есть метки — снимаем, нет — ставим. */
+    var txt = sel.indexOf(STRIKE_MARK) >= 0
+      ? strikeOff(sel) : strikeOn(sel, holdA, holdB);
+    if (txt === sel) return;
+
+    ta.focus();
+    try { ta.setSelectionRange(s, e); } catch (x) {}
+
+    var done = false;
+    try { done = document.execCommand('insertText', false, txt); } catch (x2) {}
+    if (!done) {
+      if (ta.setRangeText) ta.setRangeText(txt, s, e, 'end');
+      else ta.value = v.slice(0, s) + txt + v.slice(e);
+      /* Своё событие: на нём у лепры может висеть счётчик длины и
+         сохранение черновика, а при записи в value браузер его не шлёт. */
+      try { ta.dispatchEvent(new Event('input', { bubbles: true })); } catch (x3) {}
+    }
+
+    /* Курсор — за концом изменённого куска: набор продолжается дальше,
+       и следующая буква не должна попасть под черту. */
+    var caret = s + txt.length;
+    try { ta.setSelectionRange(caret, caret); } catch (x4) {}
+  }
+
+  /* Две разные полосы, и вторая нашлась только со страницей нового
+     поста на руках: у формы комментария ряд помечен классом
+     .b-textarea_editor, а на странице нового поста — НИКАКИМ классом,
+     только id js-new_post_body_wysiwyg. Замер: классов у него ноль,
+     кнопок внутри те же десять. Отсюда два селектора вместо одного. */
+  var STRIKE_ROWS = '.b-textarea_editor, #js-new_post_body_wysiwyg';
+
+  function addStrikeButton() {
+    sliceOf(document.querySelectorAll(STRIKE_ROWS)).forEach(function (row) {
+      if (row.dataset.lmStrike) return;
+      var ta = strikeField(row);
+      if (!ta) return;                      /* полоса без поля — не наша */
+      row.dataset.lmStrike = '1';
+
+      var b = document.createElement('span');
+      b.className = 'lm-strike';
+      b.setAttribute('role', 'button');
+      b.textContent = 'Strike';
+
+      b.addEventListener('mousedown', function (ev) { ev.preventDefault(); });
+      b.addEventListener('click', function (ev) {
+        ev.preventDefault();
+        /* Полоса — чужой узел, и на нём может висеть делегированный
+           обработчик лепры. Наше нажатие до него доходить не должно. */
+        ev.stopPropagation();
+        /* Поле ищем заново: всплывающую форму лепра пересобирает, и
+           запомненный узел мог стать чужим. */
+        strikeInsert(strikeField(row) || ta);
+      });
+
+      /* Пробел перед кнопкой — узлом, как у лепры. Её кнопки разделены
+         не только отбивкой в 4px, но и пробельными узлами разметки;
+         приписанная встык кнопка вставала на четыре пикселя ближе
+         соседки, и в ряду из одиннадцати подписей это видно. */
+      row.appendChild(document.createTextNode(' '));
+      row.appendChild(b);
+    });
+  }
+
+  /* ============================================================
      ФОРМА НОВОГО КОММЕНТАРИЯ В КОНЦЕ ТРЕДА
      ============================================================
 
@@ -23340,6 +23906,112 @@ ${darkRules()}
   }
 
   /* ============================================================
+     6.6. ЗАЧЁРКНУТОЕ ПРИ ПОКАЗЕ
+     ============================================================
+
+     Тега зачёркивания у лепры нет (разбор в 6.2), и люди зачёркивают
+     наложением U+0336 после каждого знака. Написать так можно везде, а
+     вот ВЫГЛЯДИТ это плохо: наложение рисуется шрифтом по каждому знаку
+     отдельно, ширина у него своя, и на телефоне выходит пунктир из
+     обрубков — черта не сходится между буквами и рвётся на каждом
+     пробеле, который метку не получил. Первая же проверка на устройстве
+     этим и кончилась: «зачеркивания выглядят странно».
+
+     Чинится это не в наборе, а в показе, и чинится начисто: в СВОЁМ
+     виде мы черту рисуем сами. Находим сплошные полосы «знак+метка»,
+     метки из разметки убираем, а сам кусок заворачиваем в свой span с
+     нашей чертой в один волосок. Черта получается настоящая — сплошная,
+     той же длины, что и текст, и по нашей толщине.
+
+     Тот же ход, что с ником ушедшего гражданина: лепра сказала своим
+     способом, мы пересказали своим. Разница только в том, что там мы
+     возвращали затёртый признак, а тут заменяем корявый на ровный.
+
+     Три следствия, каждое к лучшему:
+
+       — пробел без метки внутри зачёркнутого куска остаётся дырой в
+         черте у всех, но у нас соседние полосы стоят вплотную, и
+         разрыв виден только там, где он и есть;
+       — зачёркнутый смайлик у всех выпадает из-под черты (наложение не
+         складывается с цветным начертанием), а у нас черта идёт поверх
+         всей строки и смайлика тоже;
+       — текст, скопированный из нашего вида, приходит чистым: метки
+         остались в разметке лепры, а не в буквах.
+
+     Полосы ищем ТОЛЬКО в телах и заголовках — там же, где эмодзи
+     (EMO_SEL). Обёртки друг другу не мешают: у эмодзи внутри нашего
+     куска черта проведена предком, а не им самим, и его фильтр в тёмной
+     теме на неё не действует. */
+
+  /* Полоса — один или несколько знаков, за каждым метка. Суррогатная
+     пара берётся целиком: иначе метка после её половины разрезала бы
+     пару, и вместо смайлика вышел бы мусор. */
+  var STRUCK_RE = new RegExp(
+    '(?:(?:[\\uD800-\\uDBFF][\\uDC00-\\uDFFF]|[^\\uD800-\\uDFFF])\\u0336)+', 'g');
+
+  function struckWrap(host) {
+    if (seen.struck.has(host)) return 0;
+    seen.struck.add(host);
+
+    /* Сперва собираем узлы, потом правим: замена узла на набор узлов
+       сбивает обходчик. Та же оговорка, что у эмодзи. */
+    var walker = document.createTreeWalker(host, NodeFilter.SHOW_TEXT, {
+      acceptNode: function (n) {
+        var p = n.parentNode;
+        if (!p || p.nodeType !== 1) return NodeFilter.FILTER_REJECT;
+        if (EMO_SKIP.test(p.tagName)) return NodeFilter.FILTER_REJECT;
+        if (p.className === 'lm-struck') return NodeFilter.FILTER_REJECT;
+        return NodeFilter.FILTER_ACCEPT;
+      }
+    });
+    var list = [], n;
+    while ((n = walker.nextNode()))
+      if ((n.nodeValue || '').indexOf(STRIKE_MARK) >= 0) list.push(n);
+    if (!list.length) return 0;
+
+    var done = 0;
+    list.forEach(function (node) {
+      var text = node.nodeValue, out = document.createDocumentFragment();
+      var last = 0, m, здесь = 0;
+      STRUCK_RE.lastIndex = 0;
+      while ((m = STRUCK_RE.exec(text))) {
+        if (!m[0].length) { STRUCK_RE.lastIndex++; continue; }
+        if (m.index > last)
+          out.appendChild(document.createTextNode(text.slice(last, m.index)));
+        var span = document.createElement('span');
+        span.className = 'lm-struck';
+        span.textContent = m[0].split(STRIKE_MARK).join('');
+        out.appendChild(span);
+        last = m.index + m[0].length;
+        здесь++;
+      }
+      /* Считаем ПО УЗЛУ, а не общим числом: метка бывает и одинокая, без
+         своего знака (обрезали при правке, пришла из чужого клиента) —
+         полосой она не считается, и такой узел трогать не за что. Общим
+         счётчиком узел заменялся бы сам собой впустую. */
+      if (!здесь) return;
+      done += здесь;
+      if (last < text.length)
+        out.appendChild(document.createTextNode(text.slice(last)));
+      if (node.parentNode) node.parentNode.replaceChild(out, node);
+    });
+    return done;
+  }
+
+  var struckHosts = 0, struckFound = 0;
+
+  function fixStruck() {
+    var host = root();
+    if (!host) return;
+    var list = host.querySelectorAll(EMO_SEL);
+    for (var i = 0; i < list.length; i++) {
+      if (seen.struck.has(list[i])) continue;
+      struckHosts++;
+      struckFound += struckWrap(list[i]);
+    }
+  }
+
+  /* ============================================================
      6.7. ЭЛЛАСТИК-СКРОЛЛ
      ============================================================
 
@@ -23424,7 +24096,18 @@ ${darkRules()}
 
      Готовые обёртки эмодзи не разбираем, а помечаем своим классом —
      тогда эмодзи едет вместе со строкой. Не пометить значило бы
-     оставить его стоять на месте, разорвав поджатую строку. */
+     оставить его стоять на месте, разорвав поджатую строку.
+
+     А вот зачёркнутый кусок (.lm-struck) обходим стороной целиком, и
+     это не лень, а единственный верный ход. Черту там проводит сам
+     кусок; заверни мы слова внутри него — они станут inline-block, а
+     оформление строки НА АТОМАРНЫЕ строчные коробки не переходит по
+     стандарту, и черта пропала бы с них вовсе. Пометить кусок как
+     ячейку тоже нельзя: ячейка это inline-block, и целая зачёркнутая
+     фраза перестала бы переноситься, вылезая за край экрана. Значит
+     остаётся третье: зачёркнутое в поджатии не участвует. Цена —
+     кусок стоит на месте, пока соседи едут; плата за обратное была бы
+     дороже. */
   function elWrap(body) {
     var st = elState.get(body);
     if (st && (st.wrapped || st.skip)) return 0;
@@ -23435,6 +24118,10 @@ ${darkRules()}
         if (!p || p.nodeType !== 1) return NodeFilter.FILTER_REJECT;
         if (EMO_SKIP.test(p.tagName)) return NodeFilter.FILTER_REJECT;
         if (p.className === 'lm-el_c') return NodeFilter.FILTER_REJECT;
+        /* Зачёркнутое — мимо: разбор в описании выше. closest, а не
+           сравнение классов: внутри куска может лежать обёртка эмодзи,
+           и текст тогда висит на ней, а не на самом куске. */
+        if (p.closest && p.closest('.lm-struck')) return NodeFilter.FILTER_REJECT;
         return NodeFilter.FILTER_ACCEPT;
       }
     });
@@ -23481,11 +24168,16 @@ ${darkRules()}
     });
 
     var emo = body.querySelectorAll('.lm-emo');
-    for (var i = 0; i < emo.length; i++)
+    for (var i = 0; i < emo.length; i++) {
+      /* Смайлик внутри зачёркнутого куска ячейкой не делаем: он бы
+         поехал, оставив кусок стоять, да ещё и выпал бы из-под черты —
+         оформление на атомарные коробки не переходит. */
+      if (emo[i].closest && emo[i].closest('.lm-struck')) continue;
       if (emo[i].className.indexOf('lm-el_c') < 0) {
         emo[i].className += ' lm-el_c';
         made++;
       }
+    }
 
     body.classList.add('lm-el_on');
     elState.set(body, { wrapped: true, plan: null });
@@ -28040,6 +28732,7 @@ ${darkRules()}
     guard('watchNickTap', watchNickTap)();
     guard('fixMyThings', fixMyThings)();
     guard('fixArchiveDays', fixArchiveDays)();
+    guard('addStrikeButton', addStrikeButton)();
     guard('watchChainPull', watchChainPull)();
     /* Достижимость гнёзд зависит от ВЫСОТЫ ДОКУМЕНТА, а она меняется и
        без отбора: лепра дописывает комментарии, догружаются картинки,
@@ -28059,6 +28752,15 @@ ${darkRules()}
     /* Эмодзи — до замеров медиа и сокращения: обёртка строчная и высоты
        не меняет, но пусть разметка будет окончательной к моменту, когда
        по ней начнут считать бюджеты. */
+    /* Строго ДО эмодзи, и это не про цену, а про смысл. Обёртка эмодзи
+       режет текстовый узел ровно по смайлику, и наложение, стоявшее
+       следом за ним, остаётся в СЛЕДУЮЩЕМ узле — полоса рвётся надвое,
+       а метка смайлика повисает сиротой и рисует чёрточку в пустоте.
+       Замером это и поймано: «ой 😂 да» разваливалось на «ой » и « да».
+       В обратном порядке полоса берётся целиком (суррогатная пара у нас
+       разбирается как один знак), а эмодзи заворачивается уже внутри
+       неё — и черта, проведённая предком, идёт поверх смайлика тоже. */
+    guard('fixStruck', fixStruck)();
     guard('fixEmoji', fixEmoji)();
     guard('registerMedia', registerMedia)();
     guard('fixMediaSizes', fixMediaSizes)();
@@ -28109,6 +28811,9 @@ ${darkRules()}
     /* Догруженные комментарии и посты приходят со своими эмодзи. Проход
        дешёвый: обойдённые тела помечены, и повторный заход до них не
        доходит вовсе. */
+    /* Догруженные комментарии приходят и со своим зачёркнутым.
+       Порядок тот же, что в полном проходе, и по той же причине. */
+    guard('fixStruck', fixStruck)();
     guard('fixEmoji', fixEmoji)();
     /* Догруженные тела надо взять под наблюдение: лёгкий проход и
        назначается ровно на добавление узлов. Подписка на уже
@@ -28119,6 +28824,11 @@ ${darkRules()}
        полному проходу может ещё не быть. Проход сам уходит ни с чем,
        если уже отработал. */
     guard('watchNewComment', watchNewComment)();
+    /* Всплывающую форму ответа лепра вставляет своим кодом по тапу
+       «ответить» — то есть ровно добавлением узлов, на которое и
+       назначен лёгкий проход. Полоса помечена, повторный заход стоит
+       одного поиска. */
+    guard('addStrikeButton', addStrikeButton)();
     guard('registerMedia', registerMedia)();
     guard('fixMediaSizes', fixMediaSizes)();
     /* заметка профиля: лепра переписывает её содержимое своим скриптом */
