@@ -42,6 +42,22 @@ class MainActivity : AppCompatActivity() {
     companion object {
         const val HOME = "https://leprosorium.ru/"
 
+        /* Сколько ждать первую страницу, прежде чем объясниться. Меньше
+           нельзя: на медленной сети лепра встаёт и за восемь секунд. */
+        const val FIRST_WAIT = 12_000L
+
+        /* Переживают пересоздание экрана, поэтому в companion, а не в поле:
+           после смерти движка страницы экран строится заново, и обычное
+           поле обнулилось бы вместе с ним — то есть счётчик смертей никогда
+           бы не дошёл до двух. */
+        var renderDeaths = 0
+        var safeMode = false
+        /* Показан ли экран, СОБРАННЫЙ в безопасном режиме. Нужен потому,
+           что MainActivity живёт в singleTask: возврат к нему приходит
+           через onNewIntent, а не через onCreate, и без этой отметки
+           включённый режим не применился бы до ручного перезапуска. */
+        var safeShown = false
+
         /* Тона взяты из сетки скрипта. Значения ЭКРАННЫЕ: ночной прообраз
            под фильтр инверсии живёт в скрипте, а здесь нужен тот цвет,
            который человек видит. */
@@ -129,9 +145,23 @@ class MainActivity : AppCompatActivity() {
         setupSwipe()
         setupBack()
 
-        if (!injectScript()) return
+        /* Безопасный режим: движок страницы умирал дважды подряд, и наш
+           впрыск — первый подозреваемый (скрипт весит под два мегабайта и
+           встаёт ДО разбора). Открываем лепру без него: человек остаётся
+           с рабочим сайтом, пусть и десктопным, а мы получаем ответ на
+           главный вопрос — в скрипте дело или нет. */
+        if (safeMode) {
+            safeShown = true
+            Diag.fact("безопасный режим", "включён, скрипт не впрыскивается")
+            Diag.log("безопасный режим: грузим лепру без скрипта")
+            toast("Открываем без скрипта")
+        } else {
+            safeShown = false
+            if (!injectScript()) return
+        }
 
         web.loadUrl(startUrl())
+        watchFirstLoad()
         ScriptStore.maybeUpdate(this)
         AppUpdate.check(this, force = false) { _, found ->
             if (found != null) runOnUiThread { offerUpdate(found) }
@@ -162,6 +192,11 @@ class MainActivity : AppCompatActivity() {
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
+        /* Режим могли включить с экрана диагностики, пока мы висели в
+           памяти. Возврат сюда идёт через onNewIntent, а собирается всё в
+           onCreate — значит экран надо пересоздать, иначе нажатие не
+           сделало бы ничего. */
+        if (safeMode != safeShown) { recreate(); return }
         val d = intent.data ?: return
         if (ours(d)) web.loadUrl(d.toString())
     }
@@ -201,7 +236,12 @@ class MainActivity : AppCompatActivity() {
         s.textZoom = 100
 
         web.setBackgroundColor(pageTone())
-        WebView.setWebContentsDebuggingEnabled(true)
+        /* ТОЛЬКО в отладочной сборке. Внутри приложения живёт чужая
+           сессия: с включённой отладкой её видно через chrome://inspect у
+           всякого, кто дотянется до телефона по проводу. В записке на
+           разработку так и было записано, а в код попало безусловное
+           true — недосмотр. */
+        WebView.setWebContentsDebuggingEnabled(BuildConfig.DEBUG)
 
         val cm = CookieManager.getInstance()
         cm.setAcceptCookie(true)
@@ -294,9 +334,12 @@ class MainActivity : AppCompatActivity() {
         /* Спрашиваем сам движок, знает ли он про эту возможность. Имя
            признака берём строкой, а не постоянной: постоянной может не
            оказаться в нашей версии библиотеки, и тогда не собралось бы. */
-        val known = runCatching {
+        val ask = runCatching {
             WebViewFeature.isFeatureSupported("REQUESTED_WITH_HEADER_ALLOW_LIST")
-        }.fold({ if (it) "да" else "нет" }, { "спросить не вышло (" + it.javaClass.simpleName + ")" })
+        }
+        val knownOk = ask.getOrDefault(false)
+        val known = ask.fold({ if (it) "да" else "нет" },
+            { "спросить не вышло (" + it.javaClass.simpleName + ")" })
 
         val notes = StringBuilder("движок знает про список источников: ").append(known)
 
@@ -319,7 +362,14 @@ class MainActivity : AppCompatActivity() {
             return false
         }
 
-        if (tryOne("setRequestedWithHeaderOriginAllowList", java.util.Set::class.java, emptySet<String>())) {
+        /* Спрашиваем движок и слушаем ответ. Раньше вызов шёл в любом
+           случае: движок отвечал «не знаю», а мы всё равно звали и ловили
+           UnsupportedOperationException. Работать это работало, но звать
+           заведомо неподдерживаемое незачем — и в отчёте это выглядело
+           поломкой там, где её нет. */
+        if (!knownOk) notes.append(" | список источников не пробуем: движок не знает")
+        if (knownOk && tryOne("setRequestedWithHeaderOriginAllowList",
+                              java.util.Set::class.java, emptySet<String>())) {
             Diag.fact("X-Requested-With", "погашен списком источников | " + notes)
             return
         }
@@ -486,6 +536,39 @@ class MainActivity : AppCompatActivity() {
     // Свои страницы (ошибка сети, отказ)
     // ------------------------------------------------------------------
 
+    /* Встала ли хоть одна НАША страница за эту сессию.
+
+       Нужен для двух решений сразу: сторож первой загрузки и запрет
+       отдавать первую навигацию наружу. Оба про один и тот же случай —
+       человек открыл приложение и не получил ничего. */
+    private var landed = false
+
+    /* Сторож первой загрузки.
+
+       Жалоба, ради которой он заведён: на Андроиде 13 приложение
+       показывало белизну, и в отчёте стояло «на странице about:blank,
+       разметки 39» — это длина пустого документа. Запрос при этом уходил,
+       ошибок не было ни одной: WebView считал, что ничего не сломалось.
+       Так выглядит переадресация на чужой адрес, которую мы сами же и
+       отдавали наружу, бросая загрузку.
+
+       Белый экран — худший из возможных исходов: он не говорит ничего.
+       Поэтому если за FIRST_WAIT наша страница так и не встала, показываем
+       свою заглушку с тем, что знаем, и кнопкой. */
+    private fun watchFirstLoad() {
+        web.postDelayed({
+            if (landed || isFinishing || isDestroyed) return@postDelayed
+            val at = web.url ?: "about:blank"
+            /* Страница могла встать и медленно — тогда не мешаем. */
+            if (at != "about:blank" && ours(Uri.parse(at))) return@postDelayed
+            Diag.log("сторож: за " + (FIRST_WAIT / 1000) + " с страница не встала, в окне " + at)
+            showPlain("Лепра не открылась",
+                "Запрос ушёл, но страница так и не встала. Сейчас в окне: " + at +
+                ". Чаще всего так делает заглушка провайдера: она уводит с лепры " +
+                "на свой адрес. Отчёт в «#appdiag» покажет, куда именно.")
+        }, FIRST_WAIT)
+    }
+
     private fun showPlain(head: String, body: String) {
         val bg = if (dark) "#111010" else "#fdfcfa"
         val ink = if (dark) "#eae7e2" else "#191714"
@@ -518,8 +601,16 @@ class MainActivity : AppCompatActivity() {
     private fun outside(u: Uri) {
         try {
             startActivity(Intent(Intent.ACTION_VIEW, u).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+            Diag.log("отдали наружу: " + u)
         } catch (e: ActivityNotFoundException) {
+            Diag.log("отдать наружу не вышло: " + u)
             toast("Нечем открыть: $u")
+        } catch (e: Throwable) {
+            /* На MIUI запуск чужого окна из фона бывает запрещён, и это
+               не ActivityNotFoundException. Прежняя редакция ловила только
+               его, а всё прочее уронило бы приложение. */
+            Diag.log("отдать наружу не дали: " + (e.javaClass.simpleName) + " — " + u)
+            toast("Не дали открыть: $u")
         }
     }
 
@@ -620,13 +711,42 @@ class MainActivity : AppCompatActivity() {
 
     private inner class Client : WebViewClient() {
 
+        /* Здесь решается, остаётся адрес внутри или уходит наружу, — и
+           здесь же проходят ВСЕ переадресации главного кадра. Раньше это
+           место молчало, и ровно тот случай, ради которого всё чинится,
+           был в отчёте невидим: запрос ушёл, ошибок нет, страница пуста,
+           а куда нас увели — не записано нигде. */
         override fun shouldOverrideUrlLoading(view: WebView, req: WebResourceRequest): Boolean {
             val u = req.url
             if (u.fragment == "appdiag") {
                 openDiagScreen()
                 return true
             }
-            if (ours(u)) return false
+            val main = req.isForMainFrame
+            val redirect = runCatching { req.isRedirect }.getOrDefault(false)
+            if (ours(u)) {
+                if (main && redirect) Diag.log("переадресация на своё: " + u)
+                return false
+            }
+            if (main) {
+                Diag.log("увели с лепры на " + u + (if (redirect) " (переадресация)" else ""))
+                /* ПЕРВУЮ навигацию сессии наружу не отдаём никогда.
+
+                   Если самая первая страница уводит в браузер, приложение
+                   остаётся пустым — а на Xiaomi запуск чужого окна из фона
+                   часто ещё и молча блокируется, и тогда не происходит
+                   вообще ничего. Человек видит белизну и справедливо
+                   считает, что приложение не запускается. Лучше сказать
+                   правду и дать кнопку. */
+                if (!landed) {
+                    showPlain("Нас увели с лепры",
+                        "Первый же запрос перенаправили на " + u +
+                        ". Так обычно делает заглушка провайдера. " +
+                        "В браузере на этом же телефоне лепра может открываться — " +
+                        "у него свой DNS.")
+                    return true
+                }
+            }
             outside(u)
             return true
         }
@@ -652,6 +772,9 @@ class MainActivity : AppCompatActivity() {
         override fun onPageStarted(view: WebView, url: String, favicon: android.graphics.Bitmap?) {
             headersSeen = false
             rescued = false
+            /* Без этой строки нельзя отличить «загрузка не начиналась» от
+               «началась и оборвалась» — а лечится это противоположным. */
+            Diag.log("начали грузить: " + url)
         }
 
         /* Код ответа главной страницы. В журнал попадал только УХОДЯЩИЙ
@@ -677,6 +800,8 @@ class MainActivity : AppCompatActivity() {
            человек и называет «обновилось». */
         override fun onPageCommitVisible(view: WebView, url: String) {
             swipe.isRefreshing = false
+            if (runCatching { ours(Uri.parse(url)) }.getOrDefault(false)) landed = true
+            Diag.log("нарисовали: " + url)
         }
 
         override fun onPageFinished(view: WebView, url: String) {
@@ -701,8 +826,54 @@ class MainActivity : AppCompatActivity() {
             ) { r ->
                 val said = (r ?: "").trim('"')
                 Diag.fact("на странице", if (said.isBlank()) "нет ответа" else said)
-                if (said.startsWith("undefined")) rescueScript(view, url)
+                /* Спасать впрыск имеет смысл ТОЛЬКО на нашей странице.
+
+                   Пустой документ WebView заканчивается своим
+                   onPageFinished сразу при запуске, и прежняя редакция
+                   честно писала на него «штатный впрыск не сработал».
+                   Надпись верная по букве и ложная по смыслу: скрипту не
+                   на чем было срабатывать. Разбор жалобы на белый экран
+                   она увела в сторону на целый круг — а подпись, которая
+                   путает две разные беды, хуже отсутствующей. */
+                val onOurs = runCatching { ours(Uri.parse(url)) }.getOrDefault(false)
+                if (!onOurs) {
+                    Diag.log("не наша страница (" + url + ") — впрыск тут ни при чём")
+                } else if (said.startsWith("undefined")) {
+                    rescueScript(view, url)
+                }
             }
+        }
+
+        /* СМЕРТЬ ДВИЖКА СТРАНИЦЫ.
+
+           Раньше этого обработчика не было вовсе, и это не мелочь: если
+           метод не переопределён, система убивает ВЕСЬ процесс приложения.
+           Снаружи это выглядит ровно так, как в жалобе, — приложение
+           «не запускается»: белый экран, а потом ничего.
+
+           Признак в отчёте: после такой смерти следующая диагностика
+           показывает один «запуск» и ни одного сведения, потому что
+           процесс новый.
+
+           Мёртвый WebView не оживить — его убирают и строят заново. Первую
+           смерть переживаем пересозданием экрана, вторую — пересозданием
+           БЕЗ впрыска: наш скрипт весит под два мегабайта и встаёт до
+           разбора, так что он первый подозреваемый. */
+        override fun onRenderProcessGone(
+            view: WebView, detail: android.webkit.RenderProcessGoneDetail
+        ): Boolean {
+            val crashed = runCatching { detail.didCrash() }.getOrDefault(false)
+            renderDeaths++
+            Diag.log("движок страницы умер (" +
+                (if (crashed) "падение" else "система выгрузила") +
+                "), смертей за сессию: " + renderDeaths)
+            Diag.fact("движок страницы умирал", renderDeaths.toString() +
+                " раз(а), последний раз — " + (if (crashed) "падение" else "выгрузка системой"))
+            (view.parent as? ViewGroup)?.removeView(view)
+            view.destroy()
+            if (renderDeaths >= 2) safeMode = true
+            recreate()
+            return true
         }
 
         override fun onReceivedError(view: WebView, req: WebResourceRequest, err: WebResourceError) {
