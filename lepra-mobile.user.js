@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Lepra Mobile
 // @namespace    lepra.mobile
-// @version      2.3.7
+// @version      2.4.1
 // @description  Мобильная адаптация leprosorium.ru для iOS Safari
 // @author       neokrasav4ik
 // @homepageURL  https://github.com/neokrasav4ik/lepra-mobile
@@ -131,7 +131,7 @@
     return;
   }
 
-  var VERSION = '2.3.7';
+  var VERSION = '2.4.1';
 
   /* ============================================================
      НАСТРОЙКИ
@@ -7362,9 +7362,7 @@ html.lm-cards2 .b-popup_holder { background: var(--lm-card) !important; }
 .b-archive_navigation {
   width: auto !important; box-sizing: border-box !important;
   padding: 6px !important; }
-/* Ряд «предыдущий / следующий день». Флексом, а не выравниванием по
-   центру: две кнопки должны стоять парой с одинаковым зазором, а на
-   узком экране переноситься, а не вылезать. */
+/* Ряд «предыдущий / следующий день». */
 .b-archive_bottom_navigation {
   margin: 20px 0 !important; padding: 20px 0 !important;
   display: flex !important; justify-content: center !important;
@@ -7374,45 +7372,62 @@ html.lm-cards2 .b-popup_holder { background: var(--lm-card) !important; }
    Раньше здесь стояло только «предыдущий день», и это было видно на
    устройстве: один день — кнопка с рамкой, другой — голая подчёркнутая
    ссылка рядом. Пара кнопок, у которых одно назначение и разный вид, —
-   это не оформление, а недоделка; и заметить её мог только тот, у кого
-   на экране есть оба дня, то есть не я. */
+   это не оформление, а недоделка. */
 .b-archive_previous_day_bottom,
 .b-archive_next_day_bottom {
-  display: inline-block !important; box-sizing: border-box !important;
-  padding: 8px 12px !important;
+  display: inline-block !important;
+  box-sizing: border-box !important;
+  /* Поля сверху и снизу РАЗНЫЕ, и это поправка на глаз, а не описка.
+     Строка текста центрируется в кнопке точно, но чернила букв стоят в
+     ней несимметрично: сверху шрифт оставляет больше воздуха. Замер на
+     этой кнопке: над буквами 11,0, под ними 9,6. Убавляем сверху и
+     добавляем снизу по пикселю — высота та же, буквы на месте. */
+  padding: 7px 12px 9px !important;
   background: var(--lm-card) !important;
   border: 1px solid var(--lm-line) !important;
   border-radius: ${UI_R}px !important;
   color: var(--lm-ink) !important; text-decoration: none !important;
-  font-size: 13px !important; line-height: 1.2 !important; }
+  font-size: 13px !important; line-height: 1.2 !important;
+  white-space: nowrap !important; }
 .b-archive_previous_day_bottom:active,
 .b-archive_next_day_bottom:active {
   background: var(--lm-press) !important;
   border-color: var(--lm-press-line) !important; }
-/* Стрелки. Лепра рисует их рамками у ::after и прибивает по краю ССЫЛКИ
-   (left:-2px, right:-8px) — у голой ссылки это уместно, а у кнопки
-   стрелка повисает СНАРУЖИ, наполовину на рамке. Заводим их внутрь,
-   ставим по середине высоты и красим текущим цветом, чтобы не заводить
-   второй тон и не спорить с тёмной темой. Под стрелку освобождаем поле
-   с её стороны. */
-.b-archive_previous_day_bottom { padding-left: 27px !important; }
-.b-archive_next_day_bottom { padding-right: 27px !important; }
+
+/* СТРЕЛКА — СВОЯ, а леприну гасим. Разбор стоит трёх кругов правок,
+   поэтому подробно.
+
+   Лепра рисует стрелку рамками у ::after и прибивает её абсолютно к
+   краю ссылки. У кнопки это выносит стрелку наружу, поэтому абсолютную
+   привязку пришлось снять. Дальше я попробовал два способа поставить её
+   по вертикали, и оба оказались негодными:
+
+   — по центру строки (align-items: center): середина СТРОКИ и середина
+     БУКВ — разные места, строка включает место под выносные элементы, и
+     стрелка выходит выше букв;
+   — по базовой линии (align-items: baseline): у пустого элемента с
+     рамками своей базовой линии нет, движок её СИНТЕЗИРУЕТ, и делает
+     это по-разному. На стенде вышло верно, на устройстве — стрелка выше
+     букв на пару пикселей. Проверить у себя я это не могу вовсе.
+
+   Поэтому стрелка теперь своя, обычным узлом в потоке текста, с
+   vertical-align: middle. Это выравнивание в CSS определено буквально
+   как «середина коробки на половине иксовой высоты над базовой линией»
+   — то есть ровно по середине строчных букв, — и считается одинаково во
+   всех движках. Ни процентов, ни поправок, ни синтеза. */
 .b-archive_previous_day_bottom::after,
-.b-archive_next_day_bottom::after {
-  top: 50% !important; bottom: auto !important;
-  margin-top: -6px !important; }
-.b-archive_previous_day_bottom::after {
-  left: 10px !important; right: auto !important;
-  border-right-color: currentColor !important; }
-.b-archive_next_day_bottom::after {
-  right: 10px !important; left: auto !important;
-  border-left-color: currentColor !important;
-  /* Прозрачная рамка справа — лишняя, и это не придирка. Треугольник
-     собран рамками: видимая часть у «следующего» левая, а справа лепра
-     оставила ещё 6 пикселей прозрачной рамки. Коробка выходит 14 вместо
-     8, и стрелка съезжает к слову: зазор 3 пикселя против 9 у соседа.
-     На глаз это и читается как «несимметрично». */
-  border-right-width: 0 !important; }
+.b-archive_next_day_bottom::after { content: none !important; }
+.lm-arw {
+  display: inline-block !important; vertical-align: middle !important;
+  width: 0 !important; height: 0 !important;
+  border-top: 6px solid transparent !important;
+  border-bottom: 6px solid transparent !important; }
+.lm-arw__prev {
+  border-right: 7px solid currentColor !important;
+  margin-right: 9px !important; }
+.lm-arw__next {
+  border-left: 7px solid currentColor !important;
+  margin-left: 9px !important; }
 /* календарь архива */
 .b-archive_calendar, .b-archive_calendar table {
   width: 100% !important; max-width: 100% !important;
@@ -14955,6 +14970,41 @@ ${darkRules()}
           if (hit) n.nodeValue = out.join('|');
         });
       });
+  }
+
+  /* Свои стрелки в кнопках «предыдущий / следующий день» архива.
+
+     Леприну стрелку мы гасим правилом (::after { content: none }), потому
+     что она прибита абсолютно к краю ссылки и у кнопки с полями вылезает
+     наружу. Своя — обычный узел в потоке строки: рисуется рамками, как и
+     у лепры, но встаёт по vertical-align: middle, то есть ровно по
+     середине строчных букв. Разбор, почему именно так, — рядом с
+     правилом .lm-arw в таблице.
+
+     Узел вставляем, а не рисуем псевдоэлементом, по той же причине, что
+     и подписи у значков: псевдоэлемент у ссылки один, и он уже занят
+     лепрой. Спорить за него — заведомо проигранное дело.
+
+     Порядок: у «предыдущего» стрелка перед словами, у «следующего» —
+     после. Это направление движения, и менять его местами нельзя. */
+  function fixArchiveDays() {
+    var pairs = [
+      ['.b-archive_previous_day_bottom', 'lm-arw__prev', 1],
+      ['.b-archive_next_day_bottom', 'lm-arw__next', 0],
+    ];
+    pairs.forEach(function (p) {
+      sliceOf(document.querySelectorAll(p[0])).forEach(function (a) {
+        if (a.dataset.lmArw) return;
+        a.dataset.lmArw = '1';
+        var s = document.createElement('span');
+        s.className = 'lm-arw ' + p[1];
+        /* Стрелка — картинка, а не текст: озвучке читать в ней нечего,
+           а направление уже сказано словами «предыдущий»/«следующий». */
+        s.setAttribute('aria-hidden', 'true');
+        if (p[2] && a.firstChild) a.insertBefore(s, a.firstChild);
+        else a.appendChild(s);
+      });
+    });
   }
 
   function fixMyThings() {
@@ -27297,6 +27347,7 @@ ${darkRules()}
     guard('watchUserCards', watchUserCards)();
     guard('watchNickTap', watchNickTap)();
     guard('fixMyThings', fixMyThings)();
+    guard('fixArchiveDays', fixArchiveDays)();
     guard('shortenSubNav', shortenSubNav)();
     guard('fitSelects', fitSelects)();
     /* строку фильтров меряем ПОСЛЕ подгонки полей: до неё ширины ещё не те */
