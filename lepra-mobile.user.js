@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Lepra Mobile
 // @namespace    lepra.mobile
-// @version      2.6.0
+// @version      2.6.2
 // @description  Мобильная адаптация leprosorium.ru для iOS Safari
 // @author       neokrasav4ik
 // @homepageURL  https://github.com/neokrasav4ik/lepra-mobile
@@ -131,7 +131,7 @@
     return;
   }
 
-  var VERSION = '2.6.0';
+  var VERSION = '2.6.2';
 
   /* ============================================================
      НАСТРОЙКИ
@@ -7430,6 +7430,10 @@ html.lm-pullable .comment { touch-action: manipulation; }
   pointer-events: none !important;
   font: 13px/1.25 Verdana, Geneva, sans-serif !important; }
 .lm-prow {
+  /* Строка ловит палец: увидев предка, к нему хочется перейти. У самой
+     полосы pointer-events: none — чтобы промахи мимо строк уходили на
+     плёнку и разбирали ветку, — поэтому строкам его возвращаем. */
+  pointer-events: auto !important; cursor: pointer !important;
   position: absolute !important; left: 0 !important; height: 30px !important;
   box-sizing: border-box !important; display: flex !important;
   align-items: center !important; gap: 6px !important;
@@ -7455,6 +7459,11 @@ html.lm-pullable .comment { touch-action: manipulation; }
   position: absolute !important; left: 0 !important; top: 0 !important;
   z-index: 41 !important; pointer-events: none !important; }
 .lm-prow_more { color: var(--lm-dim) !important; }
+/* Отклик на нажатие. Своей коробки у строки нет, поэтому подложка
+   рисуется только на время касания — и скруглением по нашему UI_R, а не
+   во всю ширину прямоугольником. */
+.lm-prow:active { background: var(--lm-press) !important;
+  border-radius: ${UI_R}px !important; }
 
 /* ============ АРХИВ ============ */
 /* Лента архива имела 330px отступа справа под правую колонку: на телефоне
@@ -11389,6 +11398,33 @@ html.lm-sconnect .lm-dsc_nest svg {
   filter: drop-shadow(0 0 ${DSC_GLOW1} ${CFG.discoGlow})
           drop-shadow(0 0 ${DSC_GLOW2} ${CFG.discoGlow}) !important; }
 
+/* ГНЕЗДО, ДО КОТОРОГО СТЫКОВКА ДОЙТИ НЕ МОЖЕТ.
+
+   Стыковка срабатывает, когда гнездо подошло к СЕРЕДИНЕ экрана ближе
+   чем на discoDock. Значит нужен отсчёт прокрутки s = P − vh/2, и он
+   обязан влезть в предел прокрутки. Отсюда правило: гнездо достижимо,
+   только если после него в документе осталось не меньше полэкрана.
+
+   Замер: при хвосте 1736 гнездо на упоре отстоит от середины на 1310,
+   при хвосте 160 — на 266. Расхождение ровно «хвост минус полэкрана»,
+   допуск при этом 17. То есть при коротком хвосте гнездо не подходит к
+   допуску НИКОГДА.
+
+   Цена этого была не в неудобстве: разворот вызывается ровно из одного
+   места — нажатия по гнезду, — а в режиме стыковки гнездо погашено и
+   нажатий не принимает. Последний уплотнённый комментарий на такой
+   странице не разворачивался ни одним способом вообще.
+
+   Лечится тем, что у узла уже есть: без стыковки он и так работает
+   обычной стрелкой по тапу. Недостижимому возвращаем ровно этот вид —
+   ни нового понятия, ни нового рисунка. Человек читает его так же, как
+   читал бы при выключенной стыковке: стрелка значит «тапни». */
+html.lm-sconnect .lm-dsc_nest.lm-dsc_far {
+  opacity: 1 !important; pointer-events: auto !important; }
+html.lm-sconnect .lm-dsc_nest.lm-dsc_far svg polygon {
+  fill: ${jumpInkCss(false)} !important; }
+html.lm-sconnect .lm-dsc_nest.lm-dsc_far svg { filter: none !important; }
+
 /* Стрелка. Одна на всю страницу, стоит у левого края по середине
    экрана. Тон, прозрачность и ореол — те же, что у прыгалок: это
    парный им значок, и разъезжаться им незачем. Тап по ней ничего не
@@ -15132,6 +15168,11 @@ ${darkRules()}
   var PULL_LADDER = 48, PULL_STEP = 7;
   var pullOn = null;        /* {target, parent, scrollAt} пока собрано */
   var pullTapAt = 0, pullTapId = '';
+  /* Раскрытый вид: вся ветка строками, без двух развёрнутых карточек.
+     Включается тапом по отметке «⋯ ещё N в середине ветки ⋯» — то есть
+     ровно тогда, когда человек просит показать пропущенное. Цена
+     честная и понятная: за полноту платим подробностью. */
+  var pullFull = false;
 
   function pullChain(el, by) {
     var c = [], p = el.getAttribute('data-parent_comment_id');
@@ -15199,13 +15240,16 @@ ${darkRules()}
      Разборка обязана быть видимой ровно так же, как сборка. */
   var pullTimer = 0;
 
-  function pullWipe() {
+  function pullWipe(keepScrim) {
     sliceOf(document.querySelectorAll('.lm-pull')).forEach(function (el) {
       el.style.transform = '';
       el.classList.remove('lm-pull', 'lm-pull_lit');
     });
     var strip = document.getElementById('lm-pull-strip');
     if (strip) strip.remove();
+    /* При переходе в раскрытый вид плёнку НЕ трогаем: снять и поставить
+       заново — это моргание тоном страницы во весь экран. */
+    if (keepScrim) return;
     var scrim = document.getElementById('lm-pull-scrim');
     if (scrim) scrim.remove();
   }
@@ -15314,6 +15358,7 @@ ${darkRules()}
   function pullRelease() {
     if (!pullOn) return;
     pullOn = null;
+    pullFull = false;
     pullDraw(document.getElementById('lm-pull-thread'), 0);
 
     /* Карточки едут в НОЛЬ, а не в пустую строку: пустая убирает
@@ -15355,7 +15400,7 @@ ${darkRules()}
     /* Прошлая разборка могла ещё доигрывать: её уборка отложена. Чистим
        сразу, иначе на новой сборке останутся чужие поднятые карточки. */
     clearTimeout(pullTimer);
-    pullWipe();
+    pullWipe(pullFull);
     var vh = window.innerHeight, vw = window.innerWidth;
     /* Верх рабочего поля — низ ПРИЛИПШЕЙ шапки. Проверка «а прилипла
        ли» обязательна: в тёмной теме липкость отключена нарочно
@@ -15369,7 +15414,12 @@ ${darkRules()}
     var hr = head ? head.getBoundingClientRect() : null;
     var TOP = (hr && hr.bottom > 0 && hr.top < vh)
       ? Math.round(hr.bottom) + 8 : 12;
-    var parent = up[0], rest = up.slice(1);
+    /* В обычном виде родитель показан карточкой, а строками идут те, кто
+       выше него. В раскрытом карточек нет вовсе: строками идёт вся
+       ветка, включая тронутый комментарий, — он окажется последним, и
+       его пометит крупная точка нити. */
+    var parent = pullFull ? null : up[0];
+    var rest = pullFull ? [target].concat(up) : up.slice(1);
 
     /* Жест — двойной тап, а не удержание: палец на экране ничего не
        держит, и тронутый комментарий волен уехать вместе со всеми.
@@ -15377,8 +15427,9 @@ ${darkRules()}
        родословную считается от ЦЕЛОГО экрана. Считали бы от остатка над
        пальцем — из пяти предков влезала бы одна строка. */
     var tb = target.getBoundingClientRect();
-    var pb = parent.getBoundingClientRect();
-    var forRows = (vh - TOP - 12) - (tb.height + pb.height + PULL_GAP) - PULL_GAP;
+    var pb = parent ? parent.getBoundingClientRect() : { height: 0, top: 0 };
+    var needFull = pullFull ? 0 : (tb.height + pb.height + PULL_GAP + PULL_GAP);
+    var forRows = (vh - TOP - 12) - needFull;
     var fit = Math.max(0, Math.floor((forRows + PULL_ROWGAP) / (PULL_ROW + PULL_ROWGAP)));
 
     /* Корень оставляем всегда: с него началась ветка. Не влезло —
@@ -15417,20 +15468,22 @@ ${darkRules()}
                  (elided ? PULL_ROW + PULL_ROWGAP : 0);
     var y = TOP + stripH + (rows.length ? PULL_GAP : 0);
 
-    var dyP = Math.round(y - pb.top);
-    y += pb.height + PULL_GAP;
-    var dyT = Math.round(y - tb.top);
-    parent.classList.add('lm-pull');
-    target.classList.add('lm-pull');
-    /* Пересчёт МЕЖДУ классом и сдвигом — иначе перехода не будет вовсе
-       (см. pullSettle). Это и была причина мгновенной сборки. */
-    pullSettle(parent); pullSettle(target);
-    parent.style.transform = 'translateY(' + dyP + 'px)';
-    target.style.transform = 'translateY(' + dyT + 'px)';
-    requestAnimationFrame(function () {
-      parent.classList.add('lm-pull_lit');
-      target.classList.add('lm-pull_lit');
-    });
+    if (parent) {
+      var dyP = Math.round(y - pb.top);
+      y += pb.height + PULL_GAP;
+      var dyT = Math.round(y - tb.top);
+      parent.classList.add('lm-pull');
+      target.classList.add('lm-pull');
+      /* Пересчёт МЕЖДУ классом и сдвигом — иначе перехода не будет вовсе
+         (см. pullSettle). Это и была причина мгновенной сборки. */
+      pullSettle(parent); pullSettle(target);
+      parent.style.transform = 'translateY(' + dyP + 'px)';
+      target.style.transform = 'translateY(' + dyT + 'px)';
+      requestAnimationFrame(function () {
+        parent.classList.add('lm-pull_lit');
+        target.classList.add('lm-pull_lit');
+      });
+    }
 
     var old = document.getElementById('lm-pull-strip');
     if (old) old.remove();
@@ -15465,6 +15518,10 @@ ${darkRules()}
       var txt = document.createElement('i');
       txt.textContent = pullText(el, i > 0 ? pullNick(rows[i - 1]) : '');
       d.appendChild(nick); d.appendChild(txt);
+      /* Ссылка на сам комментарий — свойством узла, а не атрибутом:
+         идентификатор в разметке был бы вторым источником того же, а
+         узел мы всё равно держим в руках. */
+      d.lmFor = el;
       strip.appendChild(d);
       knots.push({ x: 14 + ind, y: yy + PULL_ROW / 2, dot: 1 });
       yy += PULL_ROW + PULL_ROWGAP;
@@ -15476,7 +15533,11 @@ ${darkRules()}
         m.style.setProperty('padding-left', (24 + ind + step) + 'px', 'important');
         m.style.opacity = '0';
         m.style.transform = 'translateY(-26px)';
-        m.textContent = '⋯ ещё ' + elided + ' в середине ветки ⋯';
+        /* Со словом «показать»: отметка теперь нажимается, а на телефоне
+           курсора нет, и по одному многоточию догадаться об этом
+           неоткуда. Орган управления обязан называть своё действие. */
+        m.textContent = '⋯ ещё ' + elided + ' в середине ветки — показать';
+        m.lmMore = 1;
         strip.appendChild(m);
         /* Узел без точки: нить сквозь свёрнутую середину проходит, но
            звена там нет — точка соврала бы, что оно одно. */
@@ -15485,6 +15546,28 @@ ${darkRules()}
       }
     });
     strip.insertBefore(pullThread(knots), strip.firstChild);
+    /* Нажатия — одним слушателем на полосе, а не на каждой строке:
+       строк бывает два десятка, и двадцать слушателей ради одного и
+       того же — это двадцать мест, где потом искать ошибку. */
+    strip.addEventListener('click', function (e) {
+      var row = e.target.closest && e.target.closest('.lm-prow');
+      if (!row) return;
+      e.preventDefault(); e.stopPropagation();
+      if (row.lmMore) {
+        /* Раскрыть середину: пересборка поверх той же плёнки. */
+        pullFull = true;
+        guard('pullAssemble', pullAssemble)(target);
+        return;
+      }
+      if (!row.lmFor) return;
+      /* Уходим к звену ТЕМ ЖЕ приземлением, что у прыгалок по
+         комментариям: свой способ прокрутки означал бы, что одно и то же
+         действие в двух местах выглядит по-разному. */
+      var to = row.lmFor;
+      pullRelease();
+      landOn(to);
+    });
+
     host.appendChild(strip);
     /* Полосу тоже ставим в угол экрана: внутри неё все числа считались
        от экрана, и она обязана стоять там же, где считали. */
@@ -25607,10 +25690,54 @@ ${darkRules()}
     return a;
   }
 
+  /* Пометить гнёзда, до которых стыковке не дойти.
+
+     Достижимость — чистая арифметика: гнездо встанет на середину экрана
+     при отсчёте прокрутки P − vh/2, и этот отсчёт обязан влезть в
+     предел. Значит после гнезда должно оставаться не меньше полэкрана
+     (разбор с числами — у правила .lm-dsc_far в стилях).
+
+     Обход идёт СНИЗУ ВВЕРХ и обрывается на первом достижимом: у гнёзд
+     выше хвост только длиннее, проверять их незачем. Обычно обход
+     кончается на первом же шаге, поэтому его не жалко звать на каждом
+     отборе.
+
+     Инлайновую прозрачность с помеченного снимаем: её ставит scTick
+     через setProperty с important, и она перебила бы правило. */
+  function markFarNests() {
+    var was = sliceOf(document.querySelectorAll('.lm-dsc_far'));
+    if (!scOn()) {
+      was.forEach(function (n) { n.classList.remove('lm-dsc_far'); });
+      return;
+    }
+    var vh = window.innerHeight || 0;
+    if (!vh) return;
+    var docH = document.documentElement.scrollHeight;
+    var need = vh / 2 - CFG.discoDock;
+    var sy = scrollTopNow();
+    var nests = sliceOf(document.querySelectorAll('.lm-dsc_nest'));
+    var i = nests.length - 1;
+    for (; i >= 0; i--) {
+      var n = nests[i];
+      var mid = n.getBoundingClientRect().top + n.offsetHeight / 2 + sy;
+      var ok = (docH - mid) >= need;
+      n.classList.toggle('lm-dsc_far', !ok);
+      if (!ok) scDrop(n, 'opacity');
+      if (ok) break;
+    }
+    /* Помеченное выше точки обрыва — след прошлого замера: страница с
+       тех пор подросла, и гнездо снова достижимо. */
+    was.forEach(function (n) {
+      if (nests.indexOf(n) < i) n.classList.remove('lm-dsc_far');
+    });
+  }
+
   /* Собрать (или пересобрать) наблюдателя и раздать его новым гнёздам.
      Вызывается после каждого отбора: гнёзда появляются вместе со
      срезами, а полоса зависит от высоты экрана. */
   function scSync() {
+    /* До проверки режима: при выключенной стыковке метки надо снять. */
+    markFarNests();
     if (!scOn()) return scStop();
     if (!('IntersectionObserver' in window)) return;
     var vh = window.innerHeight || 0;
@@ -25674,6 +25801,10 @@ ${darkRules()}
     for (i = 0; i < scLive.length; i++) {
       n = scLive[i];
       if (!n.parentNode) continue;
+      /* Недостижимое гнездо целью не берём вовсе: догонять его стрелкой
+         бессмысленно — до допуска оно не дойдёт, — а прозрачность,
+         которую тик ему пишет, спорила бы с его собственным видом. */
+      if (n.classList.contains('lm-dsc_far')) continue;
       r = n.getBoundingClientRect();
       d = (r.top + r.height / 2) - mid;
       if (!best || Math.abs(d) < Math.abs(bd)) { best = n; bd = d; }
@@ -27910,6 +28041,13 @@ ${darkRules()}
     guard('fixMyThings', fixMyThings)();
     guard('fixArchiveDays', fixArchiveDays)();
     guard('watchChainPull', watchChainPull)();
+    /* Достижимость гнёзд зависит от ВЫСОТЫ ДОКУМЕНТА, а она меняется и
+       без отбора: лепра дописывает комментарии, догружаются картинки,
+       поворачивается экран. scSync про это не знает — он зовётся после
+       отборов и стыковок, — поэтому пересчёт висит и на общих проходах.
+       Он дешёвый: обход идёт снизу вверх и обрывается на первом
+       достижимом, то есть обычно это один замер. */
+    guard('markFarNests', markFarNests)();
     guard('shortenSubNav', shortenSubNav)();
     guard('fitSelects', fitSelects)();
     /* строку фильтров меряем ПОСЛЕ подгонки полей: до неё ширины ещё не те */
@@ -27963,6 +28101,11 @@ ${darkRules()}
        Стоит один поиск по id и возвращает оформление в тот же кадр,
        в котором его потеряли. */
     guard('injectCss', injectCss)();
+    /* Лёгкий проход назначен на ДОБАВЛЕНИЕ УЗЛОВ — то есть ровно на то,
+       от чего меняется высота документа, а от неё зависит, дойдёт ли
+       стыковка до нижних гнёзд. Обход обрывается на первом достижимом,
+       так что обычно это один замер. */
+    guard('markFarNests', markFarNests)();
     /* Догруженные комментарии и посты приходят со своими эмодзи. Проход
        дешёвый: обойдённые тела помечены, и повторный заход до них не
        доходит вовсе. */
