@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Lepra Mobile
 // @namespace    lepra.mobile
-// @version      2.5.3
+// @version      2.6.0
 // @description  Мобильная адаптация leprosorium.ru для iOS Safari
 // @author       neokrasav4ik
 // @homepageURL  https://github.com/neokrasav4ik/lepra-mobile
@@ -131,7 +131,7 @@
     return;
   }
 
-  var VERSION = '2.5.3';
+  var VERSION = '2.6.0';
 
   /* ============================================================
      НАСТРОЙКИ
@@ -7412,13 +7412,22 @@ html.lm-pullable .comment { touch-action: manipulation; }
               box-shadow ${Math.round(PULL_MS * 0.7)}ms ease !important; }
 .lm-pull_lit { box-shadow: var(--lm-shadow), 0 0 0 1px var(--lm-line) !important;
   border-radius: ${FRAME_R}px !important; }
+/* ПОЧЕМУ ЗДЕСЬ absolute, А НЕ fixed. Тёмная тема — это filter на html,
+   а элемент с фильтром становится ВМЕЩАЮЩИМ БЛОКОМ для position: fixed
+   внутри себя. То есть в ночи «прибито к экрану» означает «прибито к
+   документу»: полоса уезжала к началу страницы за тысячи пикселей, а
+   плёнка растягивалась на весь документ. Снаружи это выглядело как
+   «в тёмной теме два тапа дают пустой экран», и найти причину в цвете
+   было нельзя — её там нет.
+   Место задаётся числами при установке и проверяется замером: какой
+   именно предок окажется вмещающим блоком, зависит от страницы. */
 #lm-pull-scrim {
-  position: fixed !important; inset: 0 !important; z-index: 39 !important;
+  position: absolute !important; z-index: 39 !important;
   background: var(--lm-page) !important; opacity: 0;
   transition: opacity ${Math.round(PULL_MS * 0.8)}ms ease !important; }
 #lm-pull-strip {
-  position: fixed !important; left: 0 !important; right: 0 !important;
-  top: 0 !important; z-index: 41 !important; pointer-events: none !important;
+  position: absolute !important; z-index: 41 !important;
+  pointer-events: none !important;
   font: 13px/1.25 Verdana, Geneva, sans-serif !important; }
 .lm-prow {
   position: absolute !important; left: 0 !important; height: 30px !important;
@@ -7432,8 +7441,19 @@ html.lm-pullable .comment { touch-action: manipulation; }
   flex: 0 0 auto !important; }
 .lm-prow i { color: var(--lm-mid) !important; font-style: normal !important;
   overflow: hidden !important; text-overflow: ellipsis !important; }
-.lm-prow s { color: var(--lm-dim) !important; text-decoration: none !important;
-  flex: 0 0 auto !important; }
+/* Нить: линия по левому полю, связывающая звенья. Рисуется одним svg
+   поверх плёнки и под текстом строк — своих коробок у строк нет, так
+   что спорить не с чем.
+
+   Она заменила уголки «┌» и «│», которыми полоса набиралась раньше.
+   Причина не в красоте: те уголки — знаки из шрифта посреди набора, где
+   всё остальное нарисовано, и на глубокой ветке они не показывали
+   ничего, кроме того, что строка не первая. Линия же показывает спуск
+   по ветке ступеньками, а на свёрнутой середине уходит длинным коленом
+   вбок — то есть объясняет пропуск формой, без единого слова. */
+#lm-pull-thread {
+  position: absolute !important; left: 0 !important; top: 0 !important;
+  z-index: 41 !important; pointer-events: none !important; }
 .lm-prow_more { color: var(--lm-dim) !important; }
 
 /* ============ АРХИВ ============ */
@@ -15102,7 +15122,14 @@ ${darkRules()}
      прокрутка не запрещается (запрещать прокрутку на айосе — отдельная
      война), а РАЗБИРАЕТ: смахнул — и всё вернулось. Заодно это самый
      понятный выход из состояния, которому не надо учиться. */
-  var PULL_GAP = 8, PULL_ROW = 30, PULL_ROWGAP = 2, PULL_STEP = 6, PULL_MAXIND = 44;
+  var PULL_GAP = 8, PULL_ROW = 30, PULL_ROWGAP = 2;
+  /* ШАГ ЛЕСЕНКИ СЧИТАЕТСЯ, А НЕ ЗАДАЁТСЯ. Постоянный шаг с потолком
+     годится только на короткой ветке: на глубокой он упирается в
+     потолок к седьмой строке, и вся оставшаяся половина идёт вровень —
+     лесенки нет. Поэтому полный спуск раскладывается на одну и ту же
+     ширину PULL_LADDER: на мелкой ветке ступенька крупная, на глубокой
+     мельчает, но остаётся. PULL_STEP — её потолок, два пикселя — пол. */
+  var PULL_LADDER = 48, PULL_STEP = 7;
   var pullOn = null;        /* {target, parent, scrollAt} пока собрано */
   var pullTapAt = 0, pullTapId = '';
 
@@ -15165,7 +15192,7 @@ ${darkRules()}
      Лечится принудительным пересчётом между ними — чтением любого
      размера. Строка выглядит бессмысленной, поэтому и живёт в
      именованной ямке: удалить её как «мёртвое чтение» нельзя. */
-  function pullSettle(el) { return el.offsetHeight; }
+  function pullSettle(el) { return el.getBoundingClientRect().height; }
 
   /* Уборка узлов ждёт конца обратного хода: снимешь класс сразу — с ним
      снимется и переход, и карточки прыгнут на место без всякого хода.
@@ -15183,9 +15210,111 @@ ${darkRules()}
     if (scrim) scrim.remove();
   }
 
+  /* Нить. Ступеньками по левым кромкам строк: вниз по прежней кромке,
+     скругление, вправо, скругление, вниз — и так до последнего звена.
+     Отвес одной прямой пробовался и был отвергнут: он не показывал
+     спуска и читался случайной чертой у края.
+
+     Рисуется и стирается ЛИНИЕЙ, а не прозрачностью: длина считается
+     через getTotalLength, и штриховка длиной во всю нить с подвижным
+     сдвигом даёт настоящее «проводится сверху вниз» — ровно в том же
+     порядке, в каком выкладываются строки. */
+  function pullThread(knots) {
+    var ns = 'http://www.w3.org/2000/svg';
+    var svg = document.createElementNS(ns, 'svg');
+    svg.id = 'lm-pull-thread';
+    svg.setAttribute('aria-hidden', 'true');
+    var R = 5, d = '';
+    knots.forEach(function (k, i) {
+      if (!i) { d = 'M' + k.x + ' ' + k.y; return; }
+      var p = knots[i - 1], my = Math.round((p.y + k.y) / 2);
+      if (p.x === k.x) { d += ' L' + k.x + ' ' + k.y; return; }
+      var dir = k.x > p.x ? 1 : -1;
+      d += ' L' + p.x + ' ' + (my - R) +
+           ' Q' + p.x + ' ' + my + ' ' + (p.x + dir * R) + ' ' + my +
+           ' L' + (k.x - dir * R) + ' ' + my +
+           ' Q' + k.x + ' ' + my + ' ' + k.x + ' ' + (my + R) +
+           ' L' + k.x + ' ' + k.y;
+    });
+    var path = document.createElementNS(ns, 'path');
+    path.setAttribute('d', d);
+    path.setAttribute('fill', 'none');
+    /* Цвет — ИНЛАЙНОВЫМ СТИЛЕМ, а не атрибутом. fill и stroke у svg —
+       презентационные атрибуты, и var() в них не раскрывается: вышло бы
+       просто негодное значение, то есть нить чёрная в день и чёрная же
+       в ночь под инверсией. Это записано в граблях проекта ещё со
+       значка стыковки — и я на них чуть не сел второй раз. */
+    path.style.stroke = 'var(--lm-line)';
+    path.setAttribute('stroke-width', '2');
+    path.setAttribute('stroke-linecap', 'round');
+    svg.appendChild(path);
+    knots.forEach(function (k, i) {
+      if (!k.dot) return;
+      var c = document.createElementNS(ns, 'circle');
+      c.setAttribute('cx', k.x); c.setAttribute('cy', k.y);
+      /* Последнее звено — ближайший предок родителя, то место, где
+         полоса передаёт разговор карточкам. Оно и помечено крупнее. */
+      var last = i === knots.length - 1;
+      c.setAttribute('r', last ? 4 : 2.5);
+      c.style.fill = last ? 'var(--lm-ink)' : 'var(--lm-line)';
+      c.style.opacity = '0';
+      c.style.transition = 'opacity ' + Math.round(PULL_MS * 0.5) + 'ms ease';
+      svg.appendChild(c);
+    });
+    return svg;
+  }
+
+  /* Пускает нить: сперва её длина, потом сдвиг штриха в ноль. Между
+     ними — пересчёт (см. pullSettle), иначе перехода не будет вовсе. */
+  function pullDraw(svg, on) {
+    if (!svg) return;
+    var path = svg.querySelector('path');
+    if (!path || !path.getTotalLength) return;
+    var len = Math.ceil(path.getTotalLength()) + 2;
+    path.style.transition = 'none';
+    path.style.strokeDasharray = len + ' ' + len;
+    if (on) {
+      path.style.strokeDashoffset = len + 'px';
+      pullSettle(svg);
+      path.style.transition = 'stroke-dashoffset ' +
+        (PULL_MS + PULL_STAGGER) + 'ms cubic-bezier(.3,.9,.4,1)';
+      path.style.strokeDashoffset = '0px';
+    } else {
+      pullSettle(svg);
+      path.style.transition = 'stroke-dashoffset ' + PULL_MS + 'ms ease';
+      path.style.strokeDashoffset = len + 'px';
+    }
+    sliceOf(svg.querySelectorAll('circle')).forEach(function (c, i) {
+      c.style.transitionDelay = on
+        ? Math.round(i * PULL_STAGGER / Math.max(1, svg.childElementCount - 2)) + 'ms'
+        : '0ms';
+      c.style.opacity = on ? '1' : '0';
+    });
+  }
+
+  /* Ставит узел так, чтобы его левый верхний угол совпал с углом
+     ЭКРАНА, и проверяет замером. Числами наугад тут нельзя: узел
+     позиционируется относительно ближайшего вмещающего блока, а какой
+     он — знает только страница (в ночи им становится html из-за
+     фильтра). Поэтому пишем, меряем, поправляем — ровно как с карточкой
+     гражданина. Одной поправки хватает всегда. */
+  function pullAnchor(el, w, h) {
+    el.style.setProperty('left', '0px', 'important');
+    el.style.setProperty('top', '0px', 'important');
+    if (w) el.style.setProperty('width', w + 'px', 'important');
+    if (h) el.style.setProperty('height', h + 'px', 'important');
+    var r = el.getBoundingClientRect();
+    if (Math.abs(r.left) > 0.5 || Math.abs(r.top) > 0.5) {
+      el.style.setProperty('left', Math.round(-r.left) + 'px', 'important');
+      el.style.setProperty('top', Math.round(-r.top) + 'px', 'important');
+    }
+    return el.getBoundingClientRect();
+  }
+
   function pullRelease() {
     if (!pullOn) return;
     pullOn = null;
+    pullDraw(document.getElementById('lm-pull-thread'), 0);
 
     /* Карточки едут в НОЛЬ, а не в пустую строку: пустая убирает
        свойство целиком, и хода опять не будет. */
@@ -15228,8 +15357,18 @@ ${darkRules()}
     clearTimeout(pullTimer);
     pullWipe();
     var vh = window.innerHeight, vw = window.innerWidth;
+    /* Верх рабочего поля — низ ПРИЛИПШЕЙ шапки. Проверка «а прилипла
+       ли» обязательна: в тёмной теме липкость отключена нарочно
+       (position: static в darkRules — Safari красит статусную строку по
+       метатегу и не поспевает за фоном), и та же настройка есть
+       выключателем в попапе. Неприлипшая шапка стоит у начала
+       ДОКУМЕНТА, её низ при прокрутке на пять тысяч равен минус пяти
+       тысячам, и вся полоса раскладывалась выше экрана. Снаружи это
+       выглядело как «в тёмной теме два тапа дают пустой экран». */
     var head = document.querySelector('.lm-topbar, .lm-head, #lm-topbar');
-    var TOP = head ? Math.round(head.getBoundingClientRect().bottom) + 8 : 12;
+    var hr = head ? head.getBoundingClientRect() : null;
+    var TOP = (hr && hr.bottom > 0 && hr.top < vh)
+      ? Math.round(hr.bottom) + 8 : 12;
     var parent = up[0], rest = up.slice(1);
 
     /* Жест — двойной тап, а не удержание: палец на экране ничего не
@@ -15261,6 +15400,7 @@ ${darkRules()}
       scrim = document.createElement('div');
       scrim.id = 'lm-pull-scrim';
       host.appendChild(scrim);
+      pullAnchor(scrim, vw, vh);
       /* тап по плёнке — тоже выход, кроме двойного тапа и прокрутки */
       scrim.addEventListener('click', function (e) {
         e.preventDefault(); e.stopPropagation(); pullRelease();
@@ -15298,9 +15438,15 @@ ${darkRules()}
     strip.id = 'lm-pull-strip';
     var yy = TOP;
     var lvl0 = rows.length ? +(rows[0].getAttribute('data-tree_level') || 0) : 0;
+    var lvlN = rows.length
+      ? +(rows[rows.length - 1].getAttribute('data-tree_level') || 0) : 0;
+    var step = Math.max(2,
+      Math.min(PULL_STEP, Math.round(PULL_LADDER / Math.max(1, lvlN - lvl0))));
+    var knots = [];            /* где нить проходит: {x, y, dot} */
+
     rows.forEach(function (el, i) {
-      var ind = Math.min(PULL_MAXIND,
-        (+(el.getAttribute('data-tree_level') || 0) - lvl0) * PULL_STEP);
+      var ind = Math.round(
+        (+(el.getAttribute('data-tree_level') || 0) - lvl0) * step);
       var d = document.createElement('div');
       d.className = 'lm-prow';
       d.style.top = yy + 'px';
@@ -15310,33 +15456,48 @@ ${darkRules()}
          вставали вровень. Тот же случай, что с координатами карточки
          гражданина: inline бьёт авторское !important только сам будучи
          important. */
-      d.style.setProperty('padding-left', (12 + ind) + 'px', 'important');
+      d.style.setProperty('padding-left', (24 + ind) + 'px', 'important');
       d.style.width = vw + 'px';
       d.style.opacity = '0';
       d.style.transform = 'translateY(-26px)';
-      var mark = document.createElement('s');
-      mark.textContent = i === 0 ? '┌' : '│';
       var nick = document.createElement('b');
       nick.textContent = pullNick(el) + ':';
       var txt = document.createElement('i');
       txt.textContent = pullText(el, i > 0 ? pullNick(rows[i - 1]) : '');
-      d.appendChild(mark); d.appendChild(nick); d.appendChild(txt);
+      d.appendChild(nick); d.appendChild(txt);
       strip.appendChild(d);
+      knots.push({ x: 14 + ind, y: yy + PULL_ROW / 2, dot: 1 });
       yy += PULL_ROW + PULL_ROWGAP;
 
       if (i === 0 && elided) {
         var m = document.createElement('div');
         m.className = 'lm-prow lm-prow_more';
         m.style.top = yy + 'px';
-        m.style.setProperty('padding-left', (12 + ind + PULL_STEP) + 'px', 'important');
+        m.style.setProperty('padding-left', (24 + ind + step) + 'px', 'important');
         m.style.opacity = '0';
         m.style.transform = 'translateY(-26px)';
-        m.textContent = '│  ⋯ ещё ' + elided + ' в середине ветки ⋯';
+        m.textContent = '⋯ ещё ' + elided + ' в середине ветки ⋯';
         strip.appendChild(m);
+        /* Узел без точки: нить сквозь свёрнутую середину проходит, но
+           звена там нет — точка соврала бы, что оно одно. */
+        knots.push({ x: 14 + ind, y: yy + PULL_ROW / 2, dot: 0 });
         yy += PULL_ROW + PULL_ROWGAP;
       }
     });
+    strip.insertBefore(pullThread(knots), strip.firstChild);
     host.appendChild(strip);
+    /* Полосу тоже ставим в угол экрана: внутри неё все числа считались
+       от экрана, и она обязана стоять там же, где считали. */
+    pullAnchor(strip, vw, 0);
+    /* Нить рисуется в тех же числах, поэтому растягиваем её на экран
+       уже внутри полосы, а не через vw/vh: в ночи единицы вьюпорта
+       считаются от экрана, а начало отсчёта — нет, и одно с другим не
+       сходилось бы. */
+    var thr = strip.firstChild;
+    thr.setAttribute('width', vw); thr.setAttribute('height', vh);
+    thr.style.width = vw + 'px'; thr.style.height = vh + 'px';
+    /* После вставки: getTotalLength считает по разобранной геометрии. */
+    pullDraw(thr, 1);
     /* Строки не «появляются», а СЪЕЗЖАЮТСЯ, как и родитель: иначе
        половина картинки едет, половина мигает. И съезжаются по очереди,
        сверху вниз, — родословная выкладывается от корня к последнему
