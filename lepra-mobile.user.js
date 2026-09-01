@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Lepra Mobile
 // @namespace    lepra.mobile
-// @version      2.4.1
+// @version      2.5.3
 // @description  Мобильная адаптация leprosorium.ru для iOS Safari
 // @author       neokrasav4ik
 // @homepageURL  https://github.com/neokrasav4ik/lepra-mobile
@@ -131,7 +131,7 @@
     return;
   }
 
-  var VERSION = '2.4.1';
+  var VERSION = '2.5.3';
 
   /* ============================================================
      НАСТРОЙКИ
@@ -970,6 +970,12 @@
        нём заметна. */
     navArchive: true,
 
+    /* НАСТРОЙКА: двойной тап по комментарию собирает его родословную.
+       Разбор — в стилях, у правил .lm-pull. Настройка, а не всегда:
+       жест перехватывает двойной тап по всему телу комментария, и
+       человеку, которому это не нужно, надо дать это выключить. */
+    chainPull: true,
+
     /* НАСТРОЙКА: кегль полей ввода в формах комментария, с поправкой на
        масштаб страницы. Числа те же и по той же причине, что у поля
        поиска (см. searchFocusFont): шестнадцать — это требование к
@@ -1402,6 +1408,7 @@
        true и false, и tuneLoad их находит. */
     cardsLift:    { list: [false, true] },
     navArchive:   { bool: true },
+    chainPull:    { bool: true },
     elastic:      { bool: true },
     /* чем сообщать о новой пыни */
     pynSound:     { list: ['push', 'ding', 'both', 'none'] },
@@ -3360,6 +3367,26 @@
      задаёт, где кончается текст поста, и повторять его цифрой по
      файлу незачем. */
   var CARD_PAD = 8;
+
+  /* Длительность сборки и разборки ветки (притяжение нити).
+     Одним числом на стили и на разбор: в стилях по нему заводится
+     переход, в разборе — задержка перед уборкой узлов. Разъедутся —
+     карточки исчезнут на полпути. */
+  var PULL_MS = 520;
+  /* Разбег строк родословной — ОБЩИЙ, а не на строку: строк бывает от
+     одной до пятнадцати, и «по тридцать миллисекунд на каждую» дало бы
+     на длинной ветке лишние полсекунды ожидания. Общий разбег делится
+     на число строк, и сборка занимает одно и то же время всегда. */
+  var PULL_STAGGER = 220;
+  /* Окно между тапами. Заводское для двойного клика — около 400 мс, и
+     оно тут мало: пальцем по стеклу попадают дважды в одно место
+     медленнее, чем мышью, а комментарий — цель размером в пол-экрана,
+     не кнопка. Цена ошибки в большую сторону почти нулевая: одиночный
+     тап по телу комментария у нас не делает ничего, так что лишнее
+     срабатывание — это собранная ветка, которую разбирают тем же
+     жестом или прокруткой. Цена ошибки в меньшую сторону — жест,
+     который «не ловится», а это уже поломка. */
+  var PULL_TAP_MS = 700;
 
   /* ---- Шкура таблетки ----
      Таблетками у нас набраны фильтры треда, метки поста и вкладки
@@ -7350,6 +7377,64 @@ html.lm-cards2 .b-popup_holder { background: var(--lm-card) !important; }
 /* вкладка смены фона позиционировалась с right:-32px, то есть заведомо
    за краем родителя — на телефоне до неё не дотянуться */
 .b-user_backgrounds, .b-user_backgrounds_toggle { display: none !important; }
+
+/* ============ ПРИТЯЖЕНИЕ НИТИ ============ */
+/* Двойной тап по комментарию собирает его родословную в один экран.
+
+   Зачем: на простыне цепочка ответов и есть единица смысла — последнее
+   звено без родни бессмысленно, — а родню не найти. Замеры по треду в
+   395 комментариев: у четверти комментариев родитель за экраном, до
+   корня ветки в среднем 10 422 пикселя, глубина доходит до 24.
+
+   Почему не «поднять родню целиком»: собранная цепочка на простыне
+   выходит медианой в 3131 пиксель — четыре экрана; в экран влезает
+   всего 13% цепочек. Зато у комментария из 173 пикселей высоты текст
+   занимает 46, а служебный подвал 68. Поэтому предки выше родителя
+   сворачиваются в строку «ник: текст», и тогда влезает всё.
+
+   Почему transform, а не схлопывание высот: изменение высот выше точки
+   прокрутки двигает саму прокрутку, и страница прыгает под пальцем. У
+   transform раскладки нет вовсе. Тот же приём, что у эластика.
+
+   touch-action: manipulation — чтобы Сафари не зумила по двойному тапу
+   (заодно уходит задержка клика в 300 мс). Правило висит на классе
+   корня, а не на самих комментариях безусловно: выключенная настройка
+   обязана возвращать странице заводское поведение целиком, включая зум
+   по двойному тапу. Иначе выключатель выключает вид, но не следы. */
+html.lm-pullable .comment { touch-action: manipulation; }
+.lm-pull {
+  /* Подложку карточке НЕ красим: комментарий у лепры тянется на всю
+     строку, а видимая карточка сидит внутри, с отступом по уровню, — и
+     крашеная подложка вылезала белым углом во всю ширину. Прятать чужое
+     под нами не нужно, это делает плёнка. */
+  position: relative !important; z-index: 40 !important;
+  transition: transform ${PULL_MS}ms cubic-bezier(.22,1.06,.32,1),
+              box-shadow ${Math.round(PULL_MS * 0.7)}ms ease !important; }
+.lm-pull_lit { box-shadow: var(--lm-shadow), 0 0 0 1px var(--lm-line) !important;
+  border-radius: ${FRAME_R}px !important; }
+#lm-pull-scrim {
+  position: fixed !important; inset: 0 !important; z-index: 39 !important;
+  background: var(--lm-page) !important; opacity: 0;
+  transition: opacity ${Math.round(PULL_MS * 0.8)}ms ease !important; }
+#lm-pull-strip {
+  position: fixed !important; left: 0 !important; right: 0 !important;
+  top: 0 !important; z-index: 41 !important; pointer-events: none !important;
+  font: 13px/1.25 Verdana, Geneva, sans-serif !important; }
+.lm-prow {
+  position: absolute !important; left: 0 !important; height: 30px !important;
+  box-sizing: border-box !important; display: flex !important;
+  align-items: center !important; gap: 6px !important;
+  padding: 0 10px 0 0 !important; white-space: nowrap !important;
+  overflow: hidden !important;
+  transition: transform ${PULL_MS}ms cubic-bezier(.22,1.06,.32,1),
+              opacity ${Math.round(PULL_MS * 0.65)}ms ease !important; }
+.lm-prow b { color: var(--lm-ink) !important; font-weight: 700 !important;
+  flex: 0 0 auto !important; }
+.lm-prow i { color: var(--lm-mid) !important; font-style: normal !important;
+  overflow: hidden !important; text-overflow: ellipsis !important; }
+.lm-prow s { color: var(--lm-dim) !important; text-decoration: none !important;
+  flex: 0 0 auto !important; }
+.lm-prow_more { color: var(--lm-dim) !important; }
 
 /* ============ АРХИВ ============ */
 /* Лента архива имела 330px отступа справа под правую колонку: на телефоне
@@ -15007,6 +15092,315 @@ ${darkRules()}
     });
   }
 
+  /* ============ ПРИТЯЖЕНИЕ НИТИ ============
+     Разбор — в стилях, рядом с правилами .lm-pull. Здесь только
+     устройство.
+
+     Собранное состояние держится на transform, посчитанном ОТ ЭКРАНА в
+     момент сборки. Значит прокрутка его ломает: карточки уедут вместе
+     со страницей, а полоса родословной прибита к экрану. Поэтому
+     прокрутка не запрещается (запрещать прокрутку на айосе — отдельная
+     война), а РАЗБИРАЕТ: смахнул — и всё вернулось. Заодно это самый
+     понятный выход из состояния, которому не надо учиться. */
+  var PULL_GAP = 8, PULL_ROW = 30, PULL_ROWGAP = 2, PULL_STEP = 6, PULL_MAXIND = 44;
+  var pullOn = null;        /* {target, parent, scrollAt} пока собрано */
+  var pullTapAt = 0, pullTapId = '';
+
+  function pullChain(el, by) {
+    var c = [], p = el.getAttribute('data-parent_comment_id');
+    while (p && by[p] && c.length < 60) {
+      c.push(by[p]);
+      p = by[p].getAttribute('data-parent_comment_id');
+    }
+    return c;
+  }
+
+  function pullNick(el) {
+    return el.getAttribute('data-user_login') ||
+      ((el.querySelector('.c_footer a[href*="/users/"]') || {}).textContent || '?').trim();
+  }
+
+  /* Лепра начинает почти каждый ответ с ника адресата: «larichev, ты
+     первый начал». В строке этот ник — чистый повтор: кому отвечают,
+     уже сказано лесенкой и строкой выше. Срезаем и отдаём место
+     разговору — его в строке всего на палец. */
+  function pullText(el, addressee) {
+    var t = el.querySelector('.c_body');
+    if (!t) return '—';
+    var s = (t.textContent || '').replace(/\s+/g, ' ').trim();
+    if (!s) {
+      if (t.querySelector('video, iframe')) return '[ролик]';
+      if (t.querySelector('img')) return '[картинка]';
+      return '—';
+    }
+    if (addressee) {
+      s = s.replace(new RegExp('^' + addressee.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') +
+                               '[,:]\\s*', 'i'), '');
+    }
+    return s;
+  }
+
+  /* Плёнку и полосу кладём ВНУТРЬ ближайшего чужого слоя. Между
+     комментарием и телом страницы у лепры три слоя с z-index: 1
+     (.comments, .l-content, .l-wrapper), и поднять что-то изнутри выше
+     того, что снаружи, нельзя никаким номером — плёнка накрывала бы
+     собой же и карточки. Те же грабли были у карточки гражданина. */
+  function pullLayer(el) {
+    var n = el.parentElement;
+    while (n && n !== document.documentElement) {
+      var s = getComputedStyle(n);
+      if ((s.position !== 'static' && s.zIndex !== 'auto') || s.transform !== 'none' ||
+          s.filter !== 'none' || +s.opacity < 1 || s.isolation === 'isolate' ||
+          (s.contain && s.contain !== 'none') || s.willChange !== 'auto') return n;
+      n = n.parentElement;
+    }
+    return document.body;
+  }
+
+  /* Переход НЕ ЗАПУСТИТСЯ, если свойство transition появилось на
+     элементе в том же пересчёте стилей, что и новое значение: браузеру
+     не от чего отсчитывать — в состоянии «до» перехода на элементе ещё
+     не было. Именно поэтому первая сборка получалась мгновенной: класс
+     .lm-pull (а с ним и переход) и сдвиг ставились одной строкой.
+     Лечится принудительным пересчётом между ними — чтением любого
+     размера. Строка выглядит бессмысленной, поэтому и живёт в
+     именованной ямке: удалить её как «мёртвое чтение» нельзя. */
+  function pullSettle(el) { return el.offsetHeight; }
+
+  /* Уборка узлов ждёт конца обратного хода: снимешь класс сразу — с ним
+     снимется и переход, и карточки прыгнут на место без всякого хода.
+     Разборка обязана быть видимой ровно так же, как сборка. */
+  var pullTimer = 0;
+
+  function pullWipe() {
+    sliceOf(document.querySelectorAll('.lm-pull')).forEach(function (el) {
+      el.style.transform = '';
+      el.classList.remove('lm-pull', 'lm-pull_lit');
+    });
+    var strip = document.getElementById('lm-pull-strip');
+    if (strip) strip.remove();
+    var scrim = document.getElementById('lm-pull-scrim');
+    if (scrim) scrim.remove();
+  }
+
+  function pullRelease() {
+    if (!pullOn) return;
+    pullOn = null;
+
+    /* Карточки едут в НОЛЬ, а не в пустую строку: пустая убирает
+       свойство целиком, и хода опять не будет. */
+    sliceOf(document.querySelectorAll('.lm-pull')).forEach(function (el) {
+      el.classList.remove('lm-pull_lit');
+      el.style.transform = 'translateY(0)';
+    });
+    var strip = document.getElementById('lm-pull-strip');
+    if (strip) {
+      /* Разбирается СНИЗУ ВВЕРХ — обратным порядком к сборке: так видно,
+         что ветка не исчезла, а сложилась обратно. */
+      var rows = sliceOf(strip.children);
+      rows.forEach(function (d, i) {
+        d.style.setProperty('transition-delay',
+          Math.round((rows.length - 1 - i) * PULL_STAGGER /
+                     Math.max(1, rows.length - 1)) + 'ms', 'important');
+        d.style.opacity = '0';
+        d.style.transform = 'translateY(-26px)';
+      });
+    }
+    var scrim = document.getElementById('lm-pull-scrim');
+    if (scrim) scrim.style.opacity = '0';
+
+    clearTimeout(pullTimer);
+    pullTimer = setTimeout(function () {
+      if (!pullOn) pullWipe();          /* успели собрать заново — не трогаем */
+    }, PULL_MS + PULL_STAGGER + 90);
+  }
+
+  function pullAssemble(target) {
+    var all = sliceOf(document.querySelectorAll('.comment'));
+    var by = {};
+    all.forEach(function (e) { if (e.id) by[e.id] = e; });
+    var up = pullChain(target, by);
+    if (!up.length) return false;            /* корень ветки — тянуть нечего */
+
+    injectCss();
+    /* Прошлая разборка могла ещё доигрывать: её уборка отложена. Чистим
+       сразу, иначе на новой сборке останутся чужие поднятые карточки. */
+    clearTimeout(pullTimer);
+    pullWipe();
+    var vh = window.innerHeight, vw = window.innerWidth;
+    var head = document.querySelector('.lm-topbar, .lm-head, #lm-topbar');
+    var TOP = head ? Math.round(head.getBoundingClientRect().bottom) + 8 : 12;
+    var parent = up[0], rest = up.slice(1);
+
+    /* Жест — двойной тап, а не удержание: палец на экране ничего не
+       держит, и тронутый комментарий волен уехать вместе со всеми.
+       Поэтому пакет укладывается от верхней кромки вниз, и место под
+       родословную считается от ЦЕЛОГО экрана. Считали бы от остатка над
+       пальцем — из пяти предков влезала бы одна строка. */
+    var tb = target.getBoundingClientRect();
+    var pb = parent.getBoundingClientRect();
+    var forRows = (vh - TOP - 12) - (tb.height + pb.height + PULL_GAP) - PULL_GAP;
+    var fit = Math.max(0, Math.floor((forRows + PULL_ROWGAP) / (PULL_ROW + PULL_ROWGAP)));
+
+    /* Корень оставляем всегда: с него началась ветка. Не влезло —
+       сворачиваем СЕРЕДИНУ, она и по смыслу самая проходная. */
+    var rows = rest.slice(), elided = 0;
+    if (rows.length > fit) {
+      if (fit <= 2) { elided = rows.length - 1; rows = [rows[rows.length - 1]]; }
+      else {
+        var near = Math.max(1, fit - 2);
+        elided = rows.length - near - 1;
+        rows = rows.slice(0, near).concat([rows[rows.length - 1]]);
+      }
+    }
+    rows = rows.reverse();                    /* сверху вниз: корень … дед */
+
+    var host = pullLayer(target);
+    var scrim = document.getElementById('lm-pull-scrim');
+    if (!scrim) {
+      scrim = document.createElement('div');
+      scrim.id = 'lm-pull-scrim';
+      host.appendChild(scrim);
+      /* тап по плёнке — тоже выход, кроме двойного тапа и прокрутки */
+      scrim.addEventListener('click', function (e) {
+        e.preventDefault(); e.stopPropagation(); pullRelease();
+      });
+    }
+    /* Пересчёт, а не следующий кадр: кадр отдаёт управление и до него
+       успевает влезть чужая правка стилей, а пересчёт делает ровно то,
+       что нужно, — заводит состояние «до». */
+    scrim.style.opacity = '0';
+    pullSettle(scrim);
+    scrim.style.opacity = '0.92';
+
+    var stripH = rows.length * (PULL_ROW + PULL_ROWGAP) +
+                 (elided ? PULL_ROW + PULL_ROWGAP : 0);
+    var y = TOP + stripH + (rows.length ? PULL_GAP : 0);
+
+    var dyP = Math.round(y - pb.top);
+    y += pb.height + PULL_GAP;
+    var dyT = Math.round(y - tb.top);
+    parent.classList.add('lm-pull');
+    target.classList.add('lm-pull');
+    /* Пересчёт МЕЖДУ классом и сдвигом — иначе перехода не будет вовсе
+       (см. pullSettle). Это и была причина мгновенной сборки. */
+    pullSettle(parent); pullSettle(target);
+    parent.style.transform = 'translateY(' + dyP + 'px)';
+    target.style.transform = 'translateY(' + dyT + 'px)';
+    requestAnimationFrame(function () {
+      parent.classList.add('lm-pull_lit');
+      target.classList.add('lm-pull_lit');
+    });
+
+    var old = document.getElementById('lm-pull-strip');
+    if (old) old.remove();
+    var strip = document.createElement('div');
+    strip.id = 'lm-pull-strip';
+    var yy = TOP;
+    var lvl0 = rows.length ? +(rows[0].getAttribute('data-tree_level') || 0) : 0;
+    rows.forEach(function (el, i) {
+      var ind = Math.min(PULL_MAXIND,
+        (+(el.getAttribute('data-tree_level') || 0) - lvl0) * PULL_STEP);
+      var d = document.createElement('div');
+      d.className = 'lm-prow';
+      d.style.top = yy + 'px';
+      /* Через setProperty с important, а не обычной строкой стиля: в
+         правиле .lm-prow стоит padding: … !important, и простой inline
+         ему проигрывает — лесенка отступов молча пропадала, все строки
+         вставали вровень. Тот же случай, что с координатами карточки
+         гражданина: inline бьёт авторское !important только сам будучи
+         important. */
+      d.style.setProperty('padding-left', (12 + ind) + 'px', 'important');
+      d.style.width = vw + 'px';
+      d.style.opacity = '0';
+      d.style.transform = 'translateY(-26px)';
+      var mark = document.createElement('s');
+      mark.textContent = i === 0 ? '┌' : '│';
+      var nick = document.createElement('b');
+      nick.textContent = pullNick(el) + ':';
+      var txt = document.createElement('i');
+      txt.textContent = pullText(el, i > 0 ? pullNick(rows[i - 1]) : '');
+      d.appendChild(mark); d.appendChild(nick); d.appendChild(txt);
+      strip.appendChild(d);
+      yy += PULL_ROW + PULL_ROWGAP;
+
+      if (i === 0 && elided) {
+        var m = document.createElement('div');
+        m.className = 'lm-prow lm-prow_more';
+        m.style.top = yy + 'px';
+        m.style.setProperty('padding-left', (12 + ind + PULL_STEP) + 'px', 'important');
+        m.style.opacity = '0';
+        m.style.transform = 'translateY(-26px)';
+        m.textContent = '│  ⋯ ещё ' + elided + ' в середине ветки ⋯';
+        strip.appendChild(m);
+        yy += PULL_ROW + PULL_ROWGAP;
+      }
+    });
+    host.appendChild(strip);
+    /* Строки не «появляются», а СЪЕЗЖАЮТСЯ, как и родитель: иначе
+       половина картинки едет, половина мигает. И съезжаются по очереди,
+       сверху вниз, — родословная выкладывается от корня к последнему
+       ответу, то есть в том же порядке, в каком её читают. Без этой
+       очереди все строки возникали разом, и весь ход сводился к
+       мельканию. */
+    pullSettle(strip);
+    var kids = sliceOf(strip.children);
+    kids.forEach(function (d, i) {
+      /* Через setProperty с important: задержка входит в сокращённую
+         запись transition, а она в правиле .lm-prow объявлена с
+         !important — то есть заодно прибивает transition-delay: 0s.
+         Обычный inline ей проигрывает, и очередь молча пропадала: все
+         строки возникали разом. Третий случай той же породы в этом
+         файле (координаты карточки, отступы лесенки). */
+      d.style.setProperty('transition-delay',
+        Math.round(i * PULL_STAGGER / Math.max(1, kids.length - 1)) + 'ms', 'important');
+      d.style.opacity = '1';
+      d.style.transform = 'translateY(0)';
+    });
+
+    pullOn = { target: target, scrollAt: window.scrollY };
+    return true;
+  }
+
+  /* Класс на корне включает правило touch-action и служит признаком
+     «жест живёт». Отдельной ямкой, потому что дёргается из двух мест:
+     при проходе и при щелчке выключателя в настройках. */
+  function applyChainPull() {
+    document.documentElement.classList.toggle('lm-pullable', !!CFG.chainPull);
+    if (!CFG.chainPull) pullRelease();
+  }
+
+  function watchChainPull() {
+    applyChainPull();
+    if (document.documentElement.dataset.lmPull) return;
+    document.documentElement.dataset.lmPull = '1';
+
+    document.addEventListener('click', function (e) {
+      if (!CFG.chainPull) return;
+      /* Нажатия по управлению не в счёт: ссылка, голосовалка, кнопка,
+         поле ввода — у каждого своё дело, и перехватывать их нельзя. */
+      if (e.target.closest &&
+          e.target.closest('a, button, input, textarea, select, label, ' +
+                           '.b-vote, .lm-more_box, .b-popup_holder, #lm-set')) return;
+      var c = e.target.closest && e.target.closest('.comment');
+      if (!c || !c.id) { return; }
+
+      var now = Date.now();
+      var second = (c.id === pullTapId) && (now - pullTapAt < PULL_TAP_MS);
+      pullTapAt = now; pullTapId = c.id;
+      if (!second) return;
+      pullTapAt = 0;                              /* тройной тап не считаем */
+
+      if (pullOn) { pullRelease(); return; }      /* второй двойной — разбор */
+      guard('pullAssemble', pullAssemble)(c);
+    }, true);
+
+    /* Прокрутка разбирает: собранное состояние посчитано от экрана. */
+    window.addEventListener('scroll', function () {
+      if (pullOn && Math.abs(window.scrollY - pullOn.scrollAt) > 24) pullRelease();
+    }, { passive: true });
+  }
+
   function fixMyThings() {
     var box = document.querySelector('.b-my_posts_feed_controls');
     if (!box || box.dataset.lmMyThings) return;
@@ -17884,6 +18278,12 @@ ${darkRules()}
     other.appendChild(cardsRow);
 
     other.appendChild(setToggle('videoLink', 'Ссылка «Link» под видео-роликом'));
+    /* Свой слушатель после setToggle — он сработает вторым, когда CFG
+       уже переписан (та же причина, что у карточек и архива). */
+    var pullRow = setToggle('chainPull', 'Двойной тап собирает ветку');
+    pullRow.querySelector('.lm-set_switch')
+      .addEventListener('click', function () { applyChainPull(); });
+    other.appendChild(pullRow);
 
     var navRow = setToggle('navSticky', 'Планка навигации при скролле');
     navRow.querySelector('.lm-set_switch')
@@ -27348,6 +27748,7 @@ ${darkRules()}
     guard('watchNickTap', watchNickTap)();
     guard('fixMyThings', fixMyThings)();
     guard('fixArchiveDays', fixArchiveDays)();
+    guard('watchChainPull', watchChainPull)();
     guard('shortenSubNav', shortenSubNav)();
     guard('fitSelects', fitSelects)();
     /* строку фильтров меряем ПОСЛЕ подгонки полей: до неё ширины ещё не те */
