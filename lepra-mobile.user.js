@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Lepra Mobile
 // @namespace    lepra.mobile
-// @version      2.3.5
+// @version      2.3.7
 // @description  Мобильная адаптация leprosorium.ru для iOS Safari
 // @author       neokrasav4ik
 // @homepageURL  https://github.com/neokrasav4ik/lepra-mobile
@@ -131,7 +131,7 @@
     return;
   }
 
-  var VERSION = '2.3.5';
+  var VERSION = '2.3.7';
 
   /* ============================================================
      НАСТРОЙКИ
@@ -7362,20 +7362,57 @@ html.lm-cards2 .b-popup_holder { background: var(--lm-card) !important; }
 .b-archive_navigation {
   width: auto !important; box-sizing: border-box !important;
   padding: 6px !important; }
+/* Ряд «предыдущий / следующий день». Флексом, а не выравниванием по
+   центру: две кнопки должны стоять парой с одинаковым зазором, а на
+   узком экране переноситься, а не вылезать. */
 .b-archive_bottom_navigation {
-  margin: 20px 0 !important; padding: 20px 0 !important; }
-/* «Предыдущий день» — та же кнопка, что «Ещё»: одно назначение, один
-   вид. У лепры тут оливковая ссылка без коробки. */
-.b-archive_previous_day_bottom {
+  margin: 20px 0 !important; padding: 20px 0 !important;
+  display: flex !important; justify-content: center !important;
+  flex-wrap: wrap !important; gap: 8px !important; }
+/* Обе кнопки одним правилом.
+
+   Раньше здесь стояло только «предыдущий день», и это было видно на
+   устройстве: один день — кнопка с рамкой, другой — голая подчёркнутая
+   ссылка рядом. Пара кнопок, у которых одно назначение и разный вид, —
+   это не оформление, а недоделка; и заметить её мог только тот, у кого
+   на экране есть оба дня, то есть не я. */
+.b-archive_previous_day_bottom,
+.b-archive_next_day_bottom {
   display: inline-block !important; box-sizing: border-box !important;
   padding: 8px 12px !important;
   background: var(--lm-card) !important;
   border: 1px solid var(--lm-line) !important;
   border-radius: ${UI_R}px !important;
-  color: var(--lm-ink) !important; text-decoration: none !important; }
-.b-archive_previous_day_bottom:active {
+  color: var(--lm-ink) !important; text-decoration: none !important;
+  font-size: 13px !important; line-height: 1.2 !important; }
+.b-archive_previous_day_bottom:active,
+.b-archive_next_day_bottom:active {
   background: var(--lm-press) !important;
   border-color: var(--lm-press-line) !important; }
+/* Стрелки. Лепра рисует их рамками у ::after и прибивает по краю ССЫЛКИ
+   (left:-2px, right:-8px) — у голой ссылки это уместно, а у кнопки
+   стрелка повисает СНАРУЖИ, наполовину на рамке. Заводим их внутрь,
+   ставим по середине высоты и красим текущим цветом, чтобы не заводить
+   второй тон и не спорить с тёмной темой. Под стрелку освобождаем поле
+   с её стороны. */
+.b-archive_previous_day_bottom { padding-left: 27px !important; }
+.b-archive_next_day_bottom { padding-right: 27px !important; }
+.b-archive_previous_day_bottom::after,
+.b-archive_next_day_bottom::after {
+  top: 50% !important; bottom: auto !important;
+  margin-top: -6px !important; }
+.b-archive_previous_day_bottom::after {
+  left: 10px !important; right: auto !important;
+  border-right-color: currentColor !important; }
+.b-archive_next_day_bottom::after {
+  right: 10px !important; left: auto !important;
+  border-left-color: currentColor !important;
+  /* Прозрачная рамка справа — лишняя, и это не придирка. Треугольник
+     собран рамками: видимая часть у «следующего» левая, а справа лепра
+     оставила ещё 6 пикселей прозрачной рамки. Коробка выходит 14 вместо
+     8, и стрелка съезжает к слову: зазор 3 пикселя против 9 у соседа.
+     На глаз это и читается как «несимметрично». */
+  border-right-width: 0 !important; }
 /* календарь архива */
 .b-archive_calendar, .b-archive_calendar table {
   width: 100% !important; max-width: 100% !important;
