@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Lepra Mobile
 // @namespace    lepra.mobile
-// @version      3.1.37
+// @version      3.1.38
 // @description  Мобильная адаптация leprosorium.ru для iOS Safari
 // @author       neokrasav4ik
 // @homepageURL  https://github.com/neokrasav4ik/lepra-mobile
@@ -131,7 +131,7 @@
     return;
   }
 
-  var VERSION = '3.1.37';
+  var VERSION = '3.1.38';
 
   /* ============================================================
      НАСТРОЙКИ
@@ -6411,13 +6411,30 @@ html.lm-cards2:not(.lm-dark) .b-comments_controls > a.active {
 
 /* Сама картинка: растянута по кнопке и погашена. Пределы лепры (100 и
    60) снимаем — иначе они не дали бы задать размер. */
+/* Настоящая кнопка отправки стоит АБСОЛЮТОМ, ровно под своей
+   картинкой-надписью.
+
+   Раньше она стояла в потоке: полоса была одной строкой, выравнивание
+   по правому краю уводило её вправо, и она сама собой оказывалась под
+   надписью. Стоило раскрыть загрузчик — его блок занял всю ширину,
+   встал отдельной строкой, и картинка уехала на строку выше надписи.
+   Надпись рисуется псевдоэлементом и тапы не ловит (pointer-events:
+   none), сама картинка прозрачна — палец не попадал никуда вовсе.
+   Проверено щупом: elementFromPoint по середине видимой кнопки
+   возвращал пустоту.
+
+   Абсолют привязывает её к тому же углу, что и надпись, и раскладка
+   полосы на это больше не влияет — сколько бы строк в ней ни стало. */
 .b-comments_reply_block .b-comments_reply_block_yarrr {
   width: ${FORM_BTN_W}px !important; height: ${FORM_BTN_H}px !important;
   max-width: none !important; max-height: none !important;
   margin: 0 !important; padding: 0 !important;
   border: 0 !important; background: none !important;
   opacity: 0 !important;
-  position: relative !important; z-index: 2 !important;
+  position: absolute !important;
+  right: 0 !important; bottom: 0 !important;
+  top: auto !important; left: auto !important;
+  z-index: 2 !important;
   cursor: pointer !important; }
 
 /* Кнопка «Закрыть». Остаётся на месте — абсолютно внутри обёртки
@@ -6546,6 +6563,7 @@ html.lm-cards2:not(.lm-dark) .b-comments_controls > a.active {
    нескрытый потомок» правилом нельзя иначе как через :has(), а он
    Safari 15.4 и новее. Метка стоит десять строк и работает везде. */
 .b-comments_reply_block.lm-upl_on .b-comments_bottom_bar::after,
+.b-comments_reply_block.lm-upl_on .b-comments_reply_block_yarrr,
 .b-comments_reply_block.lm-upl_on .b-close_btn {
   bottom: ${FORM_BTN_H + 4}px !important; }
 
