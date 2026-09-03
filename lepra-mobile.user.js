@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Lepra Mobile
 // @namespace    lepra.mobile
-// @version      3.1.21
+// @version      3.1.37
 // @description  Мобильная адаптация leprosorium.ru для iOS Safari
 // @author       neokrasav4ik
 // @homepageURL  https://github.com/neokrasav4ik/lepra-mobile
@@ -131,7 +131,7 @@
     return;
   }
 
-  var VERSION = '3.1.21';
+  var VERSION = '3.1.37';
 
   /* ============================================================
      НАСТРОЙКИ
@@ -1281,7 +1281,13 @@
       profile: false,        /* профиль */
       filters: false,        /* панель фильтров */
       layers: false,         /* слои поверх страницы */
-      threads: false         /* лесенка комментариев */
+      threads: false,        /* лесенка комментариев */
+      /* ВКЛЮЧЕН НАРОЧНО И ВРЕМЕННО. Нужен ровно для одного: увидеть,
+         чем лепра показывает НЕУДАЧНУЮ загрузку — удачу мы знаем, а
+         неудачу не видели ни разу. Как только это станет известно и
+         состояние «не вышло» будет сделано, флаг возвращается в false:
+         отчёт не свалка, и разделы в нём включают под задачу. */
+      upload: true           /* загрузчик картинки: что писала лепра */
     }
   };
 
@@ -3530,6 +3536,135 @@
      «Закрыть», которое чуть длиннее. */
   var FORM_BTN_W = 76;
   var FORM_BTN_H = 28;
+
+  /* ---- Полоса разметки над полем ввода ----
+
+     Одна схема на две формы. Полос у лепры две и они не похожи: у формы
+     комментария ряд помечен классом .b-textarea_editor, а на странице
+     нового поста — НИКАКИМ классом, только id js-new_post_body_wysiwyg
+     (это уже разобрано у STRIKE_ROWS). Кнопки внутри те же самые, и
+     держать им два разных вида было бы странно.
+
+     Что видно в покое: Bold, Italic, Irony, Link, Image, Spoiler и
+     шеврон. Под шевроном лежат пять редких: Underline, x², x₂, Code и
+     наша Strike.
+
+     Числа. Клавиша 30 в высоту при поле 8 по бокам, кегль 13, просвет
+     4, шеврон 32 в ширину.
+
+     ПОЛЕ ПОДБИРАЕТСЯ ЗАМЕРОМ, И ЭТО НЕ ПЕРЕСТРАХОВКА. Восьмёрка выше —
+     только желаемое начало. На стенде шесть клавиш давали 302, просветы
+     20, шеврон с просветом 36 — итого 358 при ширине 369, одиннадцать
+     точек запаса. На устройстве шеврон всё равно съехал во вторую
+     строку: у стенда нет Verdana, он меряет запасным шрифтом, а
+     настоящая Verdana шире примерно на десятую. Одиннадцать точек она и
+     съела.
+
+     Считать ширину слов заранее нельзя вовсе: шрифт, его версия,
+     масштаб страницы и системный кегль — всё это известно только на
+     устройстве. Поэтому поле задано переменной --lm-tool-pad, а
+     fitToolbar убавляет её с восьми до двух, пока шеврон не встанет
+     вровень с первой клавишей. Замер вместо предположения. */
+  var TOOL_H = 30, TOOL_PAD = 8, TOOL_GAP = 4, CHEV_W = 32;
+
+  /* Обе полосы и то, что внутри них. Селекторы собираются, а не пишутся
+     руками: их четырнадцать штук на шесть правил, и переписывать их
+     парами при каждой правке — верный способ развести половинки. */
+  var TOOL_ROWS = ['.b-textarea_editor', '.lm-np #js-new_post_body_wysiwyg'];
+
+  function toolSel(sub) {
+    return TOOL_ROWS.map(function (r) { return r + ' ' + sub; }).join(',\n');
+  }
+
+  /* Пять редких: четыре леприных и наша. У Code свой класс есть,
+     Underline и степени различает пометка, которую ставит dressToolbar.
+     Считать позиции (nth-child) нельзя: добавь лепра кнопку — и
+     спрячется не то, причём молча. */
+  var TOOL_HIDDEN = ['.lm-tool_u', '.lm-tool_sup', '.lm-tool_sub',
+                     '.b-textarea_editor_code', '.lm-strike'];
+
+  function toolbarRules() {
+    var out = [];
+
+    out.push(TOOL_ROWS.join(',\n') + ' {\n' +
+      '  display: flex !important; flex-wrap: wrap !important;\n' +
+      '  align-items: center !important;\n' +
+      '  gap: ' + TOOL_GAP + 'px !important;\n' +
+      '  padding: 4px 0 !important; }');
+
+    /* Клавиши лепры и наша Strike — один вид. Порядок 1: он же ставит
+       их ПЕРЕД разрывом, а спрятанные уйдут за него. */
+    out.push(toolSel('.b-textarea_editor_button') + ',\n' +
+             toolSel('.lm-strike') + ' {\n' +
+      '  box-sizing: border-box !important;\n' +
+      '  display: inline-block !important; order: 1 !important;\n' +
+      '  height: ' + TOOL_H + 'px !important;\n' +
+      '  line-height: ' + (TOOL_H - 2) + 'px !important;\n' +
+      '  padding: 0 var(--lm-tool-pad, ' + TOOL_PAD + 'px) !important;\n' +
+      '  margin: 0 !important;\n' +
+      '  font-size: 13px !important;\n' +
+      '  border: 1px solid var(--lm-line) !important;\n' +
+      '  border-radius: ' + UI_R + 'px !important;\n' +
+      '  background: var(--lm-card) !important;\n' +
+      '  text-decoration: none !important; }');
+
+    out.push(toolSel('.b-textarea_editor_button:active') + ',\n' +
+             toolSel('.lm-strike:active') + ' {\n' +
+      '  background: var(--lm-press) !important;\n' +
+      '  border-color: var(--lm-press-line) !important; }');
+
+    /* Шеврон. Та же высота и та же рамка, что у клавиш, — иначе он
+       читается чужим значком, а не седьмой клавишей ряда. Прижат вправо
+       своим margin-left: auto, тем же приёмом, что точка в подписи. */
+    out.push(toolSel('.lm-tools_chev') + ' {\n' +
+      '  box-sizing: border-box !important;\n' +
+      '  order: 2 !important; margin-left: auto !important;\n' +
+      '  width: ' + CHEV_W + 'px !important; height: ' + TOOL_H + 'px !important;\n' +
+      '  display: flex !important; align-items: center !important;\n' +
+      '  justify-content: center !important;\n' +
+      '  border: 1px solid var(--lm-line) !important;\n' +
+      '  border-radius: ' + UI_R + 'px !important;\n' +
+      '  background: var(--lm-card) !important;\n' +
+      '  color: var(--lm-ink) !important;\n' +
+      '  cursor: pointer !important;\n' +
+      '  -webkit-tap-highlight-color: transparent !important;\n' +
+      '  touch-action: manipulation !important; }');
+    out.push(toolSel('.lm-tools_chev svg') + ' {\n' +
+      '  display: block !important; width: 18px !important; height: 18px !important;\n' +
+      '  transition: transform .15s ease !important; }');
+    out.push(toolSel('.lm-tools_chev:active') + ' {\n' +
+      '  background: var(--lm-press) !important;\n' +
+      '  border-color: var(--lm-press-line) !important; }');
+
+    /* Второй ряд обязан быть РЯДОМ, а не вкраплениями. Порядка мало:
+       спрятанные с order 4 всё равно разошлись бы по свободному месту
+       первой строки между соседками. Переносит их пустой узел во всю
+       ширину — он и есть разрыв. */
+    out.push(toolSel('.lm-tools_break') + ' {\n' +
+      '  order: 3 !important; flex: 0 0 100% !important;\n' +
+      '  height: 0 !important; margin: 0 !important; padding: 0 !important; }');
+
+    out.push(TOOL_HIDDEN.map(function (h) { return toolSel(h); }).join(',\n') +
+      ' {\n  order: 4 !important; }');
+
+    /* Прятание — через :not(), а не порядком строк. Правила выше ставят
+       тем же классам display: inline-block; при равном весе спор решал
+       бы порядок, то есть случайность. С :not() вес больше на класс, и
+       прятание побеждает независимо от того, где какое правило легло. */
+    var hid = TOOL_HIDDEN.concat(['.lm-tools_break']).map(function (h) {
+      return TOOL_ROWS.map(function (r) {
+        return r + ':not(.lm-tools_on) ' + h;
+      }).join(',\n');
+    }).join(',\n');
+    out.push(hid + ' {\n  display: none !important; }');
+
+    /* Раскрыто — стрелка смотрит вверх. */
+    out.push(TOOL_ROWS.map(function (r) {
+      return r + '.lm-tools_on .lm-tools_chev svg';
+    }).join(',\n') + ' {\n  transform: rotate(180deg) !important; }');
+
+    return out.join('\n\n');
+  }
 
   /* Значок обновления над лентой комментариев. Был 24 наравне с
      соседями по строке; соседи ушли под шеврон, и значок остался
@@ -6318,13 +6453,241 @@ html.lm-cards2:not(.lm-dark) .b-comments_controls > a.active {
   background: var(--lm-press) !important;
   border-color: var(--lm-press-line) !important; }
 
-/* Ссылка «приложу картинку» стоит в той же строке абсолютно слева и
-   ширины не имеет — при узком экране она дотягивалась бы до кнопок.
-   Ограничиваем справа местом, которое кнопки занимают: 160 на них и
-   двенадцать просвета. */
+/* Клавиша «приложу картинку» — третья в нижнем ряду, к «Закрыть» и
+   отправке. Одного вида с ними: та же высота, та же рамка, то же
+   скругление, тот же кегль.
+
+   Почему она годами висела на три точки ниже соседок, хотя обе стоят
+   абсолютно с bottom: 0. Потому что у лепры на ней задан ВЕРХ: top: 3px.
+   Когда у абсолютного узла заданы разом верх, низ и высота, раскладка
+   переопределена, и спецификация велит оставить верх, а низ отбросить.
+   Наш bottom не проигрывал спор по весу — он вообще не участвовал: его
+   отбрасывали после того, как правило уже применилось. Никакое
+   !important тут не помогло бы, и искать причину в специфичности можно
+   было долго. Лечится явным top: auto.
+
+   Ширину ограничиваем местом, которое занимают две кнопки: 152 на них и
+   двадцать просвета. Длинное имя файла ужмётся многоточием. */
 .b-comments_reply_block .b-file_uploader_button {
+  position: absolute !important; left: 0 !important;
+  top: auto !important; bottom: 0 !important;
+  box-sizing: border-box !important;
+  height: ${FORM_BTN_H}px !important;
+  line-height: ${FORM_BTN_H - 2}px !important;
+  padding: 0 10px !important; margin: 0 !important;
   max-width: calc(100% - ${FORM_BTN_W * 2 + 20}px) !important;
-  line-height: 1.25 !important; }
+  font-family: Verdana, Arial, sans-serif !important;
+  font-size: 12px !important; font-weight: bold !important;
+  color: var(--lm-ink) !important;
+  background: var(--lm-card) !important;
+  border: 1px solid var(--lm-line) !important;
+  border-radius: ${UI_R}px !important;
+  text-align: center !important; text-decoration: none !important;
+  white-space: nowrap !important;
+  overflow: hidden !important; text-overflow: ellipsis !important; }
+/* Подпись клавиши. У лепры она разная в двух формах — «я, пожалуй,
+   приложу картинку» и «я, пожалуй, прикреплю картинку» — и обе длинны
+   для клавиши в двести точек: хвост уходил в многоточие. Ставим короткое
+   «приложить файл», и оно же честнее: лепра берёт не только картинки.
+   Подмена псевдоэлементом, а не через DOM: форму она пересобирает на
+   каждое «ответить», и наш текст не пережил бы этого. */
+.b-uploader_button_text { font-size: 0 !important; }
+.b-file_uploader_button::before {
+  content: 'приложить файл' !important;
+  font-family: Verdana, Arial, sans-serif !important;
+  font-size: 12px !important; font-weight: bold !important; }
+.lm-newpost .b-file_uploader_button::before { font-size: 13px !important; }
+
+.b-comments_reply_block .b-file_uploader_button:active {
+  background: var(--lm-press) !important;
+  border-color: var(--lm-press-line) !important; }
+
+/* ---- Раскрытый загрузчик ----
+
+   Нажали «приложу картинку» — лепра прячет эту клавишу и снимает класс
+   hidden со своего блока. Внутри у неё три голые ссылки подряд: «впрочем,
+   без картинки тоже ничего», «выбрать файл» и «или перетащить сюда», — и
+   выглядит это россыпью подчёркнутого текста поперёк аккуратного ряда
+   клавиш. Собираем их в тот же вид, что и всё остальное.
+
+   Состояние опознаётся правилом, без всякого кода: hidden лепра ставит и
+   снимает сама, а :not(.hidden) её и читает.
+
+   Раскладка: блок встаёт в поток (не абсолютом, как свёрнутая клавиша) и
+   отступает справа на место двух кнопок. Полоса от этого подрастает сама,
+   а «Закрыть» и отправка остаются прижатыми к её низу.
+
+   Первая строка — «выбрать файл» и отмена крестиком. Вторая, во всю
+   ширину, — строка состояния: у лепры там «или перетащить сюда», а как
+   пойдёт загрузка, она пишет туда же имя файла и проценты. Перетаскивание
+   на телефоне бессмысленно, но узел прячем не мы: он ещё пригодится. */
+.b-comments_reply_block .b-file_uploader:not(.hidden) {
+  display: flex !important; flex-wrap: wrap !important;
+  align-items: center !important; gap: 4px 6px !important;
+  position: static !important;
+  width: 100% !important; box-sizing: border-box !important;
+  margin: 0 !important; padding: 0 !important;
+  text-align: left !important; }
+
+/* ---- Куда что встаёт, когда загрузчик раскрыт ----
+
+   Три клавиши — «выбрать файл», крестик отмены, «Закрыть» и «YARRR!» —
+   стоят в ОДНУ линию, а строка хода загрузки идёт под ними во всю
+   ширину. Так просил Ден, и так правильнее: строка длинная, а ужимать
+   её ради соседства с кнопками значит терять имя файла в многоточии.
+
+   Устроено сдвигом, а не перестановкой узлов. Блок загрузчика лежит в
+   потоке двумя рядами: клавиши сверху, строка снизу. Кнопки формы стоят
+   абсолютом от низа — значит они оказывались вровень со СТРОКОЙ. Поднимаем
+   их на её высоту с просветом, и они встают вровень с клавишами.
+
+   Метку lm-upl_on на форму ставит watchUploads: раскрытие загрузчика —
+   это снятие класса hidden лепрой, а выразить «у меня внутри есть
+   нескрытый потомок» правилом нельзя иначе как через :has(), а он
+   Safari 15.4 и новее. Метка стоит десять строк и работает везде. */
+.b-comments_reply_block.lm-upl_on .b-comments_bottom_bar::after,
+.b-comments_reply_block.lm-upl_on .b-close_btn {
+  bottom: ${FORM_BTN_H + 4}px !important; }
+
+.b-comments_reply_block .b-file_uploader_browse_button {
+  order: 1 !important; box-sizing: border-box !important;
+  display: inline-block !important;
+  height: ${FORM_BTN_H}px !important;
+  line-height: ${FORM_BTN_H - 2}px !important;
+  padding: 0 10px !important; margin: 0 !important;
+  font-family: Verdana, Arial, sans-serif !important;
+  font-size: 12px !important; font-weight: bold !important;
+  color: var(--lm-ink) !important;
+  background: var(--lm-card) !important;
+  border: 1px solid var(--lm-line) !important;
+  border-radius: ${UI_R}px !important;
+  text-decoration: none !important; white-space: nowrap !important; }
+.b-comments_reply_block .b-file_uploader_browse_button:active {
+  background: var(--lm-press) !important;
+  border-color: var(--lm-press-line) !important; }
+
+/* Отмена крестиком, а не строкой в тридцать три знака: рядом с «выбрать
+   файл» она соперничала бы с ним за внимание, а дело у неё
+   второстепенное. Подпись подменяем псевдоэлементом — тем же приёмом,
+   что и у «Закрыть»: текстовый узел внутри ссылки лепра пересобирает
+   вместе с формой, и подмена через DOM не пережила бы этого. */
+.b-comments_reply_block .b-comments_reply_block_delete_file {
+  order: 2 !important; box-sizing: border-box !important;
+  display: inline-block !important;
+  /* Ссылка отмены у лепры стоит абсолютом — в ряду ей это ни к чему. */
+  position: static !important; left: auto !important; top: auto !important;
+  width: ${FORM_BTN_H}px !important; height: ${FORM_BTN_H}px !important;
+  padding: 0 !important; margin: 0 !important;
+  background: var(--lm-card) !important;
+  border: 1px solid var(--lm-line) !important;
+  border-radius: ${UI_R}px !important;
+  text-align: center !important; text-decoration: none !important;
+  font-size: 0 !important;
+  -webkit-tap-highlight-color: transparent !important;
+  touch-action: manipulation !important; }
+.b-comments_reply_block .b-comments_reply_block_delete_file::before {
+  content: '×' !important;
+  font-family: Verdana, Arial, sans-serif !important;
+  font-size: 17px !important;
+  line-height: ${FORM_BTN_H - 2}px !important;
+  color: var(--lm-dim) !important; }
+.b-comments_reply_block .b-comments_reply_block_delete_file:active {
+  background: var(--lm-press) !important;
+  border-color: var(--lm-press-line) !important; }
+
+/* Строка состояния — во всю ширину под клавишами. */
+.b-comments_reply_block .b-file_uploader_drag {
+  order: 3 !important; flex: 0 0 100% !important;
+  box-sizing: border-box !important;
+  position: static !important;
+  min-width: 0 !important; max-width: 100% !important;
+  margin: 0 !important; padding: 0 !important;
+  font-size: 11px !important; line-height: 1.3 !important;
+  color: var(--lm-dim) !important;
+  white-space: nowrap !important;
+  overflow: hidden !important; text-overflow: ellipsis !important; }
+
+/* ---- Три состояния загрузки ----
+
+   Замысел разобран у watchUploads. Коротко: лепра пишет в эту самую
+   строку «имя (NN%)» и оставляет написанное до отправки — сведения были
+   всегда, просто набраны серым по белому одиннадцатым кеглем и
+   сливались с формой. Делаем их видимыми.
+
+   Метку ставит сторож на .b-file_uploader, поэтому оба состояния
+   выражаются одним признаком, без классов на самой строке.
+
+   Полоса наливается заливкой строки: доля берётся из переменной
+   --lm-upl-pct, которую тот же сторож и пишет. Резкая граница (два
+   упора подряд) — это именно полоса, а не растяжка: растекающийся край
+   читался бы тенью, а не долей.
+
+   Тон полосы — обычный нажатый: своего цвета для загрузки в наборе нет,
+   а заводить его ради одного места значит разводить набор. */
+/* Место под строку хода держится ВСЕГДА, пока загрузчик раскрыт, — даже
+   когда писать в неё нечего.
+
+   Иначе выходит вот что. Кнопки формы подняты на высоту строки с
+   просветом, чтобы встать вровень с «выбрать файл». Но пустая строка
+   высоты не имеет вовсе, полоса выходит на тридцать две точки короче, и
+   поднятые кнопки уезжают ВЫШЕ ряда — на устройстве это выглядело так:
+   «Закрыть» и «YARRR!» висят сами по себе, а «выбрать файл» под ними.
+   Стоило пойти загрузке, строка появлялась, полоса дорастала — и всё
+   вставало на место само. Ровно это Ден и описал.
+
+   Поэтому высоту строке задаём сразу при раскрытии, а рамку и заливку —
+   только когда есть что показать. Пустая строка занимает место и не
+   видна. */
+.b-comments_reply_block .b-file_uploader:not(.hidden) .b-file_uploader_drag {
+  box-sizing: border-box !important;
+  height: ${FORM_BTN_H}px !important;
+  line-height: ${FORM_BTN_H - 2}px !important;
+  padding: 0 8px !important;
+  font-size: 12px !important;
+  border: 1px solid transparent !important;
+  border-radius: ${UI_R}px !important; }
+.b-comments_reply_block .b-file_uploader[data-lm-upl] .b-file_uploader_drag {
+  border-color: var(--lm-line) !important; }
+
+.b-comments_reply_block .b-file_uploader[data-lm-upl="run"] .b-file_uploader_drag {
+  color: var(--lm-ink) !important;
+  background: linear-gradient(to right,
+    var(--lm-press) var(--lm-upl-pct, 0%),
+    var(--lm-card) var(--lm-upl-pct, 0%)) !important; }
+
+/* Отправлено. Не «готово»: сотня процентов говорит только о том, что
+   байты доехали. Ден приложил pdf вместо картинки — лепра досчитала до
+   ста и вернула свою ошибку «не приложилось», а мы в первой сборке
+   нарисовали на этом галку. Вид у сотни спокойный: полоса налилась
+   целиком, рамка сплошная, начертание обычное, никакой галки. */
+.b-comments_reply_block .b-file_uploader[data-lm-upl="sent"] .b-file_uploader_drag {
+  color: var(--lm-ink) !important;
+  background: var(--lm-press) !important;
+  border-color: var(--lm-line) !important; }
+
+/* Получилось. Галка и приписка — псевдоэлементами: текст в строке
+   леприн, и дописывать в него свой узел значило бы спорить с ней за
+   содержимое при каждой перерисовке. Разбор, почему молчание считается
+   согласием, — у uplVerdict. */
+.b-comments_reply_block .b-file_uploader[data-lm-upl="done"] .b-file_uploader_drag {
+  color: var(--lm-ink) !important;
+  background: var(--lm-card) !important;
+  border-color: var(--lm-ink) !important;
+  font-weight: bold !important; }
+.b-comments_reply_block .b-file_uploader[data-lm-upl="done"] .b-file_uploader_drag::before {
+  content: '\\2713\\00a0' !important; }
+
+/* Не вышло. Красным — тем же акцентом, что у «YARRR!»: своего цвета для
+   беды в наборе нет, а заводить второй красный значит разводить набор.
+   Приписка своя, а не леприна: её окно к этому мигу уже исчезло, а
+   строка осталась, и без приписки красная рамка объясняла бы себя
+   сама. */
+.b-comments_reply_block .b-file_uploader[data-lm-upl="fail"] .b-file_uploader_drag {
+  color: var(--lm-accent) !important;
+  background: var(--lm-card) !important;
+  border-color: var(--lm-accent) !important; }
+.b-comments_reply_block .b-file_uploader[data-lm-upl="fail"] .b-file_uploader_drag::after {
+  content: '\\00a0\\2014\\00a0не приложился' !important; }
 
 /* Надпись «Я, пожалуй, напишу комментарий». У лепры кегль 18 и запрет
    переноса: при увеличенном масштабе страницы, когда ширина падает до
@@ -6463,17 +6826,10 @@ input[type="radio"], input[type="checkbox"] {
    Здесь только вид собранного. */
 .lm-np { display: block !important; padding-top: 4px !important; }
 
-/* Панель кнопок оформления — это ячейка таблицы, поэтому display задаём
-   явно, поверх общего правила. Десять подписей в 13 пунктов занимают
-   около 364 пикселей: в 393 они укладываются в строку впритык, при
-   увеличенном масштабе страницы переносятся во вторую. Перенос и есть
-   запасной вариант — обрезать в такой панели нечего. */
-.lm-np #js-new_post_body_wysiwyg {
-  display: flex !important; flex-wrap: wrap !important;
-  align-items: center !important; gap: 6px 4px !important;
-  padding: 0 0 6px !important; white-space: normal !important; }
-.lm-np .b-textarea_editor_button {
-  margin: 0 !important; padding: 3px 0 !important; font-size: 13px !important; }
+/* Полоса разметки — общая для обеих форм, правила собирает toolbarRules.
+   Стоит ПОСЛЕ леприных: там кегль и поля старого вида, и спорить с ними
+   надо и весом, и порядком разом. Разбор замысла и числа — у TOOL_H. */
+${toolbarRules()}
 
 /* Высота поля прописана у лепры в разметке — перебиваем своей.
    Кегль 16 обязателен: ниже Safari наезжает увеличением при касании. */
@@ -6570,8 +6926,10 @@ input[type="radio"], input[type="checkbox"] {
 .lm-np_send #js-new_post_submit:active {
   background: var(--lm-press) !important;
   border-color: var(--lm-press-line) !important; }
-/* Подпись «я, пожалуй, прикреплю картинку» — цвет ей не задан вовсе. */
-.b-uploader_button_text { color: var(--lm-ink) !important; }
+/* Правило цвета для .b-uploader_button_text убрано: подпись лепры
+   погашена кеглем ноль (см. раздел клавиши загрузчика выше), и красить
+   в ней нечего. Второе объявление того же селектора проверка ловит
+   дублем — и правильно делает. */
 /* Панель разметки над полем: у лепры rgb(119,119,119), это подписи
    кнопок, а не сам текст. Начертание каждой лепра оставляет говорящим
    (Bold жирным, Irony красным) — его не трогаем, только тон. */
@@ -6634,7 +6992,10 @@ input[type="radio"], input[type="checkbox"] {
    значит на другом кегле, другом масштабе или другом телефоне оно
    всё равно перенесётся, только уже необъяснимо. В форме комментария,
    где кегль 10, все одиннадцать стоят в одну строку. */
-.lm-np .lm-strike { margin: 0 !important; font-size: 13px !important; }
+/* Прежние отдельные правила полосы нового поста (свой display, свой
+   кегль у кнопок, свой у Strike) убраны: всё это теперь задаёт
+   toolbarRules разом для обеих форм. Два места на одно и то же — верный
+   способ развести их при следующей правке. */
 
 /* Загрузчик картинки. У лепры и кнопка «прикреплю», и панель выбора
    файла позиционированы абсолютно внутри контейнера, у которого своей
@@ -6645,10 +7006,34 @@ input[type="radio"], input[type="checkbox"] {
 .lm-np_send #js-new_post_file {
   flex: 1 1 auto !important; width: auto !important; height: auto !important;
   min-width: 0 !important; margin: 0 !important; text-align: left !important; }
-.lm-newpost .b-file_uploader_button,
+/* Клавиша «приложу картинку» на новом посте — того же вида, что в форме
+   комментария, но в рост своей соседки: кнопка отправки здесь выше
+   (поля 9 на 14 вокруг леприной картинки), и мерить надо по ней, а не
+   по числу из формы комментария. Поля те же 9 сверху и снизу — высоты
+   сойдутся сами, без второго числа в файле.
+
+   Обёртка (.b-file_uploader) остаётся простым узлом потока: рамка нужна
+   клавише, а не коробке вокруг неё. */
 .lm-newpost .b-file_uploader {
   position: static !important; margin: 0 !important; padding: 0 !important;
   font-size: 13px !important; }
+.lm-newpost .b-file_uploader_button {
+  position: static !important; margin: 0 !important;
+  box-sizing: border-box !important;
+  display: inline-block !important;
+  padding: 9px 14px !important;
+  font-size: 13px !important;
+  color: var(--lm-ink) !important;
+  background: var(--lm-card) !important;
+  border: 1px solid var(--lm-line) !important;
+  border-radius: ${UI_R}px !important;
+  text-decoration: none !important;
+  max-width: 100% !important;
+  overflow: hidden !important; text-overflow: ellipsis !important;
+  white-space: nowrap !important; }
+.lm-newpost .b-file_uploader_button:active {
+  background: var(--lm-press) !important;
+  border-color: var(--lm-press-line) !important; }
 .lm-newpost .b-file_uploader_browse_button {
   float: none !important; margin: 0 !important;
   padding: 0 10px 0 0 !important; }
@@ -10198,6 +10583,15 @@ html.lm-pyn_on .b-notification-feed_layout_popup { display: none !important; }
    нажатия перехватывала тапы по всей странице, поэтому скрыта. */
 .b-comments_navigation, #js-comments_navigation { display: none !important; }
 
+/* Прыгалки уходят, пока открыта форма. Они висят на правом краю по
+   середине экрана — ровно там, где открывается поле ввода, и лежат
+   поверх него. Тапнуть по ним, целясь в текст, проще простого, а
+   промах уводит по треду и теряет набранное.
+   Прячем показом, а не сдвигом: коробка #lm-nav ловит тапы насквозь
+   (pointer-events: none), но значки внутри — ловят, и отодвинутые они
+   мешали бы в другом месте. */
+html.lm-form_on #lm-nav { display: none !important; }
+
 #lm-nav {
   position: fixed !important;
   right: var(--lm-jump-right, ${CFG.jumpRight}px) !important;
@@ -11630,6 +12024,42 @@ html.lm-dark canvas, html.lm-dark embed, html.lm-dark object,
 html.lm-dark .b-list_item_logo, html.lm-dark .b-userpic,
 html.lm-dark [style*="background-image"] {
   filter: invert(1) hue-rotate(180deg) !important; }
+
+/* Обратная инверсия не складывается.
+
+   Правило строкой выше переворачивает обратно два разных рода узлов:
+   само медиа (img, video…) И любую коробку с фоновой картинкой в
+   инлайновом стиле. Обычно это разные узлы, и всё сходится. Но у части
+   роликов лепра кладёт превью фоном НА КОНТЕЙНЕР плеера
+   (.b-media_player_preview со style="background-image: …"), а внутрь
+   того же контейнера ставит <video>. Тогда переворотов на ролике
+   набирается три: страница, контейнер, сам ролик. Нечётное число — и
+   ролик показывается негативом, вместе с постером и полосой кнопок.
+   Ровно это и видно на устройстве: одни превью нормальные, другие
+   вывернутые, и никакой закономерности по виду.
+
+   Замер на пробной странице pages/vidtest (два плеера, у второго превью
+   фоном): у первого ролика фильтров два, у второго три.
+
+   Лечится не отменой переворота у контейнера — фон тогда останется
+   негативом, — а отменой у ВЛОЖЕННОГО медиа: под уже перевёрнутым
+   предком его собственные цвета и так подлинные, свой фильтр ему не
+   нужен вовсе.
+
+   Селектор тяжелее предыдущего (класс + признак + тип против класса и
+   типа) И стоит ниже — как и у гертруды дальше, оба довода в одну
+   сторону, чтобы браузер и проверка не рассудили спор по-разному. */
+html.lm-dark [style*="background-image"] img,
+html.lm-dark [style*="background-image"] video,
+html.lm-dark [style*="background-image"] iframe,
+html.lm-dark [style*="background-image"] canvas,
+html.lm-dark [style*="background-image"] embed,
+html.lm-dark [style*="background-image"] object,
+html.lm-dark [style*="background-image"] .b-list_item_logo,
+html.lm-dark [style*="background-image"] .b-userpic,
+html.lm-dark [style*="background-image"] .lm-emo,
+html.lm-dark [style*="background-image"] .lm-crown {
+  filter: none !important; }
 /* Гертруды бывают двух пород. Одни — png с настоящей прозрачностью:
    рваный край сделан альфа-каналом, и под ним видно страницу. Другие —
    jpeg, где прозрачности нет вовсе и тот же рваный край нарисован по
@@ -12126,6 +12556,43 @@ html.lm-dark .lm-crown {
   line-height: 1.15 !important;
   min-width: 0 !important; }
 .comment .c_footer .lm-fline__2 { margin-top: 1px !important; }
+
+/* Звание из широких спецзнаков.
+
+   Лепра режет звание по двадцати трём ЗНАКАМ, а не по ширине. Обычное
+   звание словами («да прибудет с вами сила») занимает при этом от
+   пятидесяти до полутора сотен точек и живёт в строке спокойно. Но
+   двадцать три тамильских ௌ (U+0BCC) — это на устройстве полторы тысячи
+   точек в одном неразрывном куске, и строка подписи уезжала вправо
+   вместе со всей страницей: замер на стенде дал ширину документа 1621
+   при экране 393.
+
+   Лечится двумя объявлениями, и оба обязательны — проверено порознь:
+
+   min-width: 0 — звание лежит флекс-ребёнком строки, а у флекс-детей
+   предельная ширина по умолчанию равна ширине содержимого (min-width:
+   auto), и ужаться ниже неё они не могут. С нулём коробка ужимается до
+   доступного места: 1601 → 352. Но САМА страница при этом остаётся
+   расползшейся — текст вылезает из коробки наружу, и документ так и
+   меряется в 1621.
+
+   overflow: hidden — вот что возвращает документу его 393. Без min-width
+   оно бы не помогло: обрезать нечего, пока коробка шириной с текст.
+
+   white-space: nowrap не украшение, а страховка. Звание словами, ужатое
+   до узкой коробки, начало бы переноситься на вторую и третью строку —
+   а обрезка по высоте их бы срезала, и вместо звания осталась бы его
+   верхняя половина. Запрет переноса держит одну строку, многоточие
+   показывает, что оно длиннее.
+
+   Обычных званий это не касается вовсе: на пяти страницах стенда сто
+   сорок пять званий, и после правки ни одно не изменило ни ширины, ни
+   высоты, ни высоты страницы под собой. */
+.comment .c_footer .c_user_rank {
+  min-width: 0 !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important; }
 
 /* ---- Короткая подпись комментария ----
 
@@ -24121,6 +24588,496 @@ html.lm-nosel [contenteditable], html.lm-nosel .b-textarea_editor {
     });
   }
 
+  /* ---- Полоса разметки: пометки, разрыв и шеврон ----
+
+     Замысел и числа — у TOOL_H и toolbarRules; здесь только устройство.
+
+     Отдельным проходом, а не внутри addStrikeButton: тот делает ровно
+     одно дело, и его имя об этом честно говорит. Обход обеих полос
+     стоит два узла на страницу — экономить тут не на чем.
+
+     Пометки ставим по имени, а не по счёту. У Link, Image, Spoiler и
+     Code свои классы у лепры есть; Underline и две степени различает
+     вложенный тег — u, sup, sub. Через :has() это выразилось бы и
+     правилами, но :has() — Safari 15.4 и новее, а пометка стоит десять
+     строк и работает везде.
+
+     Состояние раскрытия помним на время жизни страницы, но не дольше:
+     форму лепра пересобирает на каждое «ответить», и человек, раскрывший
+     полосу ради кода, не должен раскрывать её заново в каждом следующем
+     ответе. В памяти между заходами не храним — настройка ради одного
+     переключателя не окупается. */
+  var toolsOpen = false;
+
+  function dressToolbar() {
+    sliceOf(document.querySelectorAll(STRIKE_ROWS)).forEach(function (row) {
+      if (row.dataset.lmTools) return;
+      row.dataset.lmTools = '1';
+
+      sliceOf(row.querySelectorAll('.b-textarea_editor_button')).forEach(function (b) {
+        if (b.querySelector('u')) b.classList.add('lm-tool_u');
+        if (b.querySelector('sup')) b.classList.add('lm-tool_sup');
+        if (b.querySelector('sub')) b.classList.add('lm-tool_sub');
+      });
+
+      /* Разрыв ряда. Порядка мало: спрятанные с order 4 всё равно
+         разошлись бы по свободному месту первой строки между
+         соседками — а второй ряд должен быть рядом, а не вкраплениями. */
+      var br = document.createElement('span');
+      br.className = 'lm-tools_break';
+      row.appendChild(br);
+
+      var ch = document.createElement('span');
+      ch.className = 'lm-tools_chev';
+      ch.setAttribute('role', 'button');
+      ch.setAttribute('aria-label', 'ещё знаки разметки');
+      ch.innerHTML = CHEV_SVG;
+
+      ch.addEventListener('mousedown', function (ev) { ev.preventDefault(); });
+      ch.addEventListener('click', function (ev) {
+        ev.preventDefault();
+        /* Полоса — чужой узел, и на нём может висеть делегированный
+           обработчик лепры. Наше нажатие до него доходить не должно. */
+        ev.stopPropagation();
+        toolsOpen = !row.classList.contains('lm-tools_on');
+        sliceOf(document.querySelectorAll(STRIKE_ROWS)).forEach(function (r) {
+          r.classList.toggle('lm-tools_on', toolsOpen);
+        });
+      });
+
+      row.appendChild(ch);
+      if (toolsOpen) row.classList.add('lm-tools_on');
+    });
+    fitToolbars();
+  }
+
+  /* ---- Подбор поля клавиш ----
+
+     Ряд обязан быть одним, а сколько места займут шесть слов — заранее
+     не знает никто: шрифт, его версия, масштаб страницы и системный
+     кегль известны только на устройстве. Стенд тут прямо врёт: Verdana
+     у него нет, он меряет запасным шрифтом и даёт слова примерно на
+     десятую уже настоящих. Восьмёрка, посчитанная по его числам, на
+     телефоне сорвала шеврон во вторую строку.
+
+     Поэтому не считаем, а меряем: убавляем поле с восьми до двух, пока
+     верх шеврона не совпадёт с верхом первой клавиши. Совпали — ряд
+     один, дальше убавлять незачем.
+
+     Признак «влезло» именно такой, а не сравнение scrollWidth с
+     clientWidth: перенос строки шириной не виден вовсе, коробка ряда
+     просто становится вдвое выше.
+
+     Замеров в худшем случае семь на полосу, и делаются они один раз:
+     подобранное поле запоминается на узле. Сбрасывается только на смене
+     ширины окна — поворот телефона, смена масштаба. */
+  function fitToolbar(row) {
+    if (row.dataset.lmFit) return;
+    var chev = row.querySelector('.lm-tools_chev');
+    var first = row.querySelector('.b-textarea_editor_button');
+    /* Полоса без раскладки (свёрнутая форма в конце треда) меряется
+       нулями, и подбор дал бы двойку на пустом месте. Пропускаем —
+       следующий проход застанет её раскрытой. */
+    if (!chev || !first || row.clientWidth < 40) return;
+
+    var pads = [8, 7, 6, 5, 4, 3, 2], i = 0;
+    for (; i < pads.length; i++) {
+      row.style.setProperty('--lm-tool-pad', pads[i] + 'px');
+      if (Math.abs(chev.getBoundingClientRect().top -
+                   first.getBoundingClientRect().top) < 2) break;
+    }
+    /* Не влезло даже при двойке — оставляем два ряда. Это некрасиво, но
+       читается; резать слова многоточием было бы хуже. */
+    row.dataset.lmFit = String(pads[Math.min(i, pads.length - 1)]);
+  }
+
+  var fitArmed = false;
+
+  /* ---- Открытая форма и прыгалки ----
+
+     Прыгалки стоят на правом краю по середине экрана — там же, где
+     открывается поле ввода. Пока форма открыта, они лежат поверх текста
+     и ловят тапы, целившиеся в него.
+
+     Признак «открыта» — высота коробки формы больше сорока. Не focus:
+     человек может убрать клавиатуру и продолжать смотреть на форму, а
+     она никуда не делась. И не наличие узла: форма в конце треда есть
+     всегда, просто свёрнута в ноль высоты.
+
+     Сорок, а не ноль: у свёрнутой формы остаётся надпись «Я, пожалуй,
+     напишу комментарий» в полтора десятка точек, и порог должен стоять
+     выше неё.
+
+     Пересчитываем по трём событиям: тап (открыть и закрыть форму можно
+     только тапом), фокус и потеря фокуса. Опрос по времени тут был бы
+     расточительством — событий и так достаточно. */
+  /* ---- Три стойких состояния загрузчика ----
+
+     Как лепра показывает загрузку. Проценты она пишет в ту же строку,
+     где до этого стояло «или перетащить сюда» — в
+     span.b-file_uploader_drag, текстом вида «IMG_1987.jpeg (100%)». Это
+     не догадка: снято тыком по элементу на устройстве. Дойдя до сотни,
+     она коротко мигает — и мигание это ловить глазом бесполезно.
+
+     Отсюда весь замысел: ловить нечего, потому что ЛЕПРА УЖЕ ВСЁ
+     НАПИСАЛА и оставила написанное на месте. Имя файла и проценты
+     лежат в строке до самой отправки. Беда была не в том, что сведений
+     нет, а в том, что они набраны одиннадцатым кеглем серым по белому и
+     сливаются с формой. Поэтому мы не выдумываем своих сообщений и не
+     гонимся за морганием, а делаем видимой ту строку, что и так есть.
+
+     Три состояния:
+
+       нет метки — строка пуста, загрузчик в покое;
+       run      — проценты меньше ста, полоса наливается слева направо;
+       sent     — сотня: файл ушёл на сервер.
+
+     СОТНЯ НЕ ЗНАЧИТ «ПОЛУЧИЛОСЬ», и это проверено дорого. В первой
+     сборке сотня показывалась галкой и словом «готово». Ден приложил
+     pdf вместо картинки: лепра честно досчитала до ста, вернула свою
+     ошибку «не приложилось» — а мы нарисовали галку. Ровно та беда, от
+     которой я зарекался: вид, повешенный на догадку, однажды соврал.
+     Проценты говорят только о том, что байты доехали; принял их сервер
+     или отверг — знает лишь его ответ, а чем лепра этот ответ
+     показывает, мы всё ещё не видели.
+
+     Поэтому у сотни вид спокойный: сплошная рамка и обычное
+     начертание, никакой галки и никакого слова «готово». «Отправлено,
+     ответ смотри рядом» — ровно столько, сколько мы знаем наверняка.
+
+     Полосу наливаем заливкой самой строки, а не отдельным узлом:
+     лишний узел на каждую форму, который надо ещё и убирать при
+     пересборке, — плата ни за что.
+
+     Про «не вышло». Отдельного состояния для неудачи здесь нет, и это
+     честно: чем лепра показывает неудачу, мы пока не видели ни разу.
+     Придумать вид и повесить его на догадку — значит однажды показать
+     красную рамку на удачной загрузке. Поэтому вместо этого в
+     отладочный отчёт пишется всё, что лепра писала в строку, — увидим
+     на живой неудаче, тогда и добавим. */
+  var uplSeen = new WeakSet();
+  var uplLog = [];
+
+  /* ---- Дознание: чем отличается неудача от удачи ----
+
+     Два отчёта с устройства — по epub, который лепра отвергла, и по png,
+     который приняла, — оказались НЕОТЛИЧИМЫ. Одна и та же разметка
+     блока, одна и та же строка «имя (100%)», один и тот же подвал.
+     Значит ответ сервера лежит не в блоке загрузчика и не рядом с ним.
+
+     Что при этом стало видно. Во-первых, загрузку ведёт plupload
+     (class="plupload html5" в разметке) — значит успех и провал
+     приходят его событиями, а не разметкой. Во-вторых, лепра стирает
+     атрибут style у блока (в обоих отчётах style=""), и наша переменная
+     с долей оттуда исчезает; спасибо, что число продублировано в
+     data-lm-pct, иначе и его бы не было.
+
+     Куда смотреть дальше — два места, и оба проверяются этим
+     дознанием:
+
+       поле ввода. На удаче лепра почти наверняка дописывает в него
+       ссылку на картинку — это и есть настоящий признак успеха, куда
+       более надёжный, чем что-либо в самом загрузчике;
+
+       любой новый узел на странице. Сообщение «не приложилось» Ден
+       видел глазами, значит оно где-то было — и к моменту открытия
+       отчёта уже исчезло.
+
+     Поэтому на время загрузки заводим наблюдателя за всем телом
+     страницы и пишем всё, что появилось: короткие видимые тексты и
+     длину поля ввода до и после. Наблюдатель живёт пятнадцать секунд от
+     первых процентов и снимается сам — держать его постоянно значило бы
+     платить за каждую перерисовку страницы ради одного опыта. */
+  var uplNotes = [];
+  var uplBodyLen = -1;
+
+  /* ---- Итог загрузки ----
+
+     Неудачу лепра показывает СВОИМ ОКНОМ, а не разметкой загрузчика:
+     `.futu_alert` с текстом «Файл не приложился, попробуйте ещё раз.»
+     Снято с устройства. Именно поэтому два прежних отчёта, по
+     отвергнутому epub и принятому png, совпали до знака: различие
+     лежало вне блока.
+
+     Правило итога несимметрично нарочно:
+
+       не вышло — доказывается окном. Появилось во время загрузки, и в
+       нём говорится про файл — значит отказ, и это факт, а не вывод;
+
+       получилось — выводится из молчания. Сотня процентов и три
+       секунды тишины: раз лепра жалуется сразу, молчание после неё и
+       есть согласие.
+
+     НАБЛЮДАТЕЛЬ ЗАВОДИТСЯ ЗАНОВО НА КАЖДУЮ ЗАГРУЗКУ, и это главная
+     правка после второй проверки на устройстве. В первой сборке он был
+     одноразовый: жил пятнадцать секунд от первых процентов и снимался
+     насовсем. Первая неудача ловилась исправно, а всё, что человек
+     грузил потом, оставалось без присмотра — окно приходило, а слушать
+     его было некому, и отказ показывался удачей. В отчёте это видно
+     прямо: одна россыпь записей про окно в начале и четыре «итог: done»
+     подряд после, включая тот epub, который лепра отвергла.
+
+     Теперь каждые новые проценты продлевают срок наблюдения, а если
+     наблюдатель к тому мигу уже снялся — заводится снова. Между
+     загрузками он не висит: держать его постоянно значило бы платить
+     разбором каждой перерисовки страницы, а их на треде тысячи. */
+  var uplBox = null, uplDoneTimer = null;
+  var uplUntil = 0, uplMo = null, uplTick = null;
+
+  function uplVerdict(box, state) {
+    if (!box) return;
+    clearTimeout(uplDoneTimer);
+    box.setAttribute('data-lm-upl', state);
+    uplNotes.push('итог: ' + state);
+  }
+
+  function uplAlert(node, text) {
+    if (!/futu_alert/.test(node.className || '')) return false;
+    if (!/файл|прилож/i.test(text)) return false;
+    return true;
+  }
+
+  function uplBody() {
+    var ta = document.querySelector('.b-comments_reply_block textarea,' +
+                                    ' #js-new_post_body');
+    return ta ? (ta.value || '').length : -1;
+  }
+
+  function uplSpy() {
+    uplUntil = Date.now() + 15000;
+    if (uplMo) return;
+
+    uplBodyLen = uplBody();
+    uplNotes.push('загрузка началась, поле ввода: ' + uplBodyLen + ' зн.');
+
+    uplMo = new MutationObserver(function (recs) {
+      recs.forEach(function (r) {
+        sliceOf(r.addedNodes).forEach(function (n) {
+          if (n.nodeType !== 1) return;
+          /* Свои узлы не считаем. Эластик режет тела комментариев прямо
+             во время загрузки и наплодил в первом же опыте четыре
+             записи про lm-el_w — дознание захлебнулось бы собственным
+             шумом. */
+          if (/(^|\s)lm-/.test(n.className || '')) return;
+          var t = (n.innerText || n.textContent || '').replace(/\s+/g, ' ').trim();
+          if (!t || t.length > 160) return;
+          /* Окно отказа. Одно сообщение приходит пятью вложенными
+             узлами разом — приговор ставим один раз, повторные тихо
+             проходят мимо. */
+          if (uplAlert(n, t)) {
+            if (uplBox && uplBox.getAttribute('data-lm-upl') !== 'fail')
+              uplVerdict(uplBox, 'fail');
+          }
+          if (uplNotes.length < 40)
+            uplNotes.push('появилось <' + n.tagName.toLowerCase() +
+                          ' class="' + (n.className || '') + '"> ' + t);
+        });
+      });
+    });
+    uplMo.observe(document.body, { childList: true, subtree: true });
+
+    uplTick = setInterval(guard('uplSpyOff', function () {
+      if (Date.now() < uplUntil) return;
+      clearInterval(uplTick); uplTick = null;
+      uplMo.disconnect(); uplMo = null;
+      uplNotes.push('наблюдение снято, поле ввода: ' + uplBody() +
+                    ' зн. (было ' + uplBodyLen + ')');
+    }), 1000);
+  }
+
+  /* Разбор состояний — у uplVerdict выше. Здесь только чтение строки. */
+  function uplState(box, drag) {
+    var t = (drag.textContent || '').replace(/\s+/g, ' ').trim();
+    /* «или перетащить сюда» — это подсказка, а не имя файла: она стоит
+       в строке с самого начала, и принять её за загрузку нельзя. */
+    var m = t.match(/\((\d+)\s*%\)/);
+    if (uplLog.length < 60 && t && t !== (uplLog[uplLog.length - 1] || null)) {
+      uplLog.push(t);
+    }
+    if (!m) {
+      box.removeAttribute('data-lm-upl');
+      box.removeAttribute('data-lm-pct');
+      box.style.removeProperty('--lm-upl-pct');
+      return;
+    }
+    var pct = Math.max(0, Math.min(100, parseInt(m[1], 10) || 0));
+    /* Долю пишем в ДВА места. В переменную — для заливки; но лепра
+       переписывает атрибут style у этого же узла, когда показывает
+       ответ сервера, и переменную оттуда сдувает: в отчёте с
+       устройства состояние было done, а доля — прочерк. В отдельный
+       атрибут — чтобы число пережило её вмешательство и осталось
+       видимым в отчёте. */
+    box.style.setProperty('--lm-upl-pct', pct + '%');
+    box.setAttribute('data-lm-pct', String(pct));
+
+    /* Итог, однажды поставленный, процентами не сбивается: лепра
+       дописывает сотню и после отказа. Сбрасывает его только новая
+       загрузка — то есть доля меньше ста. */
+    var was = box.getAttribute('data-lm-upl');
+    if (pct < 100) {
+      box.setAttribute('data-lm-upl', 'run');
+      clearTimeout(uplDoneTimer);
+    } else if (was !== 'done' && was !== 'fail') {
+      box.setAttribute('data-lm-upl', 'sent');
+      clearTimeout(uplDoneTimer);
+      uplDoneTimer = setTimeout(guard('uplDone', function () {
+        if (box.getAttribute('data-lm-upl') === 'sent')
+          uplVerdict(box, 'done');
+      }), 3000);
+    }
+    uplBox = box;
+    uplSpy();
+  }
+
+  function watchUploads() {
+    sliceOf(document.querySelectorAll('.b-file_uploader')).forEach(function (box) {
+      if (uplSeen.has(box)) return;
+      var drag = box.querySelector('.b-file_uploader_drag');
+      if (!drag) return;
+      uplSeen.add(box);
+      var read = guard('uplState', function () { uplState(box, drag); });
+      /* characterData с поддеревом: лепра переписывает текст внутри
+         того же узла, и одного childList было бы мало. */
+      new MutationObserver(read).observe(drag,
+        { childList: true, characterData: true, subtree: true });
+      read();
+
+      /* Метка раскрытого загрузчика на форме. Раскрытие — это снятие
+         лепрой класса hidden с блока, а выразить правилом «у меня
+         внутри есть нескрытый потомок» иначе как через :has() нельзя, а
+         он Safari 15.4 и новее. Ставим метку сами: по ней кнопки формы
+         поднимаются на высоту строки состояния и встают вровень с
+         «выбрать файл». */
+      var host = box.closest && box.closest('.b-comments_reply_block');
+      if (host) {
+        var mark = guard('uplMark', function () {
+          host.classList.toggle('lm-upl_on', !box.classList.contains('hidden'));
+        });
+        new MutationObserver(mark).observe(box,
+          { attributes: true, attributeFilter: ['class'] });
+        mark();
+      }
+    });
+  }
+
+  var FORM_BOXES = '.b-comments_reply_block, .b-comments_new_thread_comment_form, .lm-np';
+  /* Пока класс стоит, мерим раз в секунду.
+
+     Событий и таймеров оказалось мало, и это выяснялось трижды подряд:
+     сперва замер попадал в миг до сворачивания, потом — в середину
+     перехода, потом форма не сворачивалась вовсе, а пряталась обёрткой.
+     Каждый раз чинилось частное, и каждый раз находился ещё один путь
+     закрыть форму так, чтобы наши замеры его не застали: то файловое
+     окно системы уводит страницу в тень и придерживает таймеры, то
+     перехода нет вовсе.
+
+     Сердцебиение закрывает весь этот класс бед разом: как бы форма ни
+     закрылась, через секунду прыгалки вернутся. Работает оно ТОЛЬКО
+     пока класс стоит — то есть пока есть что снимать; в покое ничего не
+     крутится. Замер стоит два поиска по разметке и три прямоугольника,
+     раз в секунду это ничто. */
+  var formBeat = null;
+
+  function formBeatOn(on) {
+    if (on && !formBeat) {
+      formBeat = setInterval(guard('watchForm', watchForm), 1000);
+    } else if (!on && formBeat) {
+      clearInterval(formBeat);
+      formBeat = null;
+    }
+  }
+
+  function watchForm() {
+    var open = sliceOf(document.querySelectorAll(FORM_BOXES)).some(function (n) {
+      if (!n.getClientRects().length) return false;      /* снят с показа */
+      /* Своей высоты мало. Форму сворачивает не она сама, а ОБЁРТКА —
+         .b-comments_reply_block_container с max-height и обрезкой; сам
+         блок при этом остаётся во всю высоту, просто его не видно.
+         Пока форму открывали и закрывали пустой, лепра успевала её
+         снять целиком, и высота честно падала до нуля. Но стоит
+         открыть загрузчик — блок остаётся в разметке (в нём же лежит
+         приложенный файл), и замер видел открытую форму навсегда:
+         прыгалки уходили и не возвращались.
+         insideCollapsed поднимается по предкам и находит обрезающего
+         предка нулевой высоты — он же и есть свёрнутая обёртка. */
+      if (insideCollapsed(n)) return false;
+      return n.getBoundingClientRect().height > 40;
+    });
+    document.documentElement.classList.toggle('lm-form_on', open);
+    formBeatOn(open);
+  }
+
+  var formArmed = false;
+
+  function armFormWatch() {
+    /* Замер — на КАЖДОМ проходе, а не только при заводке. Первая сборка
+       мерила один раз, при заводке, и попадала в неудачный миг: форму в
+       конце треда лепра отдаёт раскрытой, а сворачиваем её мы (см.
+       newCommentForm) — и если проход успевал первым, высота была
+       больше сорока, прыгалки прятались и не возвращались до первого
+       тапа. На устройстве это выглядело так: после загрузки прыгалок
+       нет, а появляются они, если открыть и закрыть форму. */
+    watchForm();
+    if (formArmed) return;
+    formArmed = true;
+    /* Мерить надо НЕ ОДИН РАЗ ПОСЛЕ СОБЫТИЯ, А НЕСКОЛЬКО РАЗ ПОДРЯД.
+
+       Первая сборка ставила один замер с нулевой задержкой, и на
+       закрытии это давало прямо противоположное задуманному: жмёшь
+       «Закрыть», замер случается в тот же миг — а форма ещё стоит во
+       всю высоту, потому что лепра сворачивает её переходом max-height,
+       и до нуля она едет доли секунды. Замер видел открытую форму,
+       прыгалки оставались спрятанными и не возвращались до следующего
+       тапа. Ровно это и было видно на устройстве: закрыл — пусто, ткнул
+       наугад в их место — появились.
+
+       Три замера покрывают и мгновенный ответ, и переход целиком.
+       Плюс transitionend — он приходит точно в конец перехода, а
+       времена выше остаются на случай, если перехода не случится вовсе
+       (лепра иногда просто снимает узел). */
+    var timers = [];
+    var later = function () {
+      timers.forEach(clearTimeout);
+      timers = [0, 250, 600].map(function (ms) {
+        return setTimeout(guard('watchForm', watchForm), ms);
+      });
+    };
+    /* На всплытии, а не на перехвате: лепра успевает раскрыть или
+       свернуть форму своим обработчиком, и мерить надо после неё. */
+    document.addEventListener('click', later);
+    document.addEventListener('focusin', later);
+    document.addEventListener('focusout', later);
+    document.addEventListener('transitionend', function (ev) {
+      /* Только высота формы, а не любой переход на странице: их тут
+         десятки, от подсветки кнопок до шеврона полосы. */
+      if (ev.propertyName !== 'max-height' && ev.propertyName !== 'height') return;
+      later();
+    }, true);
+    /* Два отложенных замера сверх событий: сворачивание формы в конце
+       треда идёт через нажатие крестика и заканчивается не сразу, а
+       страница, отданная из кэша назад-вперёд, может не пройти проходы
+       заново вовсе. */
+    setTimeout(guard('watchForm', watchForm), 400);
+    setTimeout(guard('watchForm', watchForm), 1500);
+  }
+
+  function fitToolbars() {
+    sliceOf(document.querySelectorAll(STRIKE_ROWS)).forEach(fitToolbar);
+    if (fitArmed) return;
+    fitArmed = true;
+    var t = null;
+    window.addEventListener('resize', function () {
+      clearTimeout(t);
+      t = setTimeout(guard('refitToolbars', function () {
+        sliceOf(document.querySelectorAll(STRIKE_ROWS)).forEach(function (r) {
+          delete r.dataset.lmFit;
+          r.style.removeProperty('--lm-tool-pad');
+        });
+        fitToolbars();
+      }), 200);
+    });
+  }
+
   /* ============================================================
      ФОРМА НОВОГО КОММЕНТАРИЯ В КОНЦЕ ТРЕДА
      ============================================================
@@ -29646,6 +30603,56 @@ html.lm-nosel [contenteditable], html.lm-nosel .b-textarea_editor {
     if (!found) L.push('(наложений не найдено)');
   }
 
+  /* Что лепра писала в строку загрузчика. Нужно ровно для одного:
+     увидеть, чем она показывает НЕУДАЧУ. Удачу мы знаем — «имя (100%)», —
+     а неудачу не видели ни разу, и придумывать ей вид на догадку нельзя:
+     однажды покажем красную рамку на успешной загрузке.
+     Пишем в порядке появления, не повторяя подряд одинаковое; сорока
+     записей хватит на любую загрузку с запасом. */
+  function reportUpload(L) {
+    L.push('');
+    L.push('ЗАГРУЗЧИК');
+    var boxes = document.querySelectorAll('.b-file_uploader');
+    L.push('  блоков: ' + boxes.length);
+    sliceOf(boxes).forEach(function (b, i) {
+      L.push('  ' + (i + 1) + ': состояние=' +
+             (b.getAttribute('data-lm-upl') || 'нет') +
+             ' доля=' + (b.style.getPropertyValue('--lm-upl-pct') || '—') +
+             ' скрыт=' + b.classList.contains('hidden'));
+    });
+    if (!uplLog.length) L.push('  строка пока молчала');
+    uplLog.forEach(function (t, i) { L.push('  [' + i + '] ' + t); });
+
+    /* Разметка блока целиком. Первая попытка ловила только текст строки
+       с процентами — и на неудаче он оказался ровно тем же, что на
+       удаче: «имя (100%)». Значит ответ сервера лепра показывает
+       ГДЕ-ТО ЕЩЁ, а где — из текста строки не узнать никак. Снимаем
+       разметку блока и его соседей: там она и найдётся.
+       Теги без содержимого длинных атрибутов: адреса картинок и
+       обработчики забивают отчёт, а нужны имена узлов. */
+    sliceOf(boxes).forEach(function (b, i) {
+      var h = (b.outerHTML || '')
+        .replace(/\s+/g, ' ')
+        .replace(/(href|src)="[^"]*"/g, '$1="…"');
+      L.push('  разметка ' + (i + 1) + ' (' + h.length + ' зн.): ' +
+             h.slice(0, 700));
+    });
+
+    /* Соседи блока по форме: ответ мог лечь и рядом, а не внутри. */
+    sliceOf(document.querySelectorAll('.b-comments_bottom_bar, .lm-np_send'))
+      .forEach(function (bar, i) {
+        var t = (bar.innerText || '').replace(/\s+/g, ' ').trim();
+        L.push('  подвал ' + (i + 1) + ': ' + t.slice(0, 200));
+      });
+
+    /* Дознание: что появилось на странице во время загрузки. Разбор — у
+       uplSpy. Ради этого раздел и держится включённым. */
+    L.push('  --- что появилось во время загрузки ---');
+    if (!uplNotes.length) L.push('  ничего не записано (загрузки не было?)');
+    uplNotes.forEach(function (t) { L.push('  ' + t); });
+  }
+
+
   function reportMedia(L) {
     L.push('', '--- видео ---');
     var vids = root().querySelectorAll('video');
@@ -30441,6 +31448,7 @@ html.lm-nosel [contenteditable], html.lm-nosel .b-textarea_editor {
     if (R.floats) reportFloats(L);
     if (R.overlaps) reportOverlaps(L);
     if (R.media) reportMedia(L);
+    if (R.upload) reportUpload(L);
     if (R.disco) reportDisco(L);
     if (R.threads) reportThreads(L);
     if (R.pyn) reportPyn(L);
@@ -31283,6 +32291,10 @@ html.lm-nosel [contenteditable], html.lm-nosel .b-textarea_editor {
     guard('fixMyThings', fixMyThings)();
     guard('fixArchiveDays', fixArchiveDays)();
     guard('addStrikeButton', addStrikeButton)();
+    guard('dressToolbar', dressToolbar)();
+    guard('fitToolbars', fitToolbars)();
+    guard('armFormWatch', armFormWatch)();
+    guard('watchUploads', watchUploads)();
     guard('watchChainPull', watchChainPull)();
     guard('watchOverview', watchOverview)();
     /* Достижимость гнёзд зависит от ВЫСОТЫ ДОКУМЕНТА, а она меняется и
@@ -31380,6 +32392,10 @@ html.lm-nosel [contenteditable], html.lm-nosel .b-textarea_editor {
        назначен лёгкий проход. Полоса помечена, повторный заход стоит
        одного поиска. */
     guard('addStrikeButton', addStrikeButton)();
+    guard('dressToolbar', dressToolbar)();
+    guard('fitToolbars', fitToolbars)();
+    guard('armFormWatch', armFormWatch)();
+    guard('watchUploads', watchUploads)();
     guard('registerMedia', registerMedia)();
     guard('fixMediaSizes', fixMediaSizes)();
     /* заметка профиля: лепра переписывает её содержимое своим скриптом */
