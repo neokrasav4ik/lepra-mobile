@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Lepra Mobile
 // @namespace    lepra.mobile
-// @version      3.1.40
+// @version      3.1.41
 // @description  Мобильная адаптация leprosorium.ru для iOS Safari
 // @author       neokrasav4ik
 // @homepageURL  https://github.com/neokrasav4ik/lepra-mobile
@@ -131,7 +131,7 @@
     return;
   }
 
-  var VERSION = '3.1.40';
+  var VERSION = '3.1.41';
 
   /* ============================================================
      НАСТРОЙКИ
@@ -4258,6 +4258,33 @@ ${toneVars('day')}
      Числа для проверки печатаются в шапке отчёта: «100vw» рядом с
      CSS-шириной. Разойдутся — сразу видно, вернулось ли. */
   max-width: 100% !important;
+  /* ---- Полоса прокрутки ----
+
+     Серединный серый сам себе обратный: invert(1) переводит 128 в 127, а
+     поворот тона на сером — пустая операция. Значит одно объявление
+     служит обеим темам сразу, и ночного двойника заводить не надо.
+
+     Зачем вообще. Ночную тему мы делаем фильтром на html, а тона храним
+     прообразами — то есть ОБЪЯВЛЕН на странице ночью светлый тон
+     (240,239,239), а глаз видит тёмный (17,16,16). Браузер про наш
+     фильтр не знает и выбирает вид полосы по объявленному фону: раз фон
+     светлый — полоса тёмная, а лежит она поверх тёмной страницы. Отсюда
+     и «она есть, но её не видно». Ровно этот случай записан у WebKit
+     багом 213394.
+
+     Цвет наследуется всем внутренним прокруткам (попап настроек, окно
+     пына, длинные списки) — и хорошо: полоса везде одна и та же.
+
+     scrollbar-width НЕ трогаем намеренно. Значений у него ровно три —
+     auto, thin, none, — и auto здесь самое широкое. Написать thin
+     значило бы сделать полосу ТОНЬШЕ, а просили наоборот. Пикселями
+     ширина полосы не задаётся нигде: ::-webkit-scrollbar на iOS не
+     поддержан вовсе, а в Firefox его нет.
+
+     Ширину раскладки полоса не занимает: на сенсорном устройстве она
+     накладная. Проверено на стенде — innerWidth и clientWidth сходятся
+     до и после покраски, в обеих темах. */
+  scrollbar-color: rgb(128, 128, 128) transparent !important;
   scroll-behavior: auto !important; }
 body {
   /* Тон страницы. Красим два узла сразу: у лепры белый висит и на body,
@@ -6108,6 +6135,40 @@ ${indentRules()}
 #js-comments_holder .comment .b-comment_thread__collapse .b-button__expand {
   display: none !important; }
 
+/* Свёрнутый по минусам комментарий: .c_hidden должен ПРЯТАТЬ.
+
+   У лепры есть настройка «сворачивать комментарии, которым я поставил
+   минус». Когда она включена, лепра дописывает в подпись пару ссылок:
+
+     <a class="c_expand">что он написал?</a>
+     <a class="c_collapse c_hidden">отвратительно</a>
+
+   и перекидывает между ними класс c_hidden, а заодно вешает его на
+   .c_body и на .c_answer. Видна всегда ровно одна из двух — этим
+   переключением и живёт сворачивание.
+
+   Держится всё на одном лепровском правиле .c_hidden { display: none }
+   — один класс, без !important. А наше правило выше, которое приводит
+   ссылки подписи к общим метрикам, весит четыре селектора и объявлено с
+   !important, и .c_hidden ему проигрывал. Снаружи это выглядело так:
+   обе кнопки видны разом и делают, на вид, одно и то же, — а тело
+   комментария не пряталось вовсе, то есть сворачивание не работало.
+   Ровно с этим и пришёл фидбэк.
+
+   Это второй раз, когда то правило перебивает чужой display: none, —
+   первым был <script> у сильно заминусованных комментариев (оговорка
+   выше, при :not(script)). Там лечили изъятием, здесь — отдельным
+   правилом: c_hidden висит на четырёх разных узлах (.c_body, .c_answer,
+   .c_expand, .c_collapse), и четыре изъятия в четырёх местах разошлись
+   бы при первой же правке. Одно правило с идентификатором в селекторе
+   перевешивает их все сразу и не зависит ни от порядка, ни от того,
+   какое из наших правил поймает узел следующим.
+
+   Виден такой комментарий только у того, кто сам поставил минус, и
+   только при включённой настройке — оттого «иногда» и «у меня не
+   воспроизводится». */
+#js-comments_holder .comment .c_hidden { display: none !important; }
+
 /* Значки в подписи комментария: «поделиться», крестик и точка. У каждого
    свои метрики и position:relative от лепры, из-за чего крестик уходил
    с общей горизонтали. Приводим к одной высоте и гасим смещения. */
@@ -7773,15 +7834,238 @@ html:not(.lm-profart) body.l-profile .l-content_wrapper {
    не мигало широким до первого замера; горизонтальный сдвиг доводит
    проход fitVotesPopup — из CSS его не вычислить, он зависит от того,
    где именно на строке оказалась голосовалка. */
+/* Вид — как у карточки гражданина и у наших попапов: рамка, скругление
+   FRAME_R, тень, тон страницы (в обратном наборе — тон карточки, по той
+   же причине, что и у карточки: окно обязано отличаться от того, поверх
+   чего всплыло). До этого окно оставалось лепровской серой плитой без
+   рамки и без скругления — единственным предметом на экране, набранным
+   не по-нашему. */
 .b-votes_popup {
   width: 410px !important; max-width: calc(100vw - 12px) !important;
-  box-sizing: border-box !important; }
-/* Поля внутри окна — 30px слева и 40px справа — оставлены под стрелки
-   листания (сами стрелки шириной 21px). На узком окне это седьмая часть
-   ширины под пустоту, а список имён и так в две колонки. */
+  box-sizing: border-box !important;
+  padding: 10px !important;
+  background: var(--lm-page) !important;
+  border: 1px solid var(--lm-line) !important;
+  border-radius: ${FRAME_R}px !important;
+  box-shadow: var(--lm-shadow) !important;
+  font-size: 13px !important; line-height: 1.35 !important;
+  color: var(--lm-dim) !important; }
+html.lm-cards2 .b-votes_popup { background: var(--lm-card) !important; }
+
+/* Поля внутри окна — 30px слева и 40px справа — оставлены под боковые
+   стрелки листания (сами стрелки шириной 21px). На узком экране это
+   седьмая часть ширины под пустоту, а список имён и так в две колонки.
+   Поля снимаем совсем: отступ теперь у окна, а стрелки переезжают вниз,
+   в ряд с точками (правило ниже).
+   position: static — чтобы стрелки считались от ОКНА, а не от этого
+   держателя: только так их можно поставить в нижний ряд. */
 .b-votes_popup .b_users_table_holder {
-  padding-left: 24px !important; padding-right: 26px !important; }
-.b-votes_popup .b_users_table-list { max-width: none !important; }
+  position: static !important;
+  padding: 0 !important; }
+
+/* Хвостик пузыря. У лепры это картинка 28×11 в её сером тоне — поверх
+   нашего окна она оказывается не того цвета и без рамки. Рисуем сами,
+   двумя треугольниками: нижний в цвет рамки, верхний в цвет заливки и
+   на пиксель ниже. Коробку 28×9 сохраняем: по её ширине fitVotesPopup
+   наводит хвостик на голосовалку. */
+.b-votes_popup .b-votes_popup_arrow {
+  background: none !important;
+  width: 28px !important; height: 9px !important; }
+.b-votes_popup .b-votes_popup_arrow_top { top: -9px !important; }
+.b-votes_popup .b-votes_popup_arrow_bottom { bottom: -9px !important; }
+.b-votes_popup .b-votes_popup_arrow::before,
+.b-votes_popup .b-votes_popup_arrow::after {
+  content: '' !important; display: block !important;
+  position: absolute !important; left: 5px !important;
+  width: 0 !important; height: 0 !important;
+  border-left: 9px solid transparent !important;
+  border-right: 9px solid transparent !important; }
+.b-votes_popup .b-votes_popup_arrow_top::before {
+  top: 0 !important; border-bottom: 9px solid var(--lm-line) !important; }
+.b-votes_popup .b-votes_popup_arrow_top::after {
+  top: 1px !important; border-bottom: 9px solid var(--lm-page) !important; }
+.b-votes_popup .b-votes_popup_arrow_bottom::before {
+  bottom: 0 !important; border-top: 9px solid var(--lm-line) !important; }
+.b-votes_popup .b-votes_popup_arrow_bottom::after {
+  bottom: 1px !important; border-top: 9px solid var(--lm-page) !important; }
+html.lm-cards2 .b-votes_popup .b-votes_popup_arrow_top::after {
+  border-bottom-color: var(--lm-card) !important; }
+html.lm-cards2 .b-votes_popup .b-votes_popup_arrow_bottom::after {
+  border-top-color: var(--lm-card) !important; }
+
+/* Шапка окна. «Рейтинг комментария в данный момент 37»: слова
+   справочные и живут приглушённым, число — основным, как везде. */
+.b-votes_popup .b-votes_popup_caption {
+  padding: 0 34px 8px 0 !important;
+  font-size: 12px !important; line-height: 1.35 !important;
+  color: var(--lm-dim) !important; }
+.b-votes_popup .b-votes_popup_rating {
+  font-size: 15px !important; line-height: 1.2 !important;
+  color: var(--lm-ink) !important; }
+.b-votes_popup .b-no_votes {
+  padding: 6px 0 2px !important; font-size: 12px !important;
+  color: var(--lm-dim) !important; }
+
+/* Две колонки. Черта между ними — наша линия, а не лепровская 193-я
+   серость: та в обратном наборе уходила в синеву вместе со всем, что
+   названо числом мимо сетки. */
+.b-votes_popup .b_users_table { font-size: 13px !important; }
+.b-votes_popup .b_users_table-cell {
+  padding: 0 0 2px 10px !important; }
+.b-votes_popup .b_users_table-cell:first-child {
+  padding-left: 0 !important; padding-right: 10px !important;
+  border-right: 1px solid var(--lm-line) !important; }
+.b-votes_popup .b_users_table-subtitle {
+  margin: 0 !important; padding: 0 0 6px !important;
+  font-size: 12px !important; font-weight: normal !important;
+  line-height: 1.3 !important; color: var(--lm-dim) !important; }
+.b-votes_popup .b_users_table-list {
+  /* Потолок ширины в 140px у лепры — под её широкое окно с двумя
+     колонками; на телефоне длинный ник из-за него ломался пополам. */
+  max-width: none !important;
+  margin: 0 !important; padding: 0 !important;
+  list-style: none !important; }
+.b-votes_popup .b_users_table-list li { margin-bottom: 7px !important; }
+/* Ник — основным тоном и без подчёркивания: подчёркнутых ссылок в
+   скрипте нет нигде, а здесь их полтора десятка подряд. */
+.b-votes_popup .b_users_table-link,
+.b-votes_popup .b_users_table-list a {
+  color: var(--lm-ink) !important; text-decoration: none !important; }
+.b-votes_popup .b_users_table-list li span { color: var(--lm-dim) !important; }
+
+/* Крестик — наша круглая клавиша в углу окна, а не лепровская жирная
+   закорючка 20×20 у самого края. */
+.b-votes_popup .b-close_btn {
+  display: block !important;
+  position: absolute !important;
+  top: 6px !important; right: 6px !important; left: auto !important;
+  box-sizing: border-box !important;
+  width: ${FORM_BTN_H}px !important; height: ${FORM_BTN_H}px !important;
+  margin: 0 !important; padding: 0 !important;
+  background: var(--lm-card) !important;
+  border: 1px solid var(--lm-line) !important;
+  border-radius: ${UI_R}px !important;
+  font-size: 0 !important; text-decoration: none !important;
+  -webkit-tap-highlight-color: transparent !important;
+  touch-action: manipulation !important; }
+html.lm-cards2 .b-votes_popup .b-close_btn { background: var(--lm-page) !important; }
+.b-votes_popup .b-close_btn::before {
+  content: '×' !important;
+  font-family: Verdana, Arial, sans-serif !important;
+  font-size: 17px !important; line-height: ${FORM_BTN_H - 2}px !important;
+  color: var(--lm-dim) !important; }
+.b-votes_popup .b-close_btn:active {
+  background: var(--lm-press) !important;
+  border-color: var(--lm-press-line) !important; }
+
+/* ---- Листание ----
+
+   У лепры оно устроено под мышь: две серые полосы во всю высоту списка
+   по краям окна и россыпь точек внизу. Полосы съедали по два десятка
+   пикселей ширины с каждой стороны — на телефоне это дорого, а попасть
+   пальцем в полосу шириной 21 всё равно трудно.
+
+   Переносим стрелки вниз, в один ряд с точками: слева «назад», справа
+   «вперёд», между ними точки. Ряд и так есть, а по краям он пустует.
+   Стрелки при этом остаются ТЕМИ ЖЕ узлами — на них висят обработчики
+   лепры, и подменять их нельзя.
+
+   Точки нужны и после этого: страниц бывает много (по пятнадцать ников
+   на страницу), и они показывают, где ты в списке. Ряд им дан с
+   прокруткой вбок — у поста с четырьмя тысячами голосов точек выходит
+   под три сотни, и без прокрутки они лезли бы на соседей. */
+.b-votes_popup .b-arrow {
+  display: flex !important; align-items: center !important;
+  justify-content: center !important;
+  position: absolute !important;
+  top: auto !important; bottom: 10px !important;
+  box-sizing: border-box !important;
+  width: ${FORM_BTN_H}px !important; height: ${FORM_BTN_H}px !important;
+  margin: 0 !important; padding: 0 !important;
+  background: var(--lm-card) !important;
+  border: 1px solid var(--lm-line) !important;
+  border-radius: ${UI_R}px !important;
+  -webkit-tap-highlight-color: transparent !important;
+  touch-action: manipulation !important; }
+html.lm-cards2 .b-votes_popup .b-arrow { background: var(--lm-page) !important; }
+.b-votes_popup .b-arrow:active {
+  background: var(--lm-press) !important;
+  border-color: var(--lm-press-line) !important; }
+.b-votes_popup .b-arrow__prev { left: 10px !important; right: auto !important; }
+.b-votes_popup .b-arrow__next { right: 10px !important; left: auto !important; }
+/* Значок стрелки — треугольник рамками, а не гифка лепры: гифка нарисована
+   одним серым по другому серому и в обратном наборе тускнеет. */
+.b-votes_popup .b-arrow-ico {
+  position: static !important; display: block !important;
+  background-image: none !important;
+  width: 0 !important; height: 0 !important;
+  margin: 0 !important; top: auto !important; left: auto !important;
+  right: auto !important; bottom: auto !important;
+  border-top: 5px solid transparent !important;
+  border-bottom: 5px solid transparent !important; }
+.b-votes_popup .b-arrow__prev .b-arrow-ico {
+  border-right: 7px solid var(--lm-ink) !important; }
+.b-votes_popup .b-arrow__next .b-arrow-ico {
+  border-left: 7px solid var(--lm-ink) !important; }
+
+.b-votes_popup .b-pagination {
+  /* Отступ по краям — ПОЛЯМИ, а не полями внутри: поля внутри
+     прокручиваемого короба лежат внутри прокрутки, и точки уезжали бы
+     под клавиши листания и в просвет за ними. Полями сам короб
+     становится уже, и полоса обрезается ровно там, где надо. */
+  margin: 0 ${FORM_BTN_H + 14}px !important;
+  padding: 4px 0 0 !important;
+  /* Высоту ряду задают сами точки (у каждой она с клавишу), и это
+     нарочно: страница одна — точек нет, ряд схлопывается, и окно не
+     несёт три десятка пикселей пустоты под списком из трёх имён.
+     Стрелки листания в этом случае лепра прячет сама. */
+  overflow-x: auto !important; overflow-y: hidden !important;
+  -webkit-overflow-scrolling: touch !important; }
+.b-votes_popup .b-pagination-inner_1 {
+  float: none !important; position: static !important;
+  left: auto !important; margin: 0 !important;
+  display: flex !important; min-width: 100% !important; }
+/* Центрируем автополями, а НЕ justify-content: center, и это не вкус.
+   У флекса с центрированием содержимое, которое шире короба, вылезает
+   в ОБЕ стороны, и левый край становится недостижимым прокруткой —
+   первые страницы просто нельзя было бы выбрать. Автополя при нехватке
+   места честно обращаются в ноль, и полоса начинается с начала.
+   Случай не выдуманный: у поста с 1130 плюсами точек выходит 76. */
+.b-votes_popup .b-pagination-inner_2 {
+  float: none !important; position: static !important;
+  left: auto !important; margin: 0 auto !important;
+  display: flex !important; }
+/* Три селектора, а не два, и это по делу: ниже по файлу у нас есть
+   общее правило .b-pagination-item.active с заливкой — оно для листалки
+   архива, где точки нарисованы клавишами. Здесь точка именно точка, и
+   серый квадратик под ней читался грязью. Два селектора против двух
+   решались бы порядком строк, а порядок тут не в нашу пользу. */
+.b-votes_popup .b-pagination .b-pagination-item {
+  float: none !important; flex: 0 0 auto !important;
+  width: 18px !important; height: ${FORM_BTN_H}px !important;
+  background: none !important; border: 0 !important; }
+/* Точка одна вместо лепровских трёх слоёв с тенью: у неё и заливка, и
+   ореол, и кольцо у выбранной — на экране это читалось грязным пятном. */
+.b-votes_popup .b-pagination-item::before { content: none !important; }
+.b-votes_popup .b-pagination-item::after {
+  content: '' !important; display: block !important;
+  position: absolute !important;
+  left: 6px !important; top: 50% !important;
+  width: 6px !important; height: 6px !important;
+  margin-top: -3px !important;
+  background: var(--lm-line) !important;
+  box-shadow: none !important;
+  border: 0 !important; border-radius: 50% !important; }
+.b-votes_popup .b-pagination-item.active::after {
+  background: var(--lm-ink) !important; }
+
+/* Спрятанное лепрой остаётся спрятанным. Её .hidden — один класс с
+   важностью, наши правила выше весят два и перебили бы его: стрелка
+   «назад» на первой странице и ряд точек при единственной странице
+   вылезли бы наружу. Идентификатор в селекторе снимает спор целиком, не
+   считаясь ни с порядком строк, ни с тем, какое правило поймает узел
+   следующим. Тот же приём и по той же причине, что у .c_hidden. */
+#js-votes_popup .hidden { display: none !important; }
 
 /* КАРТОЧКА ГРАЖДАНИНА (та, что у лепры по наведению на ник).
 
@@ -13306,6 +13590,15 @@ html #js-comments_holder .lm-more_box.lm-on .lm-icons svg {
   color: var(--lm-dim) !important;
   text-decoration: none !important;
   -webkit-tap-highlight-color: transparent !important; }
+/* Свёрнутый по минусам комментарий прячет и «ответить» — так у лепры:
+   отвечать тому, кого сам свернул, незачем, а стрелка рядом с «что он
+   написал?» читалась бы как вторая кнопка раскрытия.
+   Отдельной строкой, а не общим правилом .c_hidden выше: то весит три
+   селектора, это — четыре, и без приписки .c_hidden к самому значку
+   правило выше проиграло бы по весу. */
+.comment .c_footer .c_answer.lm-reply.c_hidden,
+#js-comments_holder .c_footer .c_answer.lm-reply.c_hidden {
+  display: none !important; }
 .comment .c_footer .c_answer.lm-reply svg,
 #js-comments_holder .c_footer .c_answer.lm-reply svg {
   display: block !important;
@@ -17670,20 +17963,32 @@ html.lm-nosel [contenteditable], html.lm-nosel .b-textarea_editor {
     a.innerHTML = REPLY_SVG;
   }
 
+  /* Обойма может быть уже собрана — тогда значок в неё ДОБАВЛЯЕТСЯ, а не
+     теряется. Раньше здесь стоял выход «обойма есть — уходим», и это
+     ровно то, из-за чего у подписи «иногда выпадал крестик»: разбор
+     жалобы — у adoptLateIcons ниже. */
   function groupCommentIcons(footer) {
     var ddi = footer.querySelector('.ddi') || footer;
-    if (ddi.querySelector('.lm-icons')) return;
+    /* Ищем обойму по всему подвалу, а не в .ddi: после разбора подписи
+       на строки она живёт во второй строке, то есть уже не внутри .ddi. */
+    var holder = footer.querySelector('.lm-icons');
 
     var found = [];
     C_ICONS.forEach(function (sel) {
       sliceOf(ddi.querySelectorAll(sel)).forEach(function (el) {
         if (el.closest('.b-comment_thread_collapse')) return;   /* шеврон не трогаем */
+        if (el.closest('.lm-icons')) return;                    /* уже в обойме */
         if (found.indexOf(el) < 0) found.push(el);
       });
     });
     if (!found.length) return;
 
-    var holder = document.createElement('span');
+    if (holder) {
+      found.forEach(function (el) { holder.appendChild(el); });
+      return;
+    }
+
+    holder = document.createElement('span');
     holder.className = 'lm-icons';
     found.forEach(function (el) { holder.appendChild(el); });
 
@@ -17814,7 +18119,25 @@ html.lm-nosel [contenteditable], html.lm-nosel .b-textarea_editor {
      строку, тоже разные. Общая функция получилась бы из сплошных
      «если пост — то так, иначе эдак», а это не общность, а два разных
      алгоритма в одном теле. */
-  var CFOOT_ROW2 = ['.vote', '.c_date', '.c_answer', '.lm-more_box'];
+  /* .c_expand и .c_collapse («что он написал?» и «отвратительно») стоят
+     в списке рядом с .c_answer не для красоты, а потому что лепра ходит
+     по СОСЕДЯМ. Её переключатель свёртки берёт нужный узел через
+     getPrevious('.c_answer') и getNext('.c_collapse') — то есть обе
+     ссылки и «ответить» обязаны остаться детьми одного узла.
+
+     Обычно лепра дописывает эту пару уже после нашего разбора, прямо
+     за .c_answer, и соседство складывается само. Но порядок не
+     гарантирован ничем: комментарии лепра размечает по таймеру,
+     порциями, и иногда успевает раньше нас. Тогда пара лежит в .ddi к
+     моменту разбора, и без этих двух строк она уехала бы в первую
+     строку, а «ответить» — во вторую. Ходьба по соседям вернула бы
+     null, и свёрнутый комментарий перестал бы раскрываться вовсе.
+
+     Порядок внутри списка тоже не случаен: он и есть порядок в строке,
+     а значит «что он написал?» встаёт сразу за стрелкой ответа, как
+     задумано лепрой, а точка со значками остаётся последней. */
+  var CFOOT_ROW2 = ['.vote', '.c_date', '.c_answer',
+                    '.c_expand', '.c_collapse', '.lm-more_box'];
 
   function splitCommentFooter(footer) {
     if (footer.querySelector('.lm-fline')) return;
@@ -17948,6 +18271,86 @@ html.lm-nosel [contenteditable], html.lm-nosel .b-textarea_editor {
     });
   }
 
+  /* ---- Опоздавшие значки подписи ----
+
+     Жалоба звучала так: «иногда при открытии поста из-под точки
+     выпадает крестик и занимает отдельное место; закономерность
+     отследить не удалось». Закономерности и не было — это гонка.
+
+     Крестика («скрыть», он же вызов панели игнора) в присланной
+     сервером разметке НЕТ ВОВСЕ. Его дописывает сама лепра, в
+     initCommentIgnore: создаёт ссылку и кладёт её в .ddi — и только
+     тем комментариям, которые не удалены, не в игноре и написаны не
+     тобой. А размечает она комментарии не разом, а по таймеру,
+     порциями, каждые полсекунды, пока не кончатся неразмеченные. На
+     треде в полтысячи комментариев это добрый десяток заходов.
+
+     Наш проход идёт своим чередом. Кто из двоих успеет к конкретной
+     подписи первым — как повезёт: от длины треда, скорости телефона и
+     того, что ещё грузится на странице. Успели мы — крестик приходит в
+     уже собранную подпись, а она помечена разобранной (seen.footer), и
+     второй раз её никто не трогает. Крестик остаётся лежать в .ddi
+     голым глифом рядом с точкой. Ровно то, что видно глазом.
+
+     Проверка дешёвая, и это главное: у разобранной подписи .ddi ПУСТ —
+     всё её содержимое splitCommentFooter унёс в две строки. Значит
+     любой ребёнок .ddi у разобранной подписи заведомо опоздавший, и
+     один запрос по хозяину находит их всех разом, без обхода сотен
+     подписей. Пусто — уходим на первой же строке.
+
+     Заодно ловим .c_expand: «что он написал?» лепра дописывает тем же
+     порядком и тоже не обязательно вовремя. */
+  function adoptLateIcons(host) {
+    var late = sliceOf(host.querySelectorAll('.c_footer > .ddi > *, .c_footer .c_expand'));
+    if (!late.length) return;
+
+    var feet = [];
+    late.forEach(function (el) {
+      var f = el.closest('.c_footer');
+      /* Подпись ещё не разобрана — значит .ddi полон по делу, и заберёт
+         его обычный проход. Признак разбора — первая строка. */
+      if (!f || !f.querySelector('.lm-fline__1')) return;
+      if (feet.indexOf(f) < 0) feet.push(f);
+    });
+    if (!feet.length) return;
+
+    feet.forEach(function (f) {
+      f.querySelectorAll('.js-date').forEach(shortenDate);
+      iconifyAnswer(f);
+      vectorIcons(f);
+      groupCommentIcons(f);
+      placeLateRest(f);
+      /* Свёрнутый по минусам комментарий сокращённую подпись не носит:
+         тела у него нет, сокращать нечего, а единственный способ его
+         раскрыть — «что он написал?» — лежал бы во второй строке, то
+         есть под ещё одним тапом. */
+      if (f.querySelector('.c_expand')) openFooter(f);
+    });
+  }
+
+  /* Что не значок — то в строки подписи, по тем же спискам, что и при
+     первичном разборе. Отдельной функцией, а не вызовом
+     splitCommentFooter: тот на собранной подписи выходит сразу, увидев
+     .lm-fline, и это правильно — переразбирать её нельзя. */
+  function placeLateRest(footer) {
+    var ddi = footer.querySelector('.ddi');
+    var r1 = footer.querySelector('.lm-fline__1');
+    var r2 = footer.querySelector('.lm-fline__2');
+    if (!ddi || !r1 || !r2) return;
+    sliceOf(ddi.childNodes).forEach(function (n) {
+      if (n.nodeType === 3) {
+        if (!n.nodeValue.replace(/[\s ]/g, '')) { ddi.removeChild(n); return; }
+        r1.appendChild(n);
+        return;
+      }
+      if (n.nodeType !== 1) return;
+      var вторая = CFOOT_ROW2.some(function (sel) {
+        return n.matches && n.matches(sel);
+      });
+      (вторая ? r2 : r1).appendChild(n);
+    });
+  }
+
   function compactCommentFooters() {
     var host = commentsHost();
     if (!host) return;
@@ -17963,6 +18366,10 @@ html.lm-nosel [contenteditable], html.lm-nosel .b-textarea_editor {
          которые делает splitCommentFooter. */
       shortFooter(foot);
     });
+    /* После основного круга, а не до: подпись, разобранную вот сейчас,
+       подбирать нечего, а вот у разобранных раньше к этому мгновению
+       уже мог появиться опоздавший значок. */
+    guard('adoptLateIcons', adoptLateIcons)(host);
     guard('watchShortFooter', watchShortFooter)();
   }
 
@@ -25100,6 +25507,65 @@ html.lm-nosel [contenteditable], html.lm-nosel .b-textarea_editor {
         mark();
       }
     });
+  }
+
+  /* ---- Приложить файл одним тапом ----
+
+     У лепры тапов два: первый по «приложить файл» раскрывает панель
+     загрузчика, второй по «выбрать файл» открывает системный выбор
+     источника. На телефоне первый тап не спрашивает ни о чём и ничего
+     не решает — он просто показывает вторую кнопку.
+
+     Убираем его, но не трогая лепру. Загрузчик у неё plupload, и он на
+     первом же тапе создаёт скрытое поле выбора файла: div-обёртку
+     «plupload html5» с input[type=file] внутри, прямо в панели. Причём
+     создаёт СИНХРОННО, в том же обработчике, — проверено на стенде
+     (страница bigrate несёт живой script.js лепры вместе с plupload):
+     поле есть уже в следующей строке после нажатия.
+
+     Это и есть ключ. Слушатель висит на документе и на ВСПЛЫТИИ, то
+     есть отрабатывает после лепровского (тот привязан к самой кнопке).
+     К этому мгновению поле уже в разметке, а нажатие — всё ещё то
+     самое, пользовательское. Открыть окно выбора файла браузер
+     разрешает только по живому жесту, и здесь жест живой: никаких
+     задержек, ожиданий и опросов между тапом и click по полю нет.
+
+     Так же поступает и сам plupload со второй кнопкой: у него на
+     «выбрать файл» висит обработчик, который делает ровно этот же
+     input.click(). Мы просто зовём его на один шаг раньше.
+
+     accept не трогаем: лепра принимает не только картинки, и пустой
+     accept даёт полный системный выбор — медиатека, снять сейчас,
+     файлы. Ровно то, что просили.
+
+     Не нашли поля — не делаем ничего: панель раскрыта, «выбрать файл»
+     на месте, всё как было. Хуже стать не может. */
+  function watchAttachTap() {
+    if (watchAttachTap.on || !document.body) return;
+    watchAttachTap.on = true;
+    document.addEventListener('click', function (e) {
+      if (!e.target || !e.target.closest) return;
+      var btn = e.target.closest('.b-file_uploader_button');
+      if (!btn) return;
+      /* Панель ищем по соседству, а не по всему документу: форм ответа
+         на странице две (верхняя и нижняя), и чужое поле открыло бы
+         окно выбора не для той формы. */
+      var host = btn.parentElement;
+      var box = host && host.querySelector('.b-file_uploader');
+      if (!box) return;
+      var inp = box.querySelector('input[type="file"]');
+      if (inp && !inp.disabled) { inp.click(); return; }
+      /* Поля рядом не оказалось — жмём вторую кнопку лепры. У неё на
+         нажатии висит обработчик самого plupload, делающий ровно то же
+         самое; жест при этом остаётся живым, потому что мы всё ещё
+         внутри того же нажатия.
+         Случай не выдуманный: обе формы ответа на странице треда лепра
+         строит с ПУСТЫМ номером комментария, и у их панелей выходит
+         один и тот же id. Поле выбора plupload кладёт по id, то есть
+         всегда в первую панель, а тапнуть могли по второй. */
+      var br = box.querySelector('.b-file_uploader_browse_button');
+      if (br) br.click();
+    }, false);
   }
 
   var FORM_BOXES = '.b-comments_reply_block, .b-comments_new_thread_comment_form, .lm-np';
@@ -32437,6 +32903,7 @@ html.lm-nosel [contenteditable], html.lm-nosel .b-textarea_editor {
     guard('fitToolbars', fitToolbars)();
     guard('armFormWatch', armFormWatch)();
     guard('watchUploads', watchUploads)();
+    guard('watchAttachTap', watchAttachTap)();
     guard('watchChainPull', watchChainPull)();
     guard('watchOverview', watchOverview)();
     /* Достижимость гнёзд зависит от ВЫСОТЫ ДОКУМЕНТА, а она меняется и
@@ -32538,6 +33005,7 @@ html.lm-nosel [contenteditable], html.lm-nosel .b-textarea_editor {
     guard('fitToolbars', fitToolbars)();
     guard('armFormWatch', armFormWatch)();
     guard('watchUploads', watchUploads)();
+    guard('watchAttachTap', watchAttachTap)();
     guard('registerMedia', registerMedia)();
     guard('fixMediaSizes', fixMediaSizes)();
     /* заметка профиля: лепра переписывает её содержимое своим скриптом */
