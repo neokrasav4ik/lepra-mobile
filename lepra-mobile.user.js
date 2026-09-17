@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Lepra Mobile
 // @namespace    lepra.mobile
-// @version      3.1.41
+// @version      3.1.42
 // @description  Мобильная адаптация leprosorium.ru для iOS Safari
 // @author       neokrasav4ik
 // @homepageURL  https://github.com/neokrasav4ik/lepra-mobile
@@ -131,7 +131,7 @@
     return;
   }
 
-  var VERSION = '3.1.41';
+  var VERSION = '3.1.42';
 
   /* ============================================================
      НАСТРОЙКИ
@@ -5814,7 +5814,95 @@ html.lm-tabs #js-header_search_form .b-icon_button_search { order: 2 !important;
    Возвращать — восстановлением этих двух селекторов, ничего больше
    трогать не пришлось. */
 
-pre, code { white-space: pre-wrap !important; word-break: break-word !important; }
+/* ---- Код в теле записи ----
+
+   Кнопкой «Code» лепра заворачивает кусок в <code class="hljs"> и
+   подключает тему highlight.js: заливка rgb(240,240,240), текст
+   rgb(68,68,68), кегль 13 намертво, display: inline-block, свой
+   overflow-x: auto.
+
+   ПЕРВАЯ БЕДА — ПЕРЕНОС ПО ЗНАКАМ, и она наша.
+
+   Здесь стояло word-break: break-word, и это не то, чем кажется: в
+   нынешнем CSS такая запись — псевдоним overflow-wrap: anywhere, то
+   есть «рвать где угодно». Разница с break-word не в том, где рвётся
+   строка, а в том, что anywhere ДЕЛАЕТ МИНИМАЛЬНУЮ ШИРИНУ РАВНОЙ
+   ОДНОМУ ЗНАКУ. А коробка кода — инлайн-блок, её ширина считается по
+   содержимому, и она честно ужимается до этой минимальной, как только
+   раскладке становится тесно.
+
+   Замер на странице idiod (кегль кода поднят до 30, тело сжимается):
+
+   | ширина тела | было (anywhere) | стало (break-word) |
+   |---|---|---|
+   | 120 | 84×68   | 84×68 |
+   |  80 | 80×111  | 84×68 |
+   |  50 | 50×155  | 84×68 |
+
+   То есть на тесной раскладке число 136 разъезжалось на «13» и «6», а
+   при 50 — на три строки по цифре. Ровно это и прислал пользователь
+   Андроида скриншотом: чёрная плашка с «13» и «6» над картинкой.
+
+   break-word вместо anywhere спасает наполовину: минимальной ширины он
+   не трогает, но слово, которое не помещается на своей строке, всё
+   равно рвёт — а на телефоне с крупным текстом оно как раз и не
+   помещается. Поэтому внутри кода слова не рвутся ВОВСЕ
+   (overflow-wrap: normal), и это единственно верное обращение с кодом:
+   у него перенос по знакам меняет смысл.
+
+   Страницу вширь это не тащит, и вот чем: коробка не шире родителя
+   (потолок 100%), а содержимое, которое в неё не влезло, прокручивается
+   ВНУТРИ НЕЁ вбок. Обычный текст в коде при этом переносится по
+   пробелам как раньше — white-space: pre-wrap остался.
+
+   Замер на странице idiod (кегль кода поднят до 30, тело сжимается):
+
+   | ширина тела | anywhere (было) | normal (стало) |
+   |---|---|---|
+   | 120 | 84×68  | 66×46, одна строка |
+   |  80 | 80×111 | 66×46, одна строка |
+   |  50 | 50×155 | 50×46, одна строка, прокрутка внутри | */
+pre, code {
+  box-sizing: border-box !important;
+  white-space: pre-wrap !important;
+  word-break: normal !important;
+  overflow-wrap: normal !important;
+  max-width: 100% !important;
+  overflow-x: auto !important; }
+
+/* ВТОРАЯ БЕДА — ТОН, и она видна только ночью.
+
+   Заливка highlight.js переворачивается вместе со страницей и
+   становится почти чёрной: на тёмной странице это провал, а если в коде
+   стоит короткое число — чёрная плашка с цифрами посреди поста, которую
+   не с чем связать глазом.
+
+   Тон берём по тому же правилу, что у карточки гражданина: НЕ тот,
+   которым набраны соседи. В заводском наборе тела стоят на card, значит
+   коду достаётся page; в обратном наборе наоборот. Обе темы
+   обслуживаются одной строкой — ночные значения переменных уже
+   прообразы под переворот.
+
+   Кегль — долей от тела, а не лепровскими тринадцатью пикселями: кегль
+   тела у нас на ползунке, и при двадцати код в тринадцать выглядел
+   вставкой из чужого документа. Заодно коробка и текст меняются вместе,
+   а врозь они как раз и давали ту тесноту, на которой число рвалось.
+
+   Раскраска синтаксиса (.hljs-*) остаётся лепровской и переворачивается
+   вместе со страницей — ровно как ссылки, ирония и пометки модератора,
+   см. оговорку у правила .p_body выше. */
+.p_body code, .c_body code, .p_body pre, .c_body pre {
+  font-size: 0.92em !important;
+  line-height: 1.4 !important;
+  color: var(--lm-ink) !important;
+  background: var(--lm-page) !important;
+  border: 1px solid var(--lm-line) !important;
+  border-radius: 5px !important;
+  padding: 1px 5px !important;
+  vertical-align: baseline !important; }
+html.lm-cards2 .p_body code, html.lm-cards2 .c_body code,
+html.lm-cards2 .p_body pre, html.lm-cards2 .c_body pre {
+  background: var(--lm-card) !important; }
 
 /* у увеличенной картинки лепра прописывает width:3000px */
 .c_body img.js-image_in_comments_original,
@@ -24259,17 +24347,32 @@ html.lm-nosel [contenteditable], html.lm-nosel .b-textarea_editor {
     if (kept && now - kept.time < 3000) return kept.list;
 
     var host = document.getElementById('js-comments') || document;
-    var list;
-    if (kind === 'mine') list = sliceOf(host.querySelectorAll('.comment.mine'));
-    else {
-      list = sliceOf(host.querySelectorAll('.comment.new'));
-      if (!list.length) list = sliceOf(host.querySelectorAll('.comment'));
-    }
 
     /* Скрытые фильтром комментарии дают нулевой прямоугольник. Оставить их
        в списке нельзя: координаты перестают расти монотонно и двоичный
        поиск возвращает элемент выше экрана. */
-    list = list.filter(function (el) { return el.offsetParent !== null; });
+    var видимые = function (sel) {
+      return sliceOf(host.querySelectorAll(sel)).filter(function (el) {
+        return el.offsetParent !== null;
+      });
+    };
+
+    var list;
+    if (kind === 'mine') list = видимые('.comment.mine');
+    else {
+      /* Отсев ДО развилки, а не после, и это починка.
+
+         Раньше запасной путь «новых нет — берём все» выбирался по
+         разметке, а невидимые выбрасывались уже потом. Значит случай
+         «новые есть, но все до одного скрыты» давал пустой список мимо
+         запасного пути: стрелки гасли (lm-off, прозрачность 0.3) при
+         живом треде. А скрыть новый комментарий есть чему — свёрнутая
+         ветка, порог рейтинга, фильтр треда, спрятанная навигатором
+         страница. Теперь развилка смотрит на то же, что и прыжок:
+         на видимые. */
+      list = видимые('.comment.new');
+      if (!list.length) list = видимые('.comment');
+    }
 
     navCache[kind] = { list: list, time: now };
     return list;
@@ -25609,7 +25712,46 @@ html.lm-nosel [contenteditable], html.lm-nosel .b-textarea_editor {
          insideCollapsed поднимается по предкам и находит обрезающего
          предка нулевой высоты — он же и есть свёрнутая обёртка. */
       if (insideCollapsed(n)) return false;
-      return n.getBoundingClientRect().height > 40;
+      var r = n.getBoundingClientRect();
+      if (r.height <= 40) return false;
+      /* ---- И форма должна быть НА ЭКРАНЕ ----
+
+         Прыгалки прячутся от формы не вообще, а потому что висят ровно
+         там, где открывается поле ввода, и лежат поверх него. Значит
+         мешать может только та форма, которая сейчас видна. Форма в
+         конце треда, до которой десять тысяч точек прокрутки, не мешает
+         ничему.
+
+         Без этой оговорки выходила беда, с которой пришёл пользователь:
+         «иногда отпадают стрелки быстрого скролла, при наличии новых
+         комментов». Разбор по шагам.
+
+         Форму в конце треда лепра отдаёт РАСКРЫТОЙ — так на всех
+         сохранённых страницах стенда до единой: у каждой обёртка несёт
+         инлайновый max-height: 1000px. Сворачиваем её мы, и не сами, а
+         нажимая лепровский крестик (foldNewComment): обработчик на нём
+         вешает её собственный скрипт. Заходов пять — 0, 300, 800, 1600,
+         2600 мс, — и после последнего watchNewComment складывает руки
+         навсегда (защёлка watchNewComment.on).
+
+         Не успела лепра навесить обработчик за две с половиной секунды
+         — форма остаётся раскрытой, watchForm видит её высоту в двести
+         семьдесят точек и держит lm-form_on до конца жизни страницы. А
+         по этому классу прыгалки скрыты правилом. Отсюда и «при наличии
+         новых комментов»: комментарии лепра размечает своим таймером,
+         порциями, и на треде, где размечать есть что, очередь до нижней
+         формы доходит позже. Чем больше в посте нового, тем вернее мы
+         не успеваем.
+
+         Проверка стоит один прямоугольник, который уже измерен, и
+         делается в те же мгновения, что и раньше: проходы, нажатия,
+         фокус, три отложенных замера. Прокрутку она не будит — правило
+         «прокрутка не запускает обходов DOM» остаётся целым. Цена:
+         прыгалки возвращаются не в тот миг, когда форма уехала за край,
+         а при ближайшем нажатии. Та же оговорка уже стояла у замеров
+         закрытия, и по той же причине. */
+      var H = window.innerHeight || document.documentElement.clientHeight || 0;
+      return r.bottom > 0 && r.top < H;
     });
     document.documentElement.classList.toggle('lm-form_on', open);
     formBeatOn(open);
@@ -25667,6 +25809,41 @@ html.lm-nosel [contenteditable], html.lm-nosel .b-textarea_editor {
        заново вовсе. */
     setTimeout(guard('watchForm', watchForm), 400);
     setTimeout(guard('watchForm', watchForm), 1500);
+  }
+
+  /* ---- Когда форма ВЪЕЗЖАЕТ в экран ----
+
+     Раз «мешает» стало означать «видна», решение обязано пересматриваться
+     и тогда, когда форма появилась на экране от прокрутки. Событий для
+     этого у нас не было ни одного: замеры идут по нажатиям, фокусу и
+     проходам, а прокрутка не будит ничего — и правильно, обходов DOM в
+     ней быть не должно.
+
+     Поймала это проверка, и на деле: «палец по отправке» показал, что
+     после прокрутки к форме точка под кнопкой отправки принадлежит
+     значку прыгалки. То есть человек, долиставший до формы, целился бы в
+     отправку и попадал в стрелку.
+
+     Наблюдатель пересечения — ровно тот инструмент: он не хранит
+     координат, сообщает о смене состояния в тот миг, когда она
+     случилась, и работает вне главного потока. Узлов под ним три-четыре.
+     Подписываем новые на каждом проходе: форму ответа лепра пересобирает
+     на каждое «ответить», и наблюдать старый узел бессмысленно. */
+  var formSeen = typeof WeakSet === 'function' ? new WeakSet() : null;
+  var formIO = null;
+
+  function watchFormBoxes() {
+    if (!formSeen || !('IntersectionObserver' in window)) return;
+    if (!formIO) {
+      formIO = new IntersectionObserver(function () {
+        guard('watchForm', watchForm)();
+      });
+    }
+    sliceOf(document.querySelectorAll(FORM_BOXES)).forEach(function (n) {
+      if (formSeen.has(n)) return;
+      formSeen.add(n);
+      formIO.observe(n);
+    });
   }
 
   function fitToolbars() {
@@ -32902,6 +33079,7 @@ html.lm-nosel [contenteditable], html.lm-nosel .b-textarea_editor {
     guard('dressToolbar', dressToolbar)();
     guard('fitToolbars', fitToolbars)();
     guard('armFormWatch', armFormWatch)();
+    guard('watchFormBoxes', watchFormBoxes)();
     guard('watchUploads', watchUploads)();
     guard('watchAttachTap', watchAttachTap)();
     guard('watchChainPull', watchChainPull)();
@@ -33004,6 +33182,7 @@ html.lm-nosel [contenteditable], html.lm-nosel .b-textarea_editor {
     guard('dressToolbar', dressToolbar)();
     guard('fitToolbars', fitToolbars)();
     guard('armFormWatch', armFormWatch)();
+    guard('watchFormBoxes', watchFormBoxes)();
     guard('watchUploads', watchUploads)();
     guard('watchAttachTap', watchAttachTap)();
     guard('registerMedia', registerMedia)();
