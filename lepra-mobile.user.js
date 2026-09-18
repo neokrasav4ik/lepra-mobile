@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Lepra Mobile
 // @namespace    lepra.mobile
-// @version      3.1.46
+// @version      3.1.50
 // @description  Мобильная адаптация leprosorium.ru для iOS Safari
 // @author       neokrasav4ik
 // @homepageURL  https://github.com/neokrasav4ik/lepra-mobile
@@ -131,7 +131,7 @@
     return;
   }
 
-  var VERSION = '3.1.46';
+  var VERSION = '3.1.50';
 
   /* ============================================================
      НАСТРОЙКИ
@@ -3172,20 +3172,24 @@
              'html.lm-dark.lm-navstick #lm-navthing .lm-navthing_row {\n' +
              '  position: static !important; }');
 
-    out.push(D + '#lm-theme {\n' +
+    out.push(D + '#lm-chat {\n' +
              '  border-color: ' + invRgb(86, 86, 86) + ' !important;\n' +
              '  color: ' + invRgb(200, 200, 200) + ' !important; }');
-    /* Красное пятнышко на кнопке. Предынвертированный тон тут НЕ
-       годится, и это стоило отдельного захода: страница переворачивается
-       не одной инверсией, а инверсией с поворотом тона, и для серых
-       поворот безразличен, а для красного нет — invRgb давал на экране
-       бирюзу. Возвращаем цвет тем же контр-фильтром, что у короны
-       президента и у эмодзи: две инверсии и два поворота на 180
-       гасят друг друга. Тон в правиле остаётся тем же, что в светлой
-       теме, — на экране он и должен остаться тем же. */
-    out.push(D + '#lm-theme .lm-th_hot {\n' +
-             '  filter: invert(1) hue-rotate(180deg) !important; }');
-    out.push(D + '#lm-theme:active {\n' +
+    /* Контр-фильтра на красное здесь больше нет, и это стоит объяснить,
+       потому что у прежней кнопки темы он был.
+
+       Там красное пятнышко задавалось числом rgb(214,42,32) и обязано
+       было остаться ТЕМ ЖЕ на экране в обеих темах — отсюда и
+       контр-фильтр: две инверсии и два поворота гасят друг друга.
+       Предынвертированный тон в том месте не годился вовсе: страница
+       переворачивается инверсией С ПОВОРОТОМ ТОНА, серым поворот
+       безразличен, а красному нет, и invRgb давал на экране бирюзу.
+
+       У курсора в значке дискочата задача другая: он взят из сетки
+       тонов (--lm-accent), а сетка для того и заведена, чтобы ночью
+       красный становился своим ночным красным (#ff5b46), а не тем же
+       самым. На тёмной кнопке светлее — и правильно. */
+    out.push(D + '#lm-chat:active {\n' +
              '  background: ' + invRgb(52, 50, 50) + ' !important; }');
 
     return out.join('\n');
@@ -4638,19 +4642,21 @@ html.lm-stuck #lm-topbar .b-icon_button_logout {
   font-weight: 650 !important;
   text-decoration: none !important; }
 
-/* Кнопка темы. Кружок в обводку — тот же приём, что у прочих круглых
-   органов лепры; внутри свой рисунок (THEME_SUN / THEME_MOON), а не
-   символ из системного шрифта.
-   Flex по обеим осям вместо line-height: у рисунка нет базовой линии,
-   и выключка строкой ставила бы его наугад. */
-/* Колонка справа: кнопка темы, под ней логаут подписью.
+/* Колонка справа: кнопка дискочата, под ней логаут подписью.
+
+   До 3.1.47 наверху стояла кнопка темы. Она уехала целиком, а не
+   спряталась: тему с тех пор переключают рядом в меню («Дневная или
+   ночная тема»), а место в плашке одно, и занимать его должно то, до
+   чего иначе не дотянуться вовсе. Дискочат — ровно такой случай: на
+   десктопе его открывают Ctrl+~ или язычком в тридцати пикселях от
+   верха, и с телефона не работает ни то, ни другое.
 
    Ширина колонки задана РОВНО ПО КНОПКЕ, а не по содержимому. Иначе её
    задавала бы подпись — она шире, — и кнопка центровалась бы внутри, то
    есть отходила бы от правого края на разницу. Подпись при этом никуда
    не девается: она выходит за края колонки симметрично отрицательными
    полями (см. правило логаута). */
-#lm-themebox {
+#lm-headcol {
   order: 3 !important; flex: 0 0 40px !important;
   /* min-width: 0 обязателен, и без него всё правило не работает. У
      флекс-элемента min-width по умолчанию auto, то есть «не уже своего
@@ -4663,13 +4669,13 @@ html.lm-stuck #lm-topbar .b-icon_button_logout {
   align-items: center !important; gap: 3px !important;
   margin: 0 !important; padding: 0 !important; }
 
-/* Кнопка темы. Скруглённый квадрат, а не кружок: круглых предметов на
-   странице больше нет ни одного, и кружок остался бы единственным —
+/* Кнопка дискочата. Скруглённый квадрат, а не кружок: круглых предметов
+   на странице больше нет ни одного, и кружок остался бы единственным —
    читался бы как чужой. Скругление 8 — то же семейство, что у карточек
    (7) и таблеток (6), только крупнее по размеру самой кнопки.
    Flex по обеим осям вместо line-height: у рисунка нет базовой линии,
    и выключка строкой ставила бы его наугад. */
-#lm-theme {
+#lm-chat {
   flex: 0 0 auto !important;
   width: 40px !important; height: 40px !important;
   margin: 0 !important; padding: 0 !important;
@@ -4681,17 +4687,17 @@ html.lm-stuck #lm-topbar .b-icon_button_logout {
   border-radius: 8px !important;
   color: var(--lm-dim) !important;
   -webkit-appearance: none !important; appearance: none !important; }
-#lm-theme svg {
+/* Значок крупнее прежних двадцати: в облаке сидит приглашение, а у него
+   своя мелкая деталь — курсор, — и на двадцати она смыкалась со скобкой
+   в одно пятно. Двадцать три — потолок: дальше облако начинает касаться
+   обводки кнопки. */
+#lm-chat svg {
   display: block !important;
-  width: 20px !important; height: 20px !important; }
-/* Красное пятнышко — сердцевина солнца и искра у луны. Заливкой в
-   правиле, а не в фигуре: в тёмной теме к этой же группе добавляется
-   контр-фильтр, и держать оба в одном месте проще. */
-#lm-theme .lm-th_hot { fill: rgb(214,42,32) !important; }
-/* Нажатие: подсветка кружка. Своя, потому что подсветку касания Safari
+  width: 23px !important; height: 23px !important; }
+/* Нажатие: подсветка кнопки. Своя, потому что подсветка касания Safari
    у наших органов снята — иначе она рисует прямоугольник поверх
    скругления. */
-#lm-theme:active {
+#lm-chat:active {
   background: var(--lm-press) !important;
   border-color: var(--lm-press-line) !important; }
 
@@ -11135,7 +11141,7 @@ html.lm-form_on #lm-nav { display: none !important; }
   gap: var(--lm-jump-gap, ${CFG.jumpGap}px) !important;
   /* коробка тапы не ловит — иначе перекрывала бы ссылки под собой */
   pointer-events: none !important; }
-#lm-nav button, #lm-theme {
+#lm-nav button, #lm-chat {
   /* при долгом удержании Safari предлагал выделить символ на кнопке */
   -webkit-user-select: none !important; user-select: none !important;
   -webkit-touch-callout: none !important;
@@ -13089,6 +13095,171 @@ html.lm-dark .lm-set_win > * {
   border: 1px solid var(--lm-line) !important;
   border-radius: ${UI_R}px !important;
   color: var(--lm-ink) !important; }
+
+/* ============ ДИСКОЧАТ ============
+
+   У лепры это чёрное поле с люминофорно-зелёным моноширинным текстом,
+   выезжающее сверху. Мы его переодеваем в наши тона, и это выбор Дена
+   при трёх предложенных: терминал как есть, полоса сверху как на
+   десктопе, панель нашими тонами. Взята третья — «панель нашими
+   тонами, 2/3 экрана и сразу внизу клавиатура».
+
+   Почему это не потеря отсылки. Отсылка целиком ушла в значок кнопки
+   (облако с приглашением внутри) и в строку ввода, где перед полем
+   стоит «ник>» — ровно как в самом чате. А лента в наших тонах читается
+   на телефоне, чего про зелёное по чёрному кеглем 14 сказать нельзя.
+
+   ---- Геометрия и клавиатура ----
+
+   Панель прижата к низу, и высота у неё НЕ доля от экрана, а число,
+   которое считает dcFit. Причина в клавиатуре: на iOS она окно не
+   уменьшает — innerHeight остаётся прежним, а видно из него половину.
+   Доля в CSS считалась бы от полного окна, и нижняя треть панели
+   вместе со строкой ввода ушла бы под клавиатуру — то есть ровно то,
+   ради чего панель и открывают.
+
+   Поэтому обе величины приходят переменными: --lm-dc-kb (высота
+   клавиатуры, от неё панель отступает снизу) и --lm-dc-h (высота
+   панели: две трети экрана, но не больше свободного места). Считаются
+   они по visualViewport — единственному источнику, который про
+   клавиатуру знает; тем же приёмом и по той же причине считается
+   список быстрого поиска, разбор там. */
+#lm-dc {
+  position: fixed !important; inset: 0 !important;
+  z-index: 10002 !important;
+  background: rgba(0,0,0,.45) !important; }
+/* Панель СВЕШИВАЕТСЯ СВЕРХУ, а не выезжает снизу.
+
+   Первая сборка прибивала её к низу — казалось разумным: клавиатура
+   приходит снизу, значит и панель оттуда. Ден на это: «но почему чат
+   прибит книзу?? пусть он будет прибит к верху же». И он прав дважды.
+
+   Во-первых, так висит сам дискочат у лепры: у .b-chat стоит
+   position: fixed и top: 0, а открывается он выездом сверху
+   (margin-top с −432 на 0). Свешиваясь сверху, мы цитируем не только
+   вид, но и повадку.
+
+   Во-вторых, верх теперь ПРИБИТ, а прибитый край — тот, на котором
+   безопасно держать органы. Верх панели ставится на vv.offsetTop, то
+   есть ровно на верхнюю кромку видимой полосы; низ получается сам и
+   при верной высоте не выходит за нижнюю. */
+.lm-dc_win {
+  position: absolute !important;
+  left: 0 !important; right: 0 !important;
+  top: var(--lm-dc-top, 0px) !important;
+  height: var(--lm-dc-h, 80%) !important;
+  box-sizing: border-box !important;
+  display: flex !important; flex-direction: column !important;
+  background: var(--lm-card) !important;
+  border-bottom: 2px solid var(--lm-dim) !important;
+  border-radius: 0 0 ${UI_R + 3}px ${UI_R + 3}px !important;
+  /* Тень вниз — на страницу под панелью: у лепры у её чата тоже есть
+     свечение по нижней кромке, и оно же отделяет панель от текста,
+     который под нею продолжается. */
+  box-shadow: 0 6px 22px rgba(0,0,0,.35) !important;
+  font-family: Verdana, Arial, sans-serif !important;
+  color: var(--lm-ink) !important; }
+/* Шапка и подвал жёсткие, лента забирает остаток. min-height: 0 на
+   ленте обязателен: у флекс-элемента он по умолчанию auto, то есть «не
+   ниже своего содержимого», и лента из сотни строк растянула бы панель
+   вместо того, чтобы прокручиваться внутри неё.
+
+   Шапка стоит наверху — и это вторая её ходка: в 3.1.48 она уезжала
+   вниз, в 3.1.49 вернулась, когда панель прибили к верху. Разбор — у
+   dcOpen, там обе ходки записаны. */
+.lm-dc_head {
+  flex: 0 0 auto !important;
+  display: flex !important; align-items: center !important;
+  gap: 8px !important;
+  padding: 7px ${CFG.pageEdge}px !important;
+  border-bottom: 1px solid var(--lm-line) !important; }
+.lm-dc_name {
+  flex: 1 1 auto !important; min-width: 0 !important;
+  font-size: 13px !important; color: var(--lm-mid) !important; }
+.lm-dc_x {
+  flex: 0 0 auto !important;
+  width: 30px !important; height: 30px !important;
+  display: flex !important;
+  align-items: center !important; justify-content: center !important;
+  font-size: 19px !important; line-height: 1 !important;
+  background: var(--lm-page) !important;
+  border: 1px solid var(--lm-line) !important;
+  border-radius: ${UI_R}px !important;
+  color: var(--lm-mid) !important;
+  -webkit-appearance: none !important; appearance: none !important;
+  -webkit-tap-highlight-color: transparent !important;
+  touch-action: manipulation !important; }
+.lm-dc_x:active {
+  background: var(--lm-press) !important;
+  border-color: var(--lm-press-line) !important; }
+.lm-dc_feed {
+  flex: 1 1 auto !important; min-width: 0 !important; min-height: 0 !important;
+  overflow-y: auto !important; overscroll-behavior: contain !important;
+  -webkit-overflow-scrolling: touch !important;
+  padding: 6px ${CFG.pageEdge}px !important; }
+/* Строка сообщения. Время, ник и текст идут ОДНИМ абзацем, а не
+   столбцом с колонками: реплики в чате короткие, и колонка под ник
+   съела бы треть ширины ради двух слов. */
+.lm-dc_msg {
+  padding: 3px 5px !important; margin-bottom: 2px !important;
+  border-radius: 5px !important;
+  font-size: 13px !important; line-height: 1.35 !important;
+  word-break: normal !important; overflow-wrap: anywhere !important; }
+.lm-dc_time {
+  color: var(--lm-dim) !important;
+  font-size: 11px !important; margin-right: 4px !important; }
+.lm-dc_nick {
+  color: var(--lm-link) !important; text-decoration: none !important;
+  margin-right: 4px !important; }
+/* Ссылка в теле реплики — своя, нарисованная нами по виду адреса
+   (разбор у dcFill). Подчёркивание оставлено: в сплошной строке текста
+   одного цвета мало, а тап по ней уводит со страницы. */
+.lm-dc_link { color: var(--lm-link) !important; }
+/* Своя реплика и обращённая к тебе — тоном выделенного, тем же, каким
+   светятся новые комментарии. Третьего тона заводить не пришлось:
+   различает их не фон, а полоска слева у обращения. */
+.lm-dc_msg__own { background: var(--lm-own) !important; }
+.lm-dc_msg__own .lm-dc_nick { color: var(--lm-accent) !important; }
+.lm-dc_msg__me {
+  background: var(--lm-own) !important;
+  box-shadow: inset 3px 0 0 var(--lm-accent) !important; }
+.lm-dc_note {
+  padding: 10px 5px !important; text-align: center !important;
+  font-size: 12px !important; color: var(--lm-dim) !important; }
+/* Подвал: «ник>» и поле в одну строку. Кнопки отправки нет — её роль
+   играет Enter (у поля type=text на телефоне это «Готово»), и место
+   она заняла бы у поля, которого и так мало. */
+.lm-dc_foot {
+  flex: 0 0 auto !important;
+  display: flex !important; align-items: center !important;
+  gap: 6px !important;
+  padding: 6px ${CFG.pageEdge}px !important;
+  border-top: 1px solid var(--lm-line) !important; }
+.lm-dc_me {
+  flex: 0 0 auto !important; max-width: 40% !important;
+  overflow: hidden !important; text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+  font-size: 12px !important; color: var(--lm-dim) !important; }
+.lm-dc_input {
+  flex: 1 1 auto !important; min-width: 0 !important;
+  box-sizing: border-box !important;
+  padding: 7px 9px !important;
+  /* Шестнадцать — не вкус, а запрет на зум: поле мельче шестнадцати
+     Safari при фокусе приближает, и страница уезжает вбок. Та же
+     причина, что у поля ответа. */
+  font-size: 16px !important; line-height: 1.2 !important;
+  font-family: Verdana, Arial, sans-serif !important;
+  background: var(--lm-page) !important;
+  border: 1px solid var(--lm-line) !important;
+  border-radius: ${UI_R}px !important;
+  color: var(--lm-ink) !important;
+  -webkit-appearance: none !important; appearance: none !important; }
+/* Счётчик показывается только у потолка (255 знаков), и его появление —
+   само по себе предупреждение. Висеть всё время ему незачем. */
+.lm-dc_left {
+  flex: 0 0 auto !important;
+  font-size: 11px !important; color: var(--lm-accent) !important; }
+.lm-dc_left:empty { display: none !important; }
 
 /* ============ ВСПЛЫВАЮЩАЯ ПОДСКАЗКА ============ */
 /* Плашка одна на весь скрипт, лежит в body и позиционируется от начала
@@ -15263,8 +15434,22 @@ html.lm-nosel [contenteditable], html.lm-nosel .b-textarea_editor {
     if (!t || !t.closest) return null;
     var a = t.closest('a[href*="/users/"]');
     if (!a) return null;
-    /* Имя внутри самой карточки и наша отладочная панель — мимо. */
-    if (a.closest('.b-popup_holder') || a.closest('#lm-debug')) return null;
+    /* Имя внутри самой карточки и наша отладочная панель — мимо.
+
+       Панель дискочата — тоже мимо, и это не мелочь. Ники в ленте —
+       настоящие ссылки на /users/<логин>, а тап по ним у нас означает
+       «обратиться к человеку», а вовсе не «показать карточку». Без
+       этой строки поверх ленты вставала карточка, а через CARD_WAIT
+       миллисекунд, не дождавшись её от лепры, перехватчик уводил
+       страницу в профиль — то есть человек, ткнувший в ник, чтобы
+       ответить, оказывался на чужой странице, потеряв и чат, и
+       набранное.
+
+       Поймал это щуп p113, и поймал не глазами: прогон падал с
+       «контекст уничтожен, вероятно навигация» — на стенде переход
+       выглядит именно так. */
+    if (a.closest('.b-popup_holder') || a.closest('#lm-debug') ||
+        a.closest('#lm-dc')) return null;
     if (!USER_HREF.test(a.getAttribute('href') || '')) return null;
     return a;
   }
@@ -18788,7 +18973,7 @@ html.lm-nosel [contenteditable], html.lm-nosel .b-textarea_editor {
         });
       });
 
-    /* ---- Колонка справа: кнопка темы, под ней логаут ----
+    /* ---- Колонка справа: кнопка дискочата, под ней логаут ----
 
        Выход из учётной записи к приветствию не относится — он относится
        к тому же углу, где прочие переключатели. А под кнопкой ему
@@ -18807,15 +18992,15 @@ html.lm-nosel [contenteditable], html.lm-nosel .b-textarea_editor {
 
        Всё внутри идемпотентно по родителю: проходов при загрузке
        четыре, и каждый обязан находить всё уже на местах. */
-    var theme = document.getElementById('lm-theme');
-    if (theme) {
-      var tbox = document.getElementById('lm-themebox');
+    var chat = document.getElementById('lm-chat');
+    if (chat) {
+      var tbox = document.getElementById('lm-headcol');
       if (!tbox) {
         tbox = document.createElement('div');
-        tbox.id = 'lm-themebox';
+        tbox.id = 'lm-headcol';
       }
       if (tbox.parentElement !== bar) bar.appendChild(tbox);
-      if (theme.parentElement !== tbox) tbox.appendChild(theme);
+      if (chat.parentElement !== tbox) tbox.appendChild(chat);
       /* Логаут ищем по документу, а не внутри плашки: до первого
          переноса он лежит в шапке, и селектор от плашки не нашёл бы его
          ни разу. Ровно та грабля, что записана про логотип. */
@@ -24498,11 +24683,10 @@ html.lm-nosel [contenteditable], html.lm-nosel .b-textarea_editor {
        следующем движении. */
     guard('setStuck', setStuck)(false);
     prefSet(DARK_KEY, on ? '1' : '0');
-    var b = document.getElementById('lm-theme');
-    /* Рисунок берём у themeGlyph — одно место на оба вызова, иначе
-       начертание рано или поздно разойдётся в одном из них. Она
-       смотрит на класс, а он уже переставлен строкой выше. */
-    if (b) b.innerHTML = themeGlyph();
+    /* Перерисовывать здесь больше нечего: кнопка темы из плашки ушла в
+       3.1.47, а её место занял дискочат — у него вид от темы не
+       зависит. Единственный орган темы — ряд в меню, и его обновляет
+       setRowsDraw строкой ниже. */
     setThemeColor(true);
     setRowsDraw();
   }
@@ -24511,75 +24695,495 @@ html.lm-nosel [contenteditable], html.lm-nosel .b-textarea_editor {
   if (prefGet(DARK_KEY) === '1')
     document.documentElement.classList.add('lm-dark');
 
-  /* Знаки на кнопке темы.
+  /* ---- Значок дискочата ----
 
-     Раньше здесь стояли символы ☀ и ☾ с указателем текстового
-     начертания. Работало, но выглядело заглушкой: рисунок знака берётся
-     из системного шрифта, а он у Apple свой, толщина линий не совпадает
-     ни с чем вокруг, и на кнопке в тридцать четыре пикселя знак сидел
-     то крупно, то мелко в зависимости от начертания.
+     Место в плашке до 3.1.47 занимала кнопка темы — солнце и серп,
+     нарисованные здесь же. Обе фигуры убраны вместе с ней: тему теперь
+     переключают рядом, в меню, а держать в файле рисунки, которые никто
+     не показывает, значит однажды поправить их «заодно» и не заметить,
+     что правил мёртвое.
 
-     Рисуем сами, в той же манере, что остальные наши значки: сетка
-     20 на 20, плоские заливки, скруглённые концы — те же, что у спиц
-     в гербе. Красное пятнышко — цитата: у маски лепры это единственный
-     цветной элемент, и одна красная точка привязывает кнопку к
-     логотипу в двух шагах от неё.
+     Рисунок в той же манере, что и прежние: сетка 20 на 20, плоские
+     заливки, скруглённые концы. Но собран он из ДВУХ цитат сразу, и обе
+     нужны.
 
-     Серп рисуется двумя дугами: большая ведёт слева сверху вниз,
-     меньшая возвращается и вырезает середину. Радиусы разные, поэтому
-     остаётся полумесяц, а не кольцо.
+     Облако реплики говорит «здесь разговаривают». Само по себе оно
+     сказало бы это про любой чат на свете.
 
-     Основные фигуры — currentColor: цвет кнопки задан правилом и в
-     тёмной теме меняется одной строкой. Красное задано классом, а не
-     заливкой в фигуре, — по той же причине. */
-  var THEME_SUN =
+     Приглашение внутри облака — угловая скобка и курсор — говорит, про
+     КАКОЙ разговор речь. Строка дискочата выглядит так:
+
+         [15:39] nugop> нахуй ты туда полез вобще, сережа
+
+     и скобка после ника — самый характерный знак этого места, заметнее
+     даже зелёного люминофора. Ден выбрал этот значок из восьми и сам же
+     предложил вписать одно в другое: до того облако и приглашение были
+     разными вариантами.
+
+     Облако под приглашение взято ВЫСОКОЕ (то же, что у варианта без
+     него), а приглашение внутри — увеличенное на пятую часть: строка
+     терминала предмет горизонтальный, и в облаке обычного размера
+     скобка с курсором смыкались в одно пятно.
+
+     Курсор — из сетки тонов (--lm-accent), а не числом. Ночью сетка
+     сама даёт ему ночной красный, и контр-фильтр, который был нужен
+     красному пятнышку кнопки темы, здесь не нужен вовсе; разбор — в
+     darkRules. Заодно это тот же красный, которым горит ник в
+     приветствии в двух сантиметрах левее. */
+  var CHAT_GLYPH =
     '<svg viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"' +
     ' aria-hidden="true">' +
-    '<g stroke="currentColor" stroke-width="1.7" stroke-linecap="round">' +
-    '<path d="M10 1.6 L10 3.7"/><path d="M10 16.3 L10 18.4"/>' +
-    '<path d="M1.6 10 L3.7 10"/><path d="M16.3 10 L18.4 10"/>' +
-    '<path d="M4.1 4.1 L5.6 5.6"/><path d="M14.4 14.4 L15.9 15.9"/>' +
-    '<path d="M4.1 15.9 L5.6 14.4"/><path d="M14.4 5.6 L15.9 4.1"/>' +
-    '</g>' +
-    '<circle cx="10" cy="10" r="4.6" fill="currentColor"/>' +
-    '<g class="lm-th_hot"><circle cx="10" cy="10" r="1.8"/></g>' +
+    '<path d="M3 2.9 H17 A2 2 0 0 1 19 4.9 V12.9 A2 2 0 0 1 17 14.9' +
+    ' H9 L4.4 18.4 V14.9 H3 A2 2 0 0 1 1 12.9 V4.9 A2 2 0 0 1 3 2.9 Z"' +
+    ' fill="none" stroke="currentColor" stroke-width="1.7"' +
+    ' stroke-linejoin="round"/>' +
+    '<path d="M5.82 7.28 L9.06 8.9 L5.82 10.52" fill="none"' +
+    ' stroke="currentColor" stroke-width="2" stroke-linecap="round"' +
+    ' stroke-linejoin="round"/>' +
+    '<rect x="11.1" y="7.46" width="4.08" height="2.88" rx="1.44"' +
+    ' fill="var(--lm-accent)"/>' +
     '</svg>';
 
-  var THEME_MOON =
-    '<svg viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"' +
-    ' aria-hidden="true">' +
-    '<path d="M13.6 2.5 A 7.7 7.7 0 1 0 13.6 17.5 A 6.1 6.1 0 0 1 13.6 2.5 Z"' +
-    ' fill="currentColor" transform="translate(0.7 0)"/>' +
-    /* Искра в пустом углу — четырёхлучевая звёздочка, а не крестик из
-       двух отрезков: у крестика лучи одной толщины по всей длине, и на
-       кнопке он читался медицинским знаком. У звёздочки лучи сужаются
-       к концам, и она сразу видна искрой. */
-    '<g class="lm-th_hot">' +
-    '<path d="M16.4 2.2 L17.1 3.7 L18.6 4.4 L17.1 5.1 L16.4 6.6' +
-    ' L15.7 5.1 L14.2 4.4 L15.7 3.7 Z"/>' +
-    '</g>' +
-    '</svg>';
-
-  function themeGlyph() { return isDark() ? THEME_SUN : THEME_MOON; }
-
-  function ensureThemeToggle() {
-    if (document.getElementById('lm-theme')) return;
+  /* Кнопки нет там, где нет чата. Разметка #chat лежит на каждой
+     странице лепры, но проверка стоит не ради лепры, а ради подсайтов
+     со своими шаблонами: кнопка, открывающая пустоту, хуже отсутствия
+     кнопки. */
+  function ensureChatButton() {
+    if (document.getElementById('lm-chat')) return;
     var header = document.querySelector('.l-header');
-    if (!header) return;
+    if (!header || !document.getElementById('chat')) return;
 
     var b = document.createElement('button');
-    b.id = 'lm-theme';
+    b.id = 'lm-chat';
     b.type = 'button';
-    b.title = 'светлая / тёмная тема';
-    b.innerHTML = themeGlyph();
+    b.title = 'дискочат';
+    b.setAttribute('aria-label', 'дискочат');
+    b.innerHTML = CHAT_GLYPH;
     b.addEventListener('click', function (e) {
       e.preventDefault();
-      setDark(!isDark());
+      guard('dcOpen', dcOpen)();
     });
 
     var logo = header.querySelector('.b-logo');
     if (logo && logo.parentNode === header) header.insertBefore(b, logo);
     else header.appendChild(b);
+  }
+
+  /* ---- Дискочат: панель ----
+
+     Данные берём у лепры НАПРЯМУЮ, а не через её chatHandler, и это
+     решение, а не лень наоборот.
+
+     chatHandler умеет всё нужное — опрос, отправку, обращение по нику, —
+     но рисует он лепровской разметкой в лепровский же контейнер, а нам
+     нужна своя лента своими тонами. Пришлось бы либо разбирать обратно
+     то, что он нарисовал, либо держать оба слоя и зеркалить между ними.
+     И то и другое ломается при первой правке на той стороне.
+
+     К тому же его open() зовёт keypress.stop_listening(), Fx.Morph и
+     Drag по тянучке — три мутэтулзовых предмета, которых на телефоне не
+     существует как задачи, а сломаться они могут. И, наконец, его
+     load() читает $('js-chat_last') — узла, которого нет в разметке ни
+     одной сохранённой страницы; на живом сайте он откуда-то берётся, но
+     полагаться на то, чего не видно, не стоит.
+
+     Протокол при этом взят у него же, и он простой:
+
+         POST /ajax/chat/load/   last_message_id=N&csrf_token=…
+             → {"messages": [{id, created, body, user: {login}}]}
+         POST /ajax/chat/add/    body=…&csrf_token=…
+
+     Опрос раз в десять секунд — ровно как у лепры (у неё
+     delay(10000)); учащать нельзя, это чужой сервер. Потолок сообщения
+     255 знаков — тоже её число, из validateMessage.
+
+     Токен берём findCsrf — той самой, что заведена для отметок пыни:
+     она ищет его ПО ВИДУ (base64 от 64 шестнадцатеричных знаков), а не
+     по имени, потому что в разметке страницы его нет вовсе, а
+     globals.user.csrf_token живёт в мире страницы, куда расширению
+     Safari хода нет.
+
+     Никуда, кроме leprosorium.ru, запросы не уходят: адреса
+     относительные, и собирает их location.host. */
+  var DC_LOAD = '/ajax/chat/load/';
+  var DC_ADD  = '/ajax/chat/add/';
+  var DC_EVERY = 10000;
+  var DC_MAX = 255;
+
+  var dcLast = '0';        /* id последнего показанного сообщения */
+  var dcTimer = null;
+  var dcBusy = false;
+  var dcNickCache = null;
+
+  /* Свой ник. Первым делом — из формы самого чата: лепра кладёт его
+     туда готовым («neokrasav4ik&gt;») на КАЖДОЙ странице, даже когда
+     чат ни разу не открывали. Запасной путь — единственная ссылка в
+     приветствии; она же красная, она же ведёт на /users/<логин>. */
+  function dcNick() {
+    if (dcNickCache) return dcNickCache;
+    var cell = document.querySelector('#js-chat_send_message_form .username_message_holder');
+    var t = cell ? String(cell.textContent || '').replace(/[>\s]+$/, '').trim() : '';
+    if (!t) {
+      var a = document.querySelector('.b-header_tagline a[href*="/users/"]');
+      if (a) t = String(a.textContent || '').trim();
+    }
+    dcNickCache = t || '';
+    return dcNickCache;
+  }
+
+  /* Тело запроса. Токен добавляется последним и только если нашёлся:
+     без него лепра ответит отказом, но пусть отвечает она, а не мы
+     молча — отказ видно в ленте, а несделанный запрос нет. */
+  function dcForm(pairs) {
+    var out = [];
+    Object.keys(pairs).forEach(function (k) {
+      out.push(encodeURIComponent(k) + '=' + encodeURIComponent(pairs[k]));
+    });
+    var c = guard('findCsrf', findCsrf)();
+    if (c && c.token) out.push('csrf_token=' + encodeURIComponent(c.token));
+    return out.join('&');
+  }
+
+  function dcAsk(path, pairs) {
+    return fetch(location.protocol + '//' + location.host + path, {
+      method: 'POST',
+      credentials: 'same-origin',
+      cache: 'no-store',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'X-Requested-With': 'XMLHttpRequest'
+      },
+      body: dcForm(pairs)
+    }).then(function (r) { return r.json(); });
+  }
+
+  /* Высота панели и отступ снизу — числами, и оба считает эта.
+
+     Клавиатура на iOS окно не уменьшает: innerHeight остаётся прежним.
+     Настоящую нижнюю кромку знает только visualViewport, и его
+     offsetTop с height в той же системе координат, что и innerHeight.
+     Разбор длиннее — у правил #lm-dc и у списка быстрого поиска, где
+     тот же приём.
+
+     Высота — две трети ЭКРАНА, но не больше свободного места. Просто
+     «две трети» ушло бы под клавиатуру вместе со строкой ввода, просто
+     «всё свободное» при закрытой клавиатуре заняло бы экран целиком. */
+  /* Доля экрана без клавиатуры. Было 2/3 — по первой просьбе, стало
+     0.8 по второй: «при первом открытии не показывать клавиатуру, а сам
+     чат побольше». Не единица: полоска страницы над панелью и есть то,
+     чем панель отличается от отдельного экрана — по ней видно, куда
+     вернёшься. */
+  var DC_SHARE = 0.8;
+
+  function dcFit() {
+    var win = document.querySelector('#lm-dc .lm-dc_win');
+    if (!win) return false;
+    var H = window.innerHeight || document.documentElement.clientHeight || 0;
+    var vv = window.visualViewport;
+    /* Видимая полоса страницы в координатах раскладки — от vv.offsetTop
+       до vv.offsetTop + vv.height. Всё, что панель занимает вне её,
+       человеку недоступно.
+
+       Панель свешивается сверху, поэтому её верх — это начало полосы, а
+       не ноль: при нуле она пряталась бы под верхнюю панель браузера
+       ровно на величину смещения. */
+    var верх = vv ? Math.round(vv.offsetTop) : 0;
+    /* Потолок высоты — ВИДИМАЯ высота, а не «окно минус клавиатура».
+
+       Вторая сборка брала второе, и на устройстве это вылезло сразу:
+       крестик с заголовком уехали за кромку экрана. Разница между ними
+       — ровно vv.offsetTop; при нуле они совпадают, и на стенде, где
+       смещения нет, промах был невидим. Стоит запомнить как грабли:
+       «свободное место» — это vv.height, и никакая арифметика от
+       innerHeight его не заменяет. */
+    var видно = vv ? Math.round(vv.height) : H;
+    var h = Math.max(160, Math.min(Math.round(H * DC_SHARE), видно));
+    win.style.setProperty('--lm-dc-top', верх + 'px');
+    win.style.setProperty('--lm-dc-h', h + 'px');
+    return true;
+  }
+
+  function dcAtBottom(feed) {
+    return feed.scrollHeight - feed.clientHeight - feed.scrollTop < 40;
+  }
+
+  /* ---- Тело сообщения ----
+
+     Оно приходит РАЗМЕТКОЙ, а не текстом: лепра складывает в body уже
+     готовые ссылки и отдаёт его в innerHTML. Первая сборка клала тело
+     в textContent — безопасно, но на экране выходило
+     «<a href="https://coub.com/…">https://coub.com/…</a>» прописью, и
+     ровно так это и поймал первый же снимок с настоящими сорока тремя
+     сообщениями.
+
+     Складывать чужую разметку в свой innerHTML мы не будем: лента живёт
+     на домене лепры рядом с сессией, и одного img с onerror хватило бы.
+     Поэтому тело разбирает DOMParser — он строит МЁРТВЫЙ документ, где
+     ничего не грузится и не выполняется, — из него берётся чистый
+     текст, а ссылки рисуем свои, по виду адреса. Выходит и безопасно, и
+     с живыми ссылками.
+
+     Отбор по виду заодно закрывает javascript: — в набор попадает
+     только http и https. */
+  var DC_URL = /(https?:\/\/[^\s<>"']+)/g;
+
+  function dcPlain(body) {
+    try {
+      var doc = new DOMParser().parseFromString(String(body || ''), 'text/html');
+      return String((doc.body && doc.body.textContent) || '');
+    } catch (e) {
+      return String(body || '');
+    }
+  }
+
+  /* Принимает УЖЕ разобранный текст, а не тело: тот же текст нужен
+     строкой выше — по нему опознаётся обращение, — и разбирать его
+     дважды на каждое сообщение незачем. */
+  function dcFill(span, t) {
+    var i = 0, m;
+    DC_URL.lastIndex = 0;
+    while ((m = DC_URL.exec(t))) {
+      if (m.index > i) span.appendChild(document.createTextNode(t.slice(i, m.index)));
+      var a = document.createElement('a');
+      a.className = 'lm-dc_link';
+      a.href = m[0];
+      /* Длинные адреса укорачиваем показом, а не ссылкой: в ленте
+         шириной в телефон один такой занимал три строки из четырёх. */
+      a.textContent = m[0].length > 44 ? m[0].slice(0, 41) + '…' : m[0];
+      span.appendChild(a);
+      i = m.index + m[0].length;
+    }
+    if (i < t.length) span.appendChild(document.createTextNode(t.slice(i)));
+  }
+
+  function dcDraw(list) {
+    var feed = document.querySelector('#lm-dc .lm-dc_feed');
+    if (!feed || !list || !list.length) return;
+    var низ = dcAtBottom(feed);
+    var я = dcNick();
+    var note = feed.querySelector('.lm-dc_note');
+    if (note) note.parentNode.removeChild(note);
+
+    list.forEach(function (m) {
+      if (!m || !m.user) return;
+      var d = document.createElement('div');
+      d.className = 'lm-dc_msg';
+      /* Обращение — это сообщение, начинающееся с «ник:». Признак
+         лепровский, из её же draw; своего у сообщения нет. Сверяем по
+         РАЗОБРАННОМУ тексту: в сыром теле начало может оказаться
+         разметкой, и «ник:» тогда не совпал бы ни разу. */
+      var текст = dcPlain(m.body);
+      if (я && текст.indexOf(я + ':') === 0)
+        d.className += ' lm-dc_msg__me';
+      else if (я && m.user.login === я)
+        d.className += ' lm-dc_msg__own';
+
+      var t = document.createElement('span');
+      t.className = 'lm-dc_time';
+      var дата = new Date((+m.created || 0) * 1000);
+      t.textContent = ('0' + дата.getHours()).slice(-2) + ':' +
+                      ('0' + дата.getMinutes()).slice(-2);
+      d.appendChild(t);
+
+      var a = document.createElement('a');
+      a.className = 'lm-dc_nick';
+      a.href = '/users/' + m.user.login;
+      a.textContent = m.user.login + '>';
+      /* Тап по нику не уводит на страницу человека, а подставляет его в
+         поле — так же, как answerName у лепры. Уйти к человеку можно
+         долгим нажатием (меню Safari), а вот обратиться к нему иначе
+         было бы некуда. */
+      a.addEventListener('click', function (e) {
+        e.preventDefault();
+        var inp = document.querySelector('#lm-dc .lm-dc_input');
+        if (!inp) return;
+        inp.value = m.user.login + ': ' + inp.value;
+        inp.focus();
+        guard('dcCount', dcCount)();
+      });
+      d.appendChild(a);
+
+      var s = document.createElement('span');
+      s.className = 'lm-dc_text';
+      dcFill(s, текст);
+      d.appendChild(s);
+
+      feed.appendChild(d);
+      dcLast = String(m.id);
+    });
+
+    /* Доводим до низа, только если человек и так был внизу: он мог
+       уехать читать прежнее, и рывок вниз отнял бы у него место. */
+    if (низ) feed.scrollTop = feed.scrollHeight;
+  }
+
+  function dcPoll() {
+    if (dcBusy || !document.getElementById('lm-dc')) return;
+    dcBusy = true;
+    dcAsk(DC_LOAD, { last_message_id: dcLast })
+      .then(function (r) {
+        dcBusy = false;
+        if (r && r.messages) guard('dcDraw', dcDraw)(r.messages);
+      })
+      .catch(function () {
+        dcBusy = false;
+        var feed = document.querySelector('#lm-dc .lm-dc_feed');
+        if (feed && !feed.querySelector('.lm-dc_msg')) {
+          var n = feed.querySelector('.lm-dc_note') || document.createElement('div');
+          n.className = 'lm-dc_note';
+          n.textContent = 'чат не отвечает';
+          feed.appendChild(n);
+        }
+      });
+  }
+
+  /* Счётчик остатка. Показываем не всегда, а с последних двадцати
+     знаков: раньше он был бы шумом, позже — бесполезен. */
+  function dcCount() {
+    var inp = document.querySelector('#lm-dc .lm-dc_input');
+    var box = document.querySelector('#lm-dc .lm-dc_left');
+    if (!inp || !box) return;
+    var left = DC_MAX - inp.value.length;
+    box.textContent = left <= 20 ? String(left) : '';
+  }
+
+  function dcSend() {
+    var inp = document.querySelector('#lm-dc .lm-dc_input');
+    if (!inp) return;
+    var text = String(inp.value || '').trim();
+    if (!text || text.length > DC_MAX) return;
+    /* Поле пустеет сразу: отправка идёт секунду, и висящий текст
+       читается как «не ушло», после чего его отправляют второй раз. */
+    inp.value = '';
+    guard('dcCount', dcCount)();
+    dcAsk(DC_ADD, { body: text })
+      .then(function () { guard('dcPoll', dcPoll)(); })
+      .catch(function () {
+        /* Не ушло — возвращаем набранное, иначе оно пропало молча. */
+        if (!inp.value) inp.value = text;
+        guard('dcCount', dcCount)();
+      });
+  }
+
+  function dcClose() {
+    var w = document.getElementById('lm-dc');
+    if (w && w.parentNode) w.parentNode.removeChild(w);
+    if (dcTimer) { clearInterval(dcTimer); dcTimer = null; }
+    if (window.visualViewport)
+      window.visualViewport.removeEventListener('resize', dcFitSafe);
+    if (window.visualViewport)
+      window.visualViewport.removeEventListener('scroll', dcFitSafe);
+  }
+
+  /* Отдельная ямка под слушатель: снять его можно только той же
+     ссылкой, которой ставили, а guard(...) каждый раз возвращает
+     новую. */
+  function dcFitSafe() { guard('dcFit', dcFit)(); }
+
+  function dcOpen() {
+    if (document.getElementById('lm-dc')) return;
+
+    var wrap = document.createElement('div');
+    wrap.id = 'lm-dc';
+
+    var win = document.createElement('div');
+    win.className = 'lm-dc_win';
+
+    var head = document.createElement('div');
+    head.className = 'lm-dc_head';
+    var name = document.createElement('div');
+    name.className = 'lm-dc_name';
+    name.textContent = 'дискочат';
+    var x = document.createElement('button');
+    x.type = 'button';
+    x.className = 'lm-dc_x';
+    x.textContent = '×';
+    x.setAttribute('aria-label', 'закрыть');
+    x.addEventListener('click', function () { guard('dcClose', dcClose)(); });
+    head.appendChild(name);
+    head.appendChild(x);
+
+    var feed = document.createElement('div');
+    feed.className = 'lm-dc_feed';
+    var note = document.createElement('div');
+    note.className = 'lm-dc_note';
+    note.textContent = 'загружаем…';
+    feed.appendChild(note);
+
+    var foot = document.createElement('div');
+    foot.className = 'lm-dc_foot';
+    var me = document.createElement('div');
+    me.className = 'lm-dc_me';
+    me.textContent = dcNick() + '>';
+    var inp = document.createElement('input');
+    inp.type = 'text';
+    inp.className = 'lm-dc_input';
+    inp.maxLength = DC_MAX;
+    inp.autocomplete = 'off';
+    inp.setAttribute('enterkeyhint', 'send');
+    inp.setAttribute('aria-label', 'сообщение в дискочат');
+    var left = document.createElement('div');
+    left.className = 'lm-dc_left';
+    inp.addEventListener('input', function () { guard('dcCount', dcCount)(); });
+    inp.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') { e.preventDefault(); guard('dcSend', dcSend)(); }
+    });
+    foot.appendChild(me);
+    foot.appendChild(inp);
+    foot.appendChild(left);
+
+    /* Порядок: ЗАГОЛОВОК С КРЕСТИКОМ, лента, строка ответа.
+
+       Он тут ходил туда-обратно, и обе ходки стоит помнить, потому что
+       обе были правильными в своё время.
+
+       В 3.1.48 заголовок уехал ВНИЗ: с устройства пришёл снимок, где
+       его вместе с крестиком унесло за верхнюю кромку экрана, и закрыть
+       чат стало нечем. Верхний край панели тогда ни к чему не крепился
+       — панель висела на нижнем, — и держать на нём органы было нельзя.
+
+       В 3.1.49 панель прибили к ВЕРХУ, и причина исчезла: верх теперь
+       стоит на vv.offsetTop, то есть ровно на кромке видимого. Заголовок
+       вернулся наверх, и это не откат правки, а следствие другой.
+
+       Заодно вернулось и то, ради чего строка ответа внизу: она снова
+       вплотную к клавиатуре, а не через заголовок от неё, и крестик
+       больше не стоит на пути пальца, тянущегося к полю. */
+    win.appendChild(head);
+    win.appendChild(feed);
+    win.appendChild(foot);
+
+    /* Тап по затемнению закрывает, по панели — нет. Тот же уговор, что
+       у попапа настроек. */
+    wrap.addEventListener('click', function () { guard('dcClose', dcClose)(); });
+    win.addEventListener('click', function (e) { e.stopPropagation(); });
+
+    wrap.appendChild(win);
+    (document.body || document.documentElement).appendChild(wrap);
+
+    /* Замер — после вставки: до неё панели нет, мерить нечего.
+       Слушаем и resize, и scroll: высоту видимой полосы меняет первое,
+       а её СМЕЩЕНИЕ внутри окна раскладки — второе, и от смещения
+       зависит, где у панели верх (разбор у dcFit). */
+    guard('dcFit', dcFit)();
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', dcFitSafe);
+      window.visualViewport.addEventListener('scroll', dcFitSafe);
+    }
+
+    /* Лента с нуля при каждом открытии: держать её между заходами
+       незачем, а неверный dcLast заставил бы чат молчать. */
+    dcLast = '0';
+    guard('dcPoll', dcPoll)();
+    dcTimer = setInterval(function () { guard('dcPoll', dcPoll)(); }, DC_EVERY);
+
+    /* Фокуса при открытии НЕТ, и это правка по второй просьбе.
+
+       Сперва он стоял: «сразу внизу клавиатура». На устройстве вышло
+       наоборот — чат открывался, и половину его тут же съедала
+       клавиатура, хотя человек пришёл читать. Писать в чат — отдельное
+       решение, и принимается оно тапом по полю; тогда же приезжает и
+       клавиатура, а панель под неё подожмётся сама. */
   }
 
   /* ============================================================
@@ -33404,7 +34008,7 @@ html.lm-nosel [contenteditable], html.lm-nosel .b-textarea_editor {
        почему-то не применяется», а не как поломка. */
     guard('injectCss', injectCss)();
     guard('threadSnap', threadSnap)();
-    guard('ensureThemeToggle', ensureThemeToggle)();
+    guard('ensureChatButton', ensureChatButton)();
     guard('setThemeColor', setThemeColor)();
     /* Размер парящих значков — ДО всего, что их строит. Прыгалки
        (ensureNav) иначе появлялись бы заводскими сорока и прыгали на
