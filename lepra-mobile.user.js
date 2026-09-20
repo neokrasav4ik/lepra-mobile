@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Lepra Mobile
 // @namespace    lepra.mobile
-// @version      3.1.50
+// @version      3.1.53
 // @description  Мобильная адаптация leprosorium.ru для iOS Safari
 // @author       neokrasav4ik
 // @homepageURL  https://github.com/neokrasav4ik/lepra-mobile
@@ -131,7 +131,7 @@
     return;
   }
 
-  var VERSION = '3.1.50';
+  var VERSION = '3.1.53';
 
   /* ============================================================
      НАСТРОЙКИ
@@ -29192,6 +29192,47 @@ html.lm-nosel [contenteditable], html.lm-nosel .b-textarea_editor {
     return false;
   }
 
+  /* Где элластику место. Спрашиваем САМИ ПРЫГАЛКИ: есть ли среди них
+     стрелка вверх.
+
+     Правило сформулировал Ден, и оно физическое, а не списочное:
+     «элластик должен быть только в тредах — где есть две прыгалки и
+     кружок между ними; где прыгалка одна (как на главной), элластик не
+     нужен». Поджатие ведь и есть эффект от ПРОЕЗДА мимо прыгалок:
+     текст жмётся, входя в их полосу, и распрямляется, выйдя. Одна
+     кнопка «наверх» никакой полосы не задаёт — жаться там не обо что.
+
+     Искать надо было именно так. До этого здесь побывали три ответа, и
+     все три отвечали не на тот вопрос:
+
+       POST_PATH               — «только страница поста». Оставляла без
+                                 элластика вкладку комментариев профиля.
+       POST_PATH + USERC_PATH  — то же плюс один адрес, на который
+                                 пожаловались. Оставляла без элластика
+                                 ещё восемь лент: замер по всем
+                                 страницам стенда показал ноль на
+                                 главной, в «моих вещах», в избранном,
+                                 на подлепрах и в архиве.
+       discoFeed || discoThread — «везде, где есть что поджимать».
+                                 Охватило и ленты, и треды — то есть
+                                 включило элластик там, где прыгалка
+                                 одна.
+
+     Общая беда у первых двух — список путей: он пополняется по одной
+     жалобе за раз. У третьего — не тот признак: «есть текст» и «есть
+     мимо чего его поджимать» это разные вещи, и правильный признак
+     второй.
+
+     Спрашиваем узел, а не условие, по которому его строили
+     (#js-comments в ensureNav): признак и предмет тогда не разойдутся
+     при следующей правке ensureNav. Прыгалок в первые мгновения может
+     ещё не быть — и ничего: elRefresh зовётся с каждой прокрутки, и
+     элластик просто начнёт тактом позже. */
+  function elPlace() {
+    var nav = document.getElementById('lm-nav');
+    return !!(nav && nav.querySelector('.lm-nav_up'));
+  }
+
   var EL_SEL = '.p_body, .c_body';
   var elState = new WeakMap();
   var elReady = [];
@@ -29577,7 +29618,7 @@ html.lm-nosel [contenteditable], html.lm-nosel .b-textarea_editor {
   var elIO = null;
 
   function elWatchBodies() {
-    if (!elasticOn() || !POST_PATH.test(location.pathname)) return;
+    if (!elasticOn() || !elPlace()) return;
     if (!('IntersectionObserver' in window)) return;
     var host = root();
     if (!host) return;
@@ -29621,7 +29662,7 @@ html.lm-nosel [contenteditable], html.lm-nosel .b-textarea_editor {
   var elWatchAt = 0;
 
   function elRefresh() {
-    if (!elasticOn() || !POST_PATH.test(location.pathname)) return;
+    if (!elasticOn() || !elPlace()) return;
     /* ГЛАВНЫЙ затвор. Без него разворот бесполезен: подготовка идёт с
        каждой прокрутки и завернула бы всё обратно в ближайшие кадры —
        качели, от которых греется телефон (те же грабли, что у
@@ -31416,8 +31457,33 @@ html.lm-nosel [contenteditable], html.lm-nosel .b-textarea_editor {
      пропускаем — по той же причине, что и в навигации по комментариям:
      у них нет высоты, и любое решение по ней будет ложным. */
 
+  /* Где лежат комментарии, которые можно уплотнять.
+
+     Долго тут стоял один #js-comments — и из-за этого уплотнение,
+     стыковка и элластик не работали на ВКЛАДКЕ КОММЕНТАРИЕВ ПРОФИЛЯ
+     (/users/<кто>/comments/). Ден сказал «перестало работать», а замер
+     показал, что не работало никогда: узла #js-comments на той вкладке
+     нет вовсе, там только #js-comments_holder — с теми же .comment,
+     теми же .c_body и теми же подписями внутри. Одна строка отсекала
+     сразу три вещи, и ни одна из них не жаловалась: discoScanComments
+     молча уходил на второй строке.
+
+     Поэтому принимаем и holder. Но ТОЛЬКО ВИДИМЫЙ, и это главная
+     оговорка: профиль — одна страница со всеми вкладками сразу.
+     Открыто «избранное», а разметка комментариев лежит рядом под
+     .b-content_section.hidden; без проверки уплотнение полезло бы в
+     скрытую вкладку, наставило бы там гнёзд и посчитало бы высоты по
+     нулям.
+
+     Проверяем КЛАССОМ, а не offsetParent. Второй честнее, но заставляет
+     браузер пересчитать раскладку, а зовут эту ямку с каждой прокрутки
+     — правило «прокрутка не запускает обходов» никто не отменял. */
   function discoThread() {
-    return document.getElementById('js-comments');
+    var t = document.getElementById('js-comments');
+    if (t) return t;
+    var h = document.getElementById('js-comments_holder');
+    if (!h || !h.closest) return null;
+    return h.closest('.b-content_section.hidden') ? null : h;
   }
 
   /* Бюджет тела комментария. В отличие от постового, вычитать нечего:
@@ -33171,7 +33237,7 @@ html.lm-nosel [contenteditable], html.lm-nosel .b-textarea_editor {
              'элластик: ' + (!elasticOn() ? 'выключен' :
                !CFG.elastic ? 'включён по хозяину (' +
                  String(location.hostname).split('.')[0] + '), выключатель снят' :
-               !POST_PATH.test(location.pathname) ? 'не на этой странице' :
+               !elPlace() ? 'не на этой странице' :
                'тел ' + elReady.length + ' в окне, ' + elLeft.length +
                  ' завёрнуто, следим за ' + elWatched +
                  ' | кадр ' +
@@ -33187,7 +33253,7 @@ html.lm-nosel [contenteditable], html.lm-nosel .b-textarea_editor {
                 «подготовкой». Дела разные, цена разная, и чинить их
                 надо порознь: заворот лечится порогом длины и запасом,
                 разворот — потолком, опись — размером порции. */
-             (!elasticOn() || !POST_PATH.test(location.pathname) ? '' :
+             (!elasticOn() || !elPlace() ? '' :
                '  заворот ' + Math.round(elStat.wrapMs) + 'мс/' + elStat.wrapN +
                  ' (худш ' + elStat.wrapMax.toFixed(1) + ')' +
                  ' | разворот ' + Math.round(elStat.unwrapMs) + 'мс/' + elStat.unwrapN +
@@ -33196,9 +33262,9 @@ html.lm-nosel [contenteditable], html.lm-nosel .b-textarea_editor {
                  (elStat.skipped ? ' | пропущено тел ' + elStat.skipped : '')),
              /* ЗАЗОР МЕЖДУ КАДРАМИ — единственное здесь число, в котором
                 есть отрисовка. Всё остальное выше — время JS. */
-             (!elasticOn() || !POST_PATH.test(location.pathname) ? '' :
+             (!elasticOn() || !elPlace() ? '' :
                'кадры прокрутки по фазам (зазор между кадрами):'),
-             (!elasticOn() || !POST_PATH.test(location.pathname) ? '' :
+             (!elasticOn() || !elPlace() ? '' :
                frОтчёт().join('\n')),
              'лёгких проходов: ' + lightRuns + ' | суммарно ' + lightMs +
                'мс | самый долгий ' + lightWorst + 'мс',
