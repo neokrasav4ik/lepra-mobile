@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Lepra Mobile
 // @namespace    lepra.mobile
-// @version      3.1.53
+// @version      3.1.58
 // @description  Мобильная адаптация leprosorium.ru для iOS Safari
 // @author       neokrasav4ik
 // @homepageURL  https://github.com/neokrasav4ik/lepra-mobile
@@ -131,7 +131,7 @@
     return;
   }
 
-  var VERSION = '3.1.53';
+  var VERSION = '3.1.58';
 
   /* ============================================================
      НАСТРОЙКИ
@@ -1287,7 +1287,14 @@
          неудачу не видели ни разу. Как только это станет известно и
          состояние «не вышло» будет сделано, флаг возвращается в false:
          отчёт не свалка, и разделы в нём включают под задачу. */
-      upload: true           /* загрузчик картинки: что писала лепра */
+      upload: true,          /* загрузчик картинки: что писала лепра */
+      /* ВКЛЮЧЕН НАРОЧНО И ВРЕМЕННО, как и загрузчик выше. Нужен ровно
+         для одного: увидеть, ЧТО лепра отвечает на запрос списка
+         подлепр. На стенде коробка собирается из поддельного ответа и
+         собирается верно, а на устройстве не появляется — значит
+         разница в настоящем ответе, и другого способа его увидеть
+         нет. Как узнаем — сюда возвращается false. */
+      subs: true             /* подлепры: ответ лепры и что из него вышло */
     }
   };
 
@@ -1333,7 +1340,8 @@
      общей ей быть незачем. Пенсне подлепры (lm-pince) осмысленно
      только на подлепре и у каждой своё. */
 
-  var SHARED_KEYS = ['lm-dark', 'lm-cfg', 'lm-disco', 'lm-sc', 'lm-navthing'];
+  var SHARED_KEYS = ['lm-dark', 'lm-cfg', 'lm-disco', 'lm-sc', 'lm-navthing',
+                     'lm-subsv'];
 
   /* Домен второго уровня: leprosorium.ru и для главной, и для любой
      подлепры. Кука с таким domain видна всем поддоменам сразу. */
@@ -11738,6 +11746,135 @@ html:not(.lm-arch) .lm-navthing_arch { display: none !important; }
   letter-spacing: .6px !important; text-transform: uppercase !important;
   color: var(--lm-dim) !important; text-align: center !important; }
 
+/* ---- Подлепры, на которые подписан ----
+
+   Коробка во всю ширину сетки и с двумя состояниями, которые человек
+   переключает сам: ПОЛОСА (одна строка значков, листается вбок) и
+   СЕТКА (все тридцать шесть сразу). Поперёк этого — второй выбор:
+   ЗНАЧКАМИ или КРАТКО (одни имена таблетками). Итого четыре сочетания
+   на двух классах коробки, и ни одного лишнего узла: тело одно и то
+   же, меняется только раскладка.
+
+   Так и просил Ден: «сетка, разворачивающаяся из полосы (т.е. и так и
+   так можно), без панели отбора, но с переключением на кратко».
+
+   Два переключателя стоят ПО КРАЯМ строки подписи и прибиты абсолютно.
+   Причина в подписи: у всех коробок она ровно по центру, и добавь их
+   в ту же строку потоком — центр уехал бы на этой одной коробке.
+   Высоты они при этом не добавляют: строка подписи и так есть. */
+.lm-tool__subs {
+  grid-column: 1 / -1 !important;
+  position: relative !important;
+  /* Сверху просторнее общего: в строке подписи у этой коробки стоят два
+     переключателя, и они ВЫШЕ подписи — кнопка с обводкой против
+     строчки в девять с половиной. По общему отступу они упирались в
+     тело («слишком прижаты», по отчёту с устройства). */
+  padding-top: 6px !important; }
+/* Просвет под подписью — больше общих шести по той же причине: считать
+   его надо от низа КНОПКИ, а не от низа подписи. */
+.lm-tool__subs .lm-tool_lb { margin-bottom: 13px !important; }
+.lm-subs_sw, .lm-subs_more {
+  position: absolute !important; top: 3px !important;
+  margin: 0 !important; padding: 3px 6px !important;
+  font-size: 9px !important; line-height: 1 !important;
+  letter-spacing: .4px !important; text-transform: uppercase !important;
+  background: var(--lm-card) !important;
+  border: 1px solid var(--lm-line) !important;
+  border-radius: 5px !important;
+  color: var(--lm-dim) !important;
+  -webkit-appearance: none !important; appearance: none !important;
+  -webkit-tap-highlight-color: transparent !important;
+  touch-action: manipulation !important; }
+.lm-subs_sw { left: 7px !important; }
+.lm-subs_more { right: 7px !important; }
+.lm-subs_sw:active, .lm-subs_more:active {
+  background: var(--lm-press) !important;
+  border-color: var(--lm-press-line) !important;
+  color: var(--lm-ink) !important; }
+
+/* Полоса: одна строка, листается вбок. overflow-y скрыт нарочно —
+   иначе браузер, увидев прокрутку по одной оси, заводит полосу и по
+   второй, и у коробки появляется лишняя пара пикселей снизу. */
+.lm-subs_body {
+  display: flex !important; gap: 8px !important;
+  overflow-x: auto !important; overflow-y: hidden !important;
+  -webkit-overflow-scrolling: touch !important;
+  /* Место под полосу прокрутки. Она наложенная: рисуется ВНУТРИ
+     коробки поверх содержимого, а не отодвигает его, — и ложилась
+     ровно на подписи под значками («внизу полоса прокрутки
+     накладывается на названия»). Двух пикселей не хватало: сама
+     полоса три-четыре плюс её отступ от края.
+     У развёрнутых видов прокрутки нет, и это поле им ни к чему —
+     снимается ниже вместе с overflow. */
+  padding-bottom: 11px !important; }
+/* Сетка: доли, а не фиксированная ширина ячейки. Коробка тянется во всю
+   ширину навштуки, а та зависит от масштаба страницы — при жёсткой
+   ячейке справа оставалась бы то щель, то обрезанный столбец. */
+.lm-tool__subs.lm-subs__open .lm-subs_body {
+  display: grid !important;
+  grid-template-columns: repeat(auto-fill, minmax(56px, 1fr)) !important;
+  gap: 10px 4px !important;
+  overflow: visible !important; padding-bottom: 0 !important; }
+/* Кратко и развёрнуто — не сетка, а перенос по строкам: у имён ширина
+   разная, и в сетке долей короткое «img» получало бы столько же места,
+   сколько «baraholka». */
+.lm-tool__subs.lm-subs__open.lm-subs__brief .lm-subs_body {
+  display: flex !important; flex-wrap: wrap !important;
+  gap: 5px !important; overflow: visible !important;
+  padding-bottom: 0 !important; }
+
+.lm-subs_cell {
+  flex: 0 0 auto !important; width: 50px !important;
+  text-align: center !important; text-decoration: none !important;
+  color: var(--lm-ink) !important;
+  -webkit-tap-highlight-color: transparent !important; }
+.lm-tool__subs.lm-subs__open .lm-subs_cell { width: auto !important; }
+.lm-subs_pic {
+  display: flex !important;
+  align-items: center !important; justify-content: center !important;
+  width: 44px !important; height: 44px !important;
+  margin: 0 auto 3px !important;
+  border-radius: 9px !important;
+  background: var(--lm-card) center/cover no-repeat !important;
+  border: 1px solid var(--lm-line) !important;
+  font-size: 13px !important; font-weight: 700 !important;
+  color: var(--lm-dim) !important;
+  text-transform: uppercase !important; }
+.lm-subs_cap {
+  display: block !important;
+  font-size: 9px !important; line-height: 1.15 !important;
+  color: var(--lm-mid) !important;
+  overflow: hidden !important; text-overflow: ellipsis !important;
+  white-space: nowrap !important; }
+/* Строка отказа: слова и кнопка «ещё раз» в одну линию. Своё правило,
+   а не общее тело, — у тела прокрутка вбок и поле под полосу, которых
+   строке из двух предметов не нужно. */
+.lm-subs_beda {
+  display: flex !important; align-items: center !important;
+  gap: 8px !important; overflow: visible !important;
+  padding-bottom: 0 !important; }
+.lm-subs_bedatext {
+  flex: 1 1 auto !important; min-width: 0 !important;
+  font-size: 11px !important; line-height: 1.2 !important;
+  color: var(--lm-dim) !important; }
+/* Таблетка «кратко» — та же шкура, что у прочих таблеток скрипта. */
+.lm-subs_pill {
+  flex: 0 0 auto !important;
+  padding: 5px 8px !important;
+  font-size: 11px !important; line-height: 1.1 !important;
+  white-space: nowrap !important; text-decoration: none !important;
+  background: var(--lm-card) !important;
+  border: 1px solid var(--lm-line) !important;
+  border-radius: ${UI_R}px !important;
+  color: var(--lm-ink) !important;
+  -webkit-tap-highlight-color: transparent !important; }
+/* Общий список — последним предметом в том же ряду, а не своей строкой:
+   это такой же переход, как и всё вокруг, и строки он не стоит. */
+.lm-subs_cell__all .lm-subs_pic,
+.lm-subs_pill__all {
+  border-style: dashed !important;
+  color: var(--lm-dim) !important; }
+
 /* Качество: поле выбора порога постов. Во всю ширину коробки. */
 .lm-navthing_extra .b-posts_threshold {
   flex: 0 0 auto !important; float: none !important;
@@ -22032,6 +22169,349 @@ html.lm-nosel [contenteditable], html.lm-nosel .b-textarea_editor {
     return box;
   }
 
+  /* ============================================================
+     ПОДЛЕПРЫ, НА КОТОРЫЕ ПОДПИСАН
+     ============================================================
+
+     На десктопе это выезжающая справа панель лепро-навигации, и Ден
+     пользуется ею ради одного: быстро уйти в свою подлепру. На телефоне
+     её нет вовсе — точнее, СПИСКА нет: разметку панели лепра держит
+     пустой и наполняет аяксом при первом раскрытии. Проверено по семи
+     страницам стенда — узел b-navthing_tab_both_sub встречается ноль
+     раз везде, кроме страницы, сохранённой с раскрытой панелью.
+
+     Значит берём сами, тем же запросом, что и она:
+
+         POST /ajax/bookmarks/domain/list
+             → { domains: [ { url, attributes: {title, logo},
+                              owner: {login, gender} } ] }
+
+     Ответ кладём в память браузера. Не ради скорости — ради подлепр: на
+     них правой колонки не бывает, а список одинаков на всём сайте, и
+     без памяти коробка была бы пустой ровно там, где она нужнее всего.
+     Кука тут не годится, в отличие от прочих настроек: тридцать шесть
+     записей с заголовками в неё не влезут.
+
+     Идентификаторов подлепр ответ не отдаёт — только адреса, — поэтому
+     подписаться и отписаться отсюда нельзя: у лепры это
+     /ajax/bookmarks/domain/{add,delete} с domain=<номер>. Ссылка на
+     общий список закрывает этот случай. */
+  var SUBS_URL   = '/ajax/bookmarks/domain/list';
+  var SUBS_KEY   = 'lm-subs';      /* память: сам список */
+  var SUBS_VIEW  = 'lm-subsv';     /* память: вид — развёрнуто, кратко */
+  var SUBS_ALL   = '/underground/';
+  /* Через сколько список считается несвежим. Подписки меняют редко, но
+     не никогда; шесть часов — один заход в день обновит, а за вечер
+     чтения лишнего запроса не будет. */
+  var SUBS_FRESH = 6 * 3600 * 1000;
+  var subsBusy = false;
+
+  function subsCache() {
+    var raw = null;
+    try { raw = localStorage.getItem(SUBS_KEY); } catch (e) { return null; }
+    if (!raw) return null;
+    try {
+      var o = JSON.parse(raw);
+      return (o && o.list && o.list.length) ? o : null;
+    } catch (e) { return null; }
+  }
+
+  function subsSave(list) {
+    try {
+      localStorage.setItem(SUBS_KEY,
+        JSON.stringify({ at: Date.now(), list: list }));
+    } catch (e) {}
+  }
+
+  /* Вид — двумя буквами: первая про разворот, вторая про начертание.
+     Двумя, а не пустой строкой с признаками: пустое значение куки
+     часть браузеров считает отсутствующим, и заводское состояние
+     переставало отличаться от выбранного. */
+  function subsView() {
+    var v = String(prefGet(SUBS_VIEW) || 'cp');
+    return { open: v.charAt(0) === 'o', brief: v.charAt(1) === 'b' };
+  }
+
+  function subsViewSet(key, on) {
+    var v = subsView();
+    v[key] = on;
+    prefSet(SUBS_VIEW, (v.open ? 'o' : 'c') + (v.brief ? 'b' : 'p'));
+  }
+
+  function subsShort(host) { return String(host || '').split('.')[0]; }
+
+  /* Адрес без схемы: на https-странице он и откроется по https, а
+     прописать её самим значило бы решить за лепру. */
+  function subsHref(host) { return '//' + host + '/'; }
+
+  /* Что вышло из последнего запроса — СЛОВАМИ, для отчёта.
+
+     Заведено после «у меня не работает, подлепр не вижу»: на стенде
+     коробка собиралась из поддельного ответа и собиралась верно, а на
+     устройстве не появлялась вовсе. Разница между стендом и телефоном
+     ровно одна — настоящий ответ лепры, и единственный способ узнать
+     про него хоть что-нибудь — записать его и распечатать.
+
+     Пишем не «получилось / не получилось», а весь путь: код ответа, его
+     тип, длину тела, разобрался ли JSON, какие у него ключи верхнего
+     уровня, сколько записей в domains и какие у первой поля. Любая из
+     этих строк называет виновного сама, без второго захода. */
+  var subsNote = 'не спрашивали';
+
+  /* Спрашивали и не вышло. Именно так, а не «списка нет»: списка нет и
+     до первого запроса, и молчать в этом случае правильно. */
+  function subsFail() {
+    return subsNote !== 'не спрашивали' && subsNote !== 'спросили…' &&
+           !subsCache();
+  }
+
+  function subsFetch() {
+    if (subsBusy) return;
+    subsBusy = true;
+    subsNote = 'спросили…';
+    var код = 0, тип = '';
+    lepPost(SUBS_URL, {}, true)
+      .then(function (r) {
+        код = r.status;
+        тип = String(r.headers.get('content-type') || '').split(';')[0];
+        return r.text();
+      })
+      .then(function (t) {
+        subsBusy = false;
+        subsNote = 'ответ ' + код + ' ' + (тип || '?') + ', ' + t.length + ' знаков';
+        var o = null;
+        try { o = JSON.parse(t); } catch (e) {
+          subsNote += ' | НЕ JSON: ' + t.slice(0, 90).replace(/\s+/g, ' ');
+          guard('subsDraw', subsDraw)();
+          return;
+        }
+        subsNote += ' | ключи: ' + Object.keys(o || {}).join(',');
+        var raw = (o && o.domains) || [];
+        if (!raw.length) {
+          subsNote += ' | domains пуст';
+          guard('subsDraw', subsDraw)();
+          return;
+        }
+        subsNote += ' | domains ' + raw.length +
+                    ' | поля: ' + Object.keys(raw[0] || {}).join(',');
+        var list = [];
+        for (var i = 0; i < raw.length; i++) {
+          var d = raw[i];
+          if (!d || !d.url) continue;
+          var a = d.attributes || {};
+          var logo = String(a.logo || '');
+          /* Пустышку лепры за логотип не считаем: у четырёх подлепр из
+             тридцати шести картинки нет вовсе, и она подставляет
+             прозрачный гиф. Пустой квадрат в ряду читается как «не
+             загрузилось»; вместо него нарисуем буквы. */
+          if (logo.indexOf('0.gif') >= 0) logo = '';
+          list.push({ host: String(d.url),
+                      title: String(a.title || d.url),
+                      logo: logo });
+        }
+        subsNote += ' | разобрано ' + list.length;
+        if (!list.length) { guard('subsDraw', subsDraw)(); return; }
+        subsSave(list);
+        guard('subsDraw', subsDraw)();
+      })
+      .catch(function (e) {
+        subsBusy = false;
+        subsNote = 'отказ: ' + String((e && e.message) || e).slice(0, 110);
+        guard('subsDraw', subsDraw)();
+      });
+  }
+
+  /* Спрашиваем на загрузке ЛЮБОЙ страницы, а не при раскрытии навштуки
+     (разбор — у места вызова). Дважды за страницу не спрашиваем даже
+     при отказе: subsBusy сторожит только одновременность, а отказ без
+     этой метки заставлял бы ломиться в сеть с каждого прохода. */
+  var subsTried = false;
+
+  function subsWake() {
+    if (subsTried) return;
+    var c = subsCache();
+    if (c && Date.now() - (+c.at || 0) <= SUBS_FRESH) return;
+    subsTried = true;
+    guard('subsFetch', subsFetch)();
+  }
+
+  function subsCell(s) {
+    var a = document.createElement('a');
+    a.className = 'lm-subs_cell';
+    a.setAttribute('href', subsHref(s.host));
+    a.setAttribute('title', s.title || s.host);
+    var pic = document.createElement('span');
+    pic.className = 'lm-subs_pic';
+    /* setProperty с весом, а не присваивание: в правиле у значка стоит
+       background с пометкой important — подложка и скругление нужны и
+       пустому гнезду, — а обычный инлайновый стиль важному проигрывает.
+       Первая сборка ставила присваиванием, и все тридцать шесть значков
+       вышли пустыми квадратами; снимок поймал это сразу. Та же грабля,
+       что у отступа гнезда в дорожке точности. */
+    if (s.logo)
+      pic.style.setProperty('background-image',
+        'url("' + s.logo + '")', 'important');
+    else pic.textContent = subsShort(s.host).slice(0, 2);
+    var cap = document.createElement('span');
+    cap.className = 'lm-subs_cap';
+    cap.textContent = subsShort(s.host);
+    a.appendChild(pic);
+    a.appendChild(cap);
+    return a;
+  }
+
+  function subsPill(s) {
+    var a = document.createElement('a');
+    a.className = 'lm-subs_pill';
+    a.setAttribute('href', subsHref(s.host));
+    a.setAttribute('title', s.title || s.host);
+    a.textContent = subsShort(s.host);
+    return a;
+  }
+
+  /* Переход в общий список подлепр — предметом того же рода, что и
+     соседи, иначе он потребовал бы своей строки. */
+  function subsAllItem(brief) {
+    if (brief) {
+      var p = document.createElement('a');
+      p.className = 'lm-subs_pill lm-subs_pill__all';
+      p.setAttribute('href', SUBS_ALL);
+      p.textContent = 'общий список';
+      return p;
+    }
+    var a = document.createElement('a');
+    a.className = 'lm-subs_cell lm-subs_cell__all';
+    a.setAttribute('href', SUBS_ALL);
+    a.setAttribute('title', 'все подлепры Лепрозория');
+    var pic = document.createElement('span');
+    pic.className = 'lm-subs_pic';
+    pic.textContent = '…';
+    var cap = document.createElement('span');
+    cap.className = 'lm-subs_cap';
+    cap.textContent = 'общий';
+    a.appendChild(pic);
+    a.appendChild(cap);
+    return a;
+  }
+
+  /* Перерисовка целиком, а не правка на месте: предметов от силы
+     четыре десятка, а состояний четыре, и сборка заново короче и
+     честнее любого разбора «что было и что стало».
+
+     КОРОБКУ МОЖНО ПЕРЕДАТЬ ПРЯМО, и это не украшение.
+
+     Прежняя сборка искала её по документу первой же строкой, а звали её
+     из buildNavthing — до того, как навштука вставлена в страницу.
+     Поиск по документу в ещё не вставленном дереве не находит ничего и
+     не жалуется: функция честно возвращала false, и коробка оставалась
+     пустой.
+
+     На стенде этого не было видно НИ РАЗУ, и причина поучительная: там
+     память всегда пуста, значит уходит запрос, а его ответ дорисовывает
+     коробку много позже — когда навштука давно в странице. То есть
+     стенд проверял только тот путь, на котором ошибки нет.
+
+     Ден увидел ровно обратный случай: список в памяти свежий, запроса
+     нет вовсе, и единственная отрисовка — та самая, в оторванном
+     дереве. Его отчёт это и сказал дословно: «запрос: не спрашивали, в
+     памяти: 36 шт, коробка: спрятана, предметов 0». */
+  function subsDraw(box) {
+    if (!box) box = document.querySelector('.lm-navthing_extra .lm-tool__subs');
+    if (!box) return false;
+
+    var old = box.querySelector('.lm-subs_body');
+    if (old) box.removeChild(old);
+
+    var c = subsCache();
+    var list = c ? c.list : null;
+    var v = subsView();
+    box.classList.toggle('lm-subs__open', v.open);
+    box.classList.toggle('lm-subs__brief', v.brief);
+
+    var sw = box.querySelector('.lm-subs_sw');
+    var more = box.querySelector('.lm-subs_more');
+    if (sw) sw.textContent = v.brief ? 'значками' : 'кратко';
+    if (more) more.textContent = v.open ? 'свернуть'
+      : (list ? 'все ' + list.length : 'все');
+
+    /* Списка нет — но КОРОБКА ЕСТЬ, если мы уже пытались и не вышло.
+
+       Сперва коробка в этом случае просто пряталась, и рассуждение было
+       правильное: пустая рамка с подписью читается поломкой. Отчёт Дена
+       «у меня не работает, подлепр не вижу» показал, чем это
+       оборачивается на деле: человек не может отличить «не получилось»
+       от «эту вещь вам не завезли», и единственное, что ему остаётся, —
+       написать мне.
+
+       Поэтому молчим только ДО первой попытки. Не вышло — говорим об
+       этом вслух и даём переспросить: строка с отказом честнее пустого
+       места, а «ещё раз» закрывает половину отказов (сеть моргнула)
+       без всякого разбирательства. */
+    if (!list) {
+      if (subsFail()) {
+        var beda = document.createElement('div');
+        beda.className = 'lm-subs_body lm-subs_beda';
+        var t = document.createElement('span');
+        t.className = 'lm-subs_bedatext';
+        t.textContent = 'список подлепр не пришёл';
+        var again = document.createElement('button');
+        again.type = 'button';
+        again.className = 'lm-subs_pill';
+        again.textContent = 'ещё раз';
+        again.addEventListener('click', function (e) {
+          e.preventDefault();
+          subsTried = false;
+          guard('subsWake', subsWake)();
+        });
+        beda.appendChild(t);
+        beda.appendChild(again);
+        box.appendChild(beda);
+      }
+      guard('navToolSync', navToolSync)(box.closest('.lm-navthing_extra'));
+      return false;
+    }
+
+    var body = document.createElement('div');
+    body.className = 'lm-subs_body';
+    list.forEach(function (s) {
+      body.appendChild(v.brief ? subsPill(s) : subsCell(s));
+    });
+    body.appendChild(subsAllItem(v.brief));
+    box.appendChild(body);
+    guard('navToolSync', navToolSync)(box.closest('.lm-navthing_extra'));
+    return true;
+  }
+
+  function subsBox() {
+    var box = navTool('subs', 'Подлепры');
+
+    var sw = document.createElement('button');
+    sw.type = 'button';
+    sw.className = 'lm-subs_sw';
+    /* Метка «не считать за содержимое» — для navToolSync: переключатели
+       есть всегда, а коробку показывать надо только со списком. */
+    sw.dataset.lmChrome = '1';
+    sw.addEventListener('click', function (e) {
+      e.preventDefault();
+      subsViewSet('brief', !subsView().brief);
+      guard('subsDraw', subsDraw)();
+    });
+
+    var more = document.createElement('button');
+    more.type = 'button';
+    more.className = 'lm-subs_more';
+    more.dataset.lmChrome = '1';
+    more.addEventListener('click', function (e) {
+      e.preventDefault();
+      subsViewSet('open', !subsView().open);
+      guard('subsDraw', subsDraw)();
+    });
+
+    box.appendChild(sw);
+    box.appendChild(more);
+    return box;
+  }
+
   /* Показать только те коробки, в которых что-то есть.
 
      Пустых быть не должно: переключателя вида нет нигде, кроме главной,
@@ -22040,12 +22520,27 @@ html.lm-nosel [contenteditable], html.lm-nosel .b-textarea_editor {
      читается как поломка, а не как «тут ничего нет».
 
      Считаем по детям помимо подписи, а не по :empty: подпись внутри
-     есть всегда, и :empty не сработал бы ни разу. */
-  function navToolSync() {
-    var extra = document.querySelector('.lm-navthing_extra');
+     есть всегда, и :empty не сработал бы ни разу.
+
+     Помимо подписи не считаем и ОБВЯЗКУ — узлы с меткой lmChrome. Она
+     появилась у коробки подлепр: два переключателя вида стоят в ней
+     всегда, а показывать коробку надо только когда есть сам список.
+     Без метки счёт детей давал бы три и коробка светилась бы пустой.
+     Метка, а не имя класса: следующей коробке с обвязкой не придётся
+     править эту ямку.
+
+     Поднос можно передать ПРЯМО. Без этого проход искал его по
+     документу и на ещё не вставленной навштуке не находил ничего —
+     молча, с виду законно. Так и вышло: сборка звала этот проход до
+     вставки, и на устройстве Дена коробка подлепр оставалась пустой.
+     Разбор — у subsDraw, где та же ямка. */
+  function navToolSync(extra) {
+    if (!extra) extra = document.querySelector('.lm-navthing_extra');
     if (!extra) return;
     sliceOf(extra.querySelectorAll('.lm-tool')).forEach(function (box) {
-      var live = box.children.length > 1;
+      var live = sliceOf(box.children).some(function (n) {
+        return !n.classList.contains('lm-tool_lb') && !n.dataset.lmChrome;
+      });
       box.classList.toggle('lm-on', live);
     });
   }
@@ -22336,6 +22831,11 @@ html.lm-nosel [contenteditable], html.lm-nosel .b-textarea_editor {
     var variety = navTool('variety', 'Разнообразие');
     var comfort = navTool('comfort', 'Удобство');
     var scroll = navTool('scroll', 'Скролл-комфорт');
+    /* Подлепры — пятой коробкой и во всю ширину сетки, под четвёркой
+       органов и над поиском. Место выбрано Деном («пятой коробкой») и
+       выбрано верно: всё, что выше, управляет ТЕКУЩЕЙ страницей, а
+       подлепры и поиск — это уход с неё. */
+    var subs = subsBox();
 
     if (th) quality.appendChild(th);
     if (slider) variety.appendChild(slider);
@@ -22344,6 +22844,7 @@ html.lm-nosel [contenteditable], html.lm-nosel .b-textarea_editor {
     extra.appendChild(variety);
     extra.appendChild(comfort);
     extra.appendChild(scroll);
+    extra.appendChild(subs);
 
     /* Поиск — во всю ширину сетки, последней строкой. Он не орган выбора,
        а поле ввода: делить с кем-то строку ему незачем, а узкое поле
@@ -22367,7 +22868,15 @@ html.lm-nosel [contenteditable], html.lm-nosel .b-textarea_editor {
     navStats(links);
     navCellName(links);
     buildSliderIcons(variety);
-    navToolSync();
+    /* Подлепры — из памяти, сразу и без запроса: на прошлой странице их
+       уже спрашивали. Пусто — коробку спрячет navToolSync внутри самой
+       subsDraw, а запрос уйдёт следом, из subsWake.
+
+       Коробку передаём ПРЯМО, а не ищем по документу: навштуки в
+       странице ещё нет, и поиск по документу не нашёл бы ничего. Это и
+       была та самая ошибка — см. разбор у subsDraw. */
+    guard('subsDraw', subsDraw)(subs);
+    navToolSync(extra);
 
     box.appendChild(btn);
     box.appendChild(body);
@@ -24797,11 +25306,18 @@ html.lm-nosel [contenteditable], html.lm-nosel .b-textarea_editor {
      delay(10000)); учащать нельзя, это чужой сервер. Потолок сообщения
      255 знаков — тоже её число, из validateMessage.
 
-     Токен берём findCsrf — той самой, что заведена для отметок пыни:
-     она ищет его ПО ВИДУ (base64 от 64 шестнадцатеричных знаков), а не
-     по имени, потому что в разметке страницы его нет вовсе, а
-     globals.user.csrf_token живёт в мире страницы, куда расширению
-     Safari хода нет.
+     Токен берёт lepForm через lepCsrf — разбор там же.
+
+     ЗДЕСЬ РАНЬШЕ СТОЯЛО НЕВЕРНОЕ, и стоило это подлепр на подлепрах:
+     «токен берём findCsrf… потому что в разметке страницы его нет
+     вовсе». В разметке он ЕСТЬ — во встроенном <script>, который
+     приходит с сервера. Не видно его было потому, что сохранённые
+     страницы стенда встроенных скриптов не содержат: .mhtml их
+     выбрасывает. То есть утверждение описывало стенд, а читалось как
+     утверждение о лепре.
+
+     Правило в копилку: «этого нет» про живой сайт нельзя выводить из
+     стенда — стенд знает только то, что попало в архив.
 
      Никуда, кроме leprosorium.ru, запросы не уходят: адреса
      относительные, и собирает их location.host. */
@@ -24831,20 +25347,89 @@ html.lm-nosel [contenteditable], html.lm-nosel .b-textarea_editor {
     return dcNickCache;
   }
 
-  /* Тело запроса. Токен добавляется последним и только если нашёлся:
+  /* ---- Запрос к аяксу лепры ----
+
+     Ямка общая, не чатовая, и имя у неё с 3.1.54 общее же: тем же
+     способом устроены ВСЕ её аяксы (futuAjax в её script.js), и вторым
+     зовущим стал список подлепр. Держать под каждого свою копию
+     значило бы однажды поправить токен в одной и забыть про другую.
+
+     Тело запроса. Токен добавляется последним и только если нашёлся:
      без него лепра ответит отказом, но пусть отвечает она, а не мы
-     молча — отказ видно в ленте, а несделанный запрос нет. */
-  function dcForm(pairs) {
+     молча — отказ видно, а несделанный запрос нет. */
+  function lepForm(pairs) {
     var out = [];
     Object.keys(pairs).forEach(function (k) {
       out.push(encodeURIComponent(k) + '=' + encodeURIComponent(pairs[k]));
     });
-    var c = guard('findCsrf', findCsrf)();
+    var c = lepCsrf();
     if (c && c.token) out.push('csrf_token=' + encodeURIComponent(c.token));
     return out.join('&');
   }
 
-  function dcAsk(path, pairs) {
+  /* ЧЕЙ ТОКЕН КЛАСТЬ В АЯКС — вопрос, на который у этого файла уже был
+     ответ, а ямка про него не знала.
+
+     Токенов у лепры два (полный разбор — выше, у ajaxCsrf). Для /ajax/
+     годится только один; второй отвергается двумястами и телом
+     {"status":"ERR","errors":[{"code":"invalid_csrf_token"}]}. Ямка
+     звала findCsrf — искалку ВТОРОГО, заведённую когда-то для отметок
+     пыни, — и на главной это сходило с рук: там findCsrf добиралась до
+     сохранённого с прошлого раза значения, и оно оказывалось годным.
+
+     На подлепре не сошло. Хранилище браузера привязано к домену: на
+     books.leprosorium.ru память пуста, findCsrf не находила НИЧЕГО, и
+     запрос уходил вовсе без токена. Ден увидел это сразу в двух
+     местах — «при переходе на подлепрах не показывает… и дискочат на
+     подлепрах не работает», — и оба зовут эту ямку.
+
+     Берём ajaxCsrf. Первым её источником стоит РАЗМЕТКА текущей
+     страницы (csrfFromScripts): встроенный <script> лепры есть на
+     каждой странице каждого поддомена, и токен из него заведомо той же
+     сессии и того же домена. Не вышло — окно пыни, память, и наконец
+     кука на общем домене: её и имел в виду Ден, спрашивая «может брать
+     его с главной». Брать ниоткуда не надо — кука на .leprosorium.ru у
+     поддоменов общая, и токен, снятый на главной, виден на подлепре
+     сам.
+
+     findCsrf остаётся ПОСЛЕДНИМ запасным: ищет она по виду где попало,
+     и её находка для /ajax/ годна не всегда, — но негодный токен даёт
+     внятный отказ, а отсутствие токена не даёт ничего. */
+  function lepCsrf() {
+    var t = guard('ajaxCsrf', ajaxCsrf)();
+    if (t) return { token: t, where: ajaxCsrfFrom || 'есть' };
+    var c = guard('findCsrf', findCsrf)();
+    if (c && c.token)
+      return { token: c.token,
+               where: c.where + ', ' + c.name + ' — запасной, от /api/' };
+    return null;
+  }
+
+  /* Третий довод — сырой ответ. Обычно ямка отдаёт разобранный JSON,
+     и зовущему этого хватает. Но когда лепра отвечает НЕ тем, чего
+     ждут, разбор падает и уносит с собой всё полезное: и код
+     ответа, и само тело. Для разбирательств нужен сырой Response —
+     из него видно и то, и другое. */
+  function lepPost(path, pairs, raw) {
+    /* Не http — не спрашиваем, и это не перестраховка.
+
+       Поймала проверка на странице магазина: у лепры там два кадра
+       recaptcha и один пустой, вовсе без адреса. Пустой кадр той же
+       породы, что и страница, скрипт в нём заводится наравне со всем
+       прочим — а location.protocol у него «about:». Собранный адрес
+       выходил «about:///ajax/bookmarks/domain/list», и fetch падал с
+       отказом «схема about не поддерживается».
+
+       Видно это стало только теперь. Пока запросы уходили по нажатию
+       (дискочат), в невидимом кадре нажимать было некому; список
+       подлепр спрашивается сам, с загрузки ЛЮБОЙ страницы, — и первый
+       же прогон это показал.
+
+       Проверяем схему, а не «мы в кадре»: кадр сам по себе не помеха,
+       помеха — адрес, из которого не собрать запроса. */
+    var схема = String(location.protocol || '');
+    if (схема !== 'http:' && схема !== 'https:')
+      return Promise.reject(new Error('страница не по http: ' + схема));
     return fetch(location.protocol + '//' + location.host + path, {
       method: 'POST',
       credentials: 'same-origin',
@@ -24853,8 +25438,8 @@ html.lm-nosel [contenteditable], html.lm-nosel .b-textarea_editor {
         'Content-Type': 'application/x-www-form-urlencoded',
         'X-Requested-With': 'XMLHttpRequest'
       },
-      body: dcForm(pairs)
-    }).then(function (r) { return r.json(); });
+      body: lepForm(pairs)
+    }).then(function (r) { return raw ? r : r.json(); });
   }
 
   /* Высота панели и отступ снизу — числами, и оба считает эта.
@@ -25017,23 +25602,61 @@ html.lm-nosel [contenteditable], html.lm-nosel .b-textarea_editor {
     if (низ) feed.scrollTop = feed.scrollHeight;
   }
 
+  /* Строка вместо ленты — пока сообщений нет ни одного.
+
+     Строка эта одна на все причины, и стоит она в ленте с самого
+     открытия («загружаем…»). Важно, чтобы её МЕНЯЛИ, а не оставляли:
+     отказавший чат, который вечно показывает «загружаем…», выглядит
+     ровно как «не работает» — что Ден и написал про подлепры. Разбор
+     той же породы есть у коробки подлепр: молчать можно про то, чего
+     ещё не пробовали; про неудавшееся молчать нельзя. */
+  function dcNote(text) {
+    var feed = document.querySelector('#lm-dc .lm-dc_feed');
+    if (!feed || feed.querySelector('.lm-dc_msg')) return;
+    var n = feed.querySelector('.lm-dc_note');
+    if (!n) {
+      n = document.createElement('div');
+      n.className = 'lm-dc_note';
+      feed.appendChild(n);
+    }
+    n.textContent = text;
+  }
+
+  /* Код отказа из ответа лепры: {"status":"ERR","errors":[{"code":…}]}.
+     Пустая строка — значит отказа в ответе нет. */
+  function lepErr(r) {
+    if (!r || typeof r !== 'object') return '';
+    var код = '';
+    try { код = (r.errors && r.errors[0] && r.errors[0].code) || ''; } catch (e) {}
+    if (код) return String(код);
+    return r.status === 'ERR' ? 'без объяснения' : '';
+  }
+
   function dcPoll() {
     if (dcBusy || !document.getElementById('lm-dc')) return;
     dcBusy = true;
-    dcAsk(DC_LOAD, { last_message_id: dcLast })
+    lepPost(DC_LOAD, { last_message_id: dcLast })
       .then(function (r) {
         dcBusy = false;
-        if (r && r.messages) guard('dcDraw', dcDraw)(r.messages);
+        if (r && r.messages) {
+          guard('dcDraw', dcDraw)(r.messages);
+          /* Ответ законный, а показывать нечего. Бывает и при пустом
+             чате, и — чаще — просто когда новых сообщений нет; но если
+             в ленте нет НИ ОДНОГО, «загружаем…» лгало бы дальше. */
+          guard('dcNote', dcNote)('пока пусто');
+          return;
+        }
+        /* Ответ пришёл, а ленты в нём нет. Раньше здесь не делалось
+           НИЧЕГО, и «загружаем…» оставалось висеть навсегда. Именно так
+           выглядел чат на подлепре: запрос уходил без годного токена,
+           лепра отвечала invalid_csrf_token, а человек видел вечную
+           загрузку без единого слова о причине. */
+        var код = lepErr(r);
+        if (код) guard('dcNote', dcNote)('чат отказал: ' + код);
       })
       .catch(function () {
         dcBusy = false;
-        var feed = document.querySelector('#lm-dc .lm-dc_feed');
-        if (feed && !feed.querySelector('.lm-dc_msg')) {
-          var n = feed.querySelector('.lm-dc_note') || document.createElement('div');
-          n.className = 'lm-dc_note';
-          n.textContent = 'чат не отвечает';
-          feed.appendChild(n);
-        }
+        guard('dcNote', dcNote)('чат не отвечает');
       });
   }
 
@@ -25056,8 +25679,21 @@ html.lm-nosel [contenteditable], html.lm-nosel .b-textarea_editor {
        читается как «не ушло», после чего его отправляют второй раз. */
     inp.value = '';
     guard('dcCount', dcCount)();
-    dcAsk(DC_ADD, { body: text })
-      .then(function () { guard('dcPoll', dcPoll)(); })
+    lepPost(DC_ADD, { body: text })
+      .then(function (r) {
+        /* Отказ лепры приходит двумястами: обещание выполнено, а дело
+           не сделано. Без этой проверки набранное исчезало молча — то
+           есть ровно тем же способом, каким пропадает удачно
+           отправленное, и отличить одно от другого было нельзя. */
+        var код = lepErr(r);
+        if (код) {
+          if (!inp.value) inp.value = text;
+          guard('dcCount', dcCount)();
+          guard('dcNote', dcNote)('не отправилось: ' + код);
+          return;
+        }
+        guard('dcPoll', dcPoll)();
+      })
       .catch(function () {
         /* Не ушло — возвращаем набранное, иначе оно пропало молча. */
         if (!inp.value) inp.value = text;
@@ -33035,6 +33671,51 @@ html.lm-nosel [contenteditable], html.lm-nosel .b-textarea_editor {
      действующее значение. Печатаем ИСТОЧНИК, а не только величину:
      строка «тема: тёмная» ничего не говорит о том, разъехались ли
      поддомены, а «тема: 1 (кука) зеркало 0» говорит сразу. */
+  /* ---- Подлепры ----
+
+     Раздел заведён под одну задачу: «у меня не работает, подлепр не
+     вижу». На стенде коробка собирается из поддельного ответа и
+     собирается верно — значит виноват настоящий ответ лепры, а увидеть
+     его иначе как отсюда неоткуда.
+
+     Печатаем весь путь целиком: сам запрос (subsNote), что легло в
+     память, собралась ли коробка. Любая из трёх строк называет
+     виновного сама. Как выясним — флаг возвращается в false: отчёт не
+     свалка. */
+  function reportSubs(L) {
+    L.push('', '--- подлепры ---');
+    L.push('запрос: ' + subsNote);
+    var c = subsCache();
+    L.push('в памяти: ' + (c ? c.list.length + ' шт, снято ' +
+             Math.round((Date.now() - (+c.at || 0)) / 60000) + ' мин назад'
+           : 'пусто'));
+    var box = document.querySelector('.lm-navthing_extra .lm-tool__subs');
+    /* Предметы считаем ТОЛЬКО в настоящем теле: в строке отказа лежит
+       таблетка «ещё раз» той же породы, и без оговорки отчёт писал бы
+       «предметов 1» там, где подлепр нет ни одной. */
+    L.push('коробка: ' + (!box ? 'не собрана' :
+      (box.classList.contains('lm-on') ? 'показана' : 'спрятана') +
+      (box.querySelector('.lm-subs_beda') ? ', строка отказа' : '') +
+      ', предметов ' + box.querySelectorAll(
+        '.lm-subs_body:not(.lm-subs_beda) .lm-subs_cell,' +
+        '.lm-subs_body:not(.lm-subs_beda) .lm-subs_pill').length));
+    L.push('навштука: ' + (document.getElementById('lm-navthing')
+      ? 'есть' : 'НЕТ') + ' | вид: ' + (prefGet(SUBS_VIEW) || '(заводской)'));
+    /* Токен — только «нашёлся и где», без значения: в отчёт, который
+       пересылают, значение попадать не должно. Правило старое, из
+       разбора пыни.
+
+       Спрашиваем ТУ ЖЕ lepCsrf, которой пользуется сам запрос. Прежде
+       здесь стояла findCsrf, а запрос брал токен иначе, — и отчёт
+       говорил про один токен, а отказ приходил из-за другого. Отчёт,
+       который описывает не то, что происходит, хуже отсутствующего:
+       он уводит. */
+    var t = lepCsrf();
+    L.push('токен: ' + (t ? 'нашёлся (' + t.where + ')' : 'НЕ НАЙДЕН'));
+    L.push('домен: ' + location.hostname + ' | память домена: ' +
+           (subsCache() ? 'есть' : 'пусто'));
+  }
+
   function reportPrefs(L) {
     L.push('', '--- общие настройки ---');
     L.push('домен куки: .' + baseDomain());
@@ -33313,6 +33994,7 @@ html.lm-nosel [contenteditable], html.lm-nosel .b-textarea_editor {
     if (R.disco) reportDisco(L);
     if (R.threads) reportThreads(L);
     if (R.pyn) reportPyn(L);
+    if (R.subs) reportSubs(L);
     if (R.prefs) reportPrefs(L);
     if (R.votes) reportVotes(L);
 
@@ -34108,6 +34790,23 @@ html.lm-nosel [contenteditable], html.lm-nosel .b-textarea_editor {
     guard('relayoutHeader', relayoutHeader)();
     /* строго после шапки: она собирает шапку, за которой встаёт блок */
     guard('buildNavthing', buildNavthing)();
+    /* Подлепры — с загрузки страницы, ЛЮБОЙ, а не с раскрытия навштуки.
+
+       Сперва запрос стоял на раскрытии: «закрытой коробки не видно,
+       зачем спрашивать». Ден на это: «пусть список подгружается при
+       загрузке страницы, любой, а не при раскрытии навштуки — чтоб
+       всегда и везде был доступен моментально». И это правильнее:
+       ожидание в полсекунды при первом раскрытии — та самая заминка,
+       из-за которой вещью перестают пользоваться.
+
+       Дороже это не стало. Спрашиваем не «на каждой странице», а
+       «когда память несвежая» — раз в шесть часов; в остальные заходы
+       subsWake уходит первой же строкой, не тронув сети.
+
+       Порядок с buildNavthing не важен ни в одну сторону: успела
+       сборка — ответ дорисует готовую коробку, успел ответ — сборка
+       возьмёт список из памяти. */
+    guard('subsWake', subsWake)();
     /* Строго после сборки: счётчики подлепр на подлепре лепра дописывает
        позже разметки, и одного разбора при сборке не хватает. Разбор
        идемпотентен, повторные заходы дёшевы — см. navCellsSync. */
