@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Lepra Mobile
 // @namespace    lepra.mobile
-// @version      3.1.58
+// @version      3.1.59
 // @description  Мобильная адаптация leprosorium.ru для iOS Safari
 // @author       neokrasav4ik
 // @homepageURL  https://github.com/neokrasav4ik/lepra-mobile
@@ -131,7 +131,7 @@
     return;
   }
 
-  var VERSION = '3.1.58';
+  var VERSION = '3.1.59';
 
   /* ============================================================
      НАСТРОЙКИ
@@ -6192,9 +6192,17 @@ ${indentRules()}
    доказал, что оговорка выше не теоретическая: в первой сборке шеврон
    встал вплотную за ником вместо правого края, потому что его
    margin-left: auto проиграл здешнему margin: 0. Один класс против
-   здешних четырёх плюс четыре :not() — не спор вовсе. */
+   здешних четырёх плюс четыре :not() — не спор вовсе.
+
+   Плашка подлепры (.b-post_domain) — третий случай того же рода, и
+   изъята она только из второго селектора: он один её и достаёт. У неё
+   своё правило ниже по файлу (высота под голосовалку, поля по пять,
+   inline-flex), и здешние padding: 1px 0 с display: block его
+   перебивали — шесть классов против четырёх. Видно это было замером, а
+   не глазом: плашка выходила 29 пикселей шириной вместо 39, то есть
+   слово «idiod» стояло вплотную к рамке. */
 .comment .c_footer > *:not(.b-comment_thread_collapse):not(.ddi):not(.lm-fline):not(.lm-more_box):not(.lm-fchev):not(script):not(style),
-.comment .c_footer .lm-fline > *:not(.b-comment_thread_collapse):not(.lm-more_box):not(.lm-fchev):not(script):not(style),
+.comment .c_footer .lm-fline > *:not(.b-comment_thread_collapse):not(.lm-more_box):not(.lm-fchev):not(.b-post_domain):not(script):not(style),
 .comment .ddi > *:not(.b-comment_thread_collapse):not(script):not(style) {
   display: inline-block !important;
   padding: 1px 0 !important; margin: 0 !important; }
@@ -13550,8 +13558,15 @@ html.lm-dark .lm-set_win > * {
    (.b-post_domain: рамка в пиксель, скругление 3, поля по два) —
    трогать её незачем, но нужно не дать ссылке сжаться при переносе и
    выровнять её по высоте с голосовалкой рядом: у голосовалки 28
-   пикселей, и ссылка в 15 висела бы у её верхнего края. */
-.dd .ddi .lm-fline__2 a.b-post_domain {
+   пикселей, и ссылка в 15 висела бы у её верхнего края.
+
+   Правило на ОБЕ подписи — поста и комментария. Прежде оно было
+   только про пост: у комментария плашка стояла в первой строке, где
+   голосовалки рядом нет и выравнивать не с чем. С 3.1.59 она уехала во
+   вторую, к голосовалке, — и всё сказанное выше стало верно и для неё
+   слово в слово. */
+.dd .ddi .lm-fline__2 a.b-post_domain,
+.comment .c_footer .lm-fline__2 a.b-post_domain {
   flex: 0 0 auto !important;
   display: inline-flex !important; align-items: center !important;
   height: 20px !important; padding: 0 5px !important;
@@ -18631,8 +18646,22 @@ html.lm-nosel [contenteditable], html.lm-nosel .b-textarea_editor {
 
      Порядок внутри списка тоже не случаен: он и есть порядок в строке,
      а значит «что он написал?» встаёт сразу за стрелкой ответа, как
-     задумано лепрой, а точка со значками остаётся последней. */
-  var CFOOT_ROW2 = ['.vote', '.c_date', '.c_answer',
+     задумано лепрой, а точка со значками остаётся последней.
+
+     Плашка подлепры стоит второй, сразу за голосовалкой, — по просьбе
+     Дена и слово в слово: «пусть название подлепры идёт во второй
+     строке сразу после голосовалки.. как в подписях постов». В
+     FOOT_ROW2 у поста она ровно там же, и теперь оба списка читаются
+     одинаково.
+
+     В РАЗМЕТКЕ ЛЕПРЫ ОНА ЛЕЖИТ НЕ ТАМ: у комментария — в первой
+     строке, сразу за ником («Написал <ник> на <плашка>»), в отличие от
+     поста, где она и в разметке стоит после ника с датой. Порядок
+     задаёт список, а не разметка, поэтому переносить руками ничего не
+     нужно — довольно упомянуть селектор. Предлог «на» перед нею
+     убирает trimDomain: иначе он остался бы сиротой в конце первой
+     строки. */
+  var CFOOT_ROW2 = ['.vote', 'a.b-post_domain', '.c_date', '.c_answer',
                     '.c_expand', '.c_collapse', '.lm-more_box'];
 
   function splitCommentFooter(footer) {
@@ -18854,6 +18883,9 @@ html.lm-nosel [contenteditable], html.lm-nosel .b-textarea_editor {
       if (seen.footer.has(foot)) return;
       seen.footer.add(foot);
       foot.querySelectorAll('.js-date').forEach(shortenDate);
+      /* До деления на строки: оно уносит плашку во вторую строку, и
+         предлог перед нею надо убрать, пока он ещё её сосед. */
+      trimDomain(foot);
       iconifyAnswer(foot);
       vectorIcons(foot);
       groupCommentIcons(foot);
@@ -18973,37 +19005,49 @@ html.lm-nosel [contenteditable], html.lm-nosel .b-textarea_editor {
     ddi.appendChild(r2);
   }
 
+  /* Плашка подлепры в подписи: короткое имя и без предлога.
+
+     Одна и та же для поста и для комментария. Разбор писался под пост,
+     а потом Ден попросил того же в подписи комментария — «пусть
+     название подлепры идёт во второй строке сразу после голосовалки..
+     как в подписях постов». Копия разъехалась бы с оригиналом, а
+     тонкостей тут две и обе неочевидные.
+
+     ИМЯ. У поста лепра пишет его целиком («idiod.leprosorium.ru»), у
+     комментария — уже коротким («idiod»). Отрезаем по точке и только
+     если есть что резать; полное уходит в подсказку.
+
+     ПРЕДЛОГ. Он лежит отдельным текстовым узлом перед плашкой, и он не
+     один: у поста «в idiod», у комментария «на idiod» — лепра выбирает
+     его по названию. Плашка уезжает во вторую строку, к голосовалке, и
+     предлог остался бы висеть в конце первой сиротой. Убираем узел, а
+     не прячем стилем: пустой текстовый узел во флекс-строке всё равно
+     создаёт безымянный элемент и лишний зазор. */
+  function trimDomain(root) {
+    var domain = root.querySelector('a.b-post_domain');
+    if (!domain) return;
+    var full = (domain.textContent || '').trim();
+    var short = full.split('.')[0];
+    if (short && short !== full) {
+      domain.title = full;
+      domain.textContent = short;
+    }
+    var prev = domain.previousSibling;
+    while (prev && prev.nodeType === 3 &&
+           /^[\s\u00a0]*(в|на)?[\s\u00a0]*$/.test(prev.nodeValue)) {
+      var dead = prev;
+      prev = prev.previousSibling;
+      dead.parentNode.removeChild(dead);
+    }
+  }
+
   function compactPostFooters() {
     document.querySelectorAll('.dd .ddi').forEach(function (ddi) {
       if (seen.footer.has(ddi)) return;
       seen.footer.add(ddi);
 
       moveVoteToFooter(ddi);
-
-      var domain = ddi.querySelector('a.b-post_domain');
-      if (domain) {
-        var full = (domain.textContent || '').trim();
-        var short = full.split('.')[0];
-        if (short && short !== full) {
-          domain.title = full;
-          domain.textContent = short;
-        }
-        /* Предлог «в» перед названием подлепры лепра пишет отдельным
-           текстовым узлом. В строку он не влезает по смыслу: подлепра
-           уезжает во вторую строку, к голосовалке, и «в» осталось бы
-           висеть в конце первой сиротой. Убираем узел, а не прячем
-           стилем: пустой текстовый узел во флекс-строке всё равно
-           создаёт безымянный элемент и лишний зазор. */
-        /* Предлог у лепры не один: «в кино», но «на дваче» — она
-           выбирает его по названию подлепры. Ловим оба. */
-        var prev = domain.previousSibling;
-        while (prev && prev.nodeType === 3 &&
-               /^[\s\u00a0]*(в|на)?[\s\u00a0]*$/.test(prev.nodeValue)) {
-          var dead = prev;
-          prev = prev.previousSibling;
-          dead.parentNode.removeChild(dead);
-        }
-      }
+      trimDomain(ddi);
 
       ddi.querySelectorAll('.js-date').forEach(shortenDate);
 
